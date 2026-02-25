@@ -33,6 +33,8 @@ This matrix tracks upstream test-file parity and corresponding local checks.
 | `tests/test_obj_TriangularMesh.py` | `tests/upstream_mirror/test_obj_TriangularMesh.py` | Implemented |
 | `tests/test_field_cylinder.py` (segment sections) | `tests/parity/test_cylinder_segment_parity.py`, `tests/parity_gates/test_source_profiles.py` | Implemented |
 | `tests/test_BHMJ_level.py` (mesh/sheet/strip portions) | `tests/parity_gates/test_source_profiles.py` | Partial |
+| `tests/test_obj_Sensor.py` | `tests/upstream_mirror/test_obj_Sensor.py` | Partial |
+| `tests/test_obj_Collection.py` | `tests/upstream_mirror/test_obj_Collection.py` | Partial |
 
 ## API and behavior parity
 

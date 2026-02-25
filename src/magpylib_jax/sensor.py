@@ -51,14 +51,21 @@ class Sensor:
         # Broadcast sensor path over pixel layout.
         return pos[(slice(None),) + (None,) * (pix.ndim - 1)] + pix[None, ...]
 
-    def getB(self, sources: object) -> jnp.ndarray:
-        return getB(sources, self.observers)
+    @property
+    def centroid(self) -> jnp.ndarray:
+        obs = jnp.asarray(self.observers, dtype=jnp.float64)
+        if obs.ndim == 1:
+            return obs
+        return jnp.mean(obs.reshape((-1, 3)), axis=0)
 
-    def getH(self, sources: object) -> jnp.ndarray:
-        return getH(sources, self.observers)
+    def getB(self, sources: object, *, in_out: str = "auto") -> jnp.ndarray:
+        return getB(sources, self.observers, in_out=in_out)
 
-    def getJ(self, sources: object) -> jnp.ndarray:
-        return getJ(sources, self.observers)
+    def getH(self, sources: object, *, in_out: str = "auto") -> jnp.ndarray:
+        return getH(sources, self.observers, in_out=in_out)
 
-    def getM(self, sources: object) -> jnp.ndarray:
-        return getM(sources, self.observers)
+    def getJ(self, sources: object, *, in_out: str = "auto") -> jnp.ndarray:
+        return getJ(sources, self.observers, in_out=in_out)
+
+    def getM(self, sources: object, *, in_out: str = "auto") -> jnp.ndarray:
+        return getM(sources, self.observers, in_out=in_out)

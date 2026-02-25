@@ -54,5 +54,19 @@
     "trianglestrip": 3500000000,
     "triangularmesh": 3500000000,
     "tetrahedron": 3500000000
+  },
+  "hlo_size_bytes": {
+    "dipole": 2000000,
+    "circle": 2000000,
+    "cuboid": 2000000,
+    "cylinder": 2000000,
+    "cylindersegment": 2000000,
+    "sphere": 2000000,
+    "polyline": 2000000,
+    "triangle": 2000000,
+    "trianglesheet": 2000000,
+    "trianglestrip": 2000000,
+    "triangularmesh": 2000000,
+    "tetrahedron": 2000000
   }
 }

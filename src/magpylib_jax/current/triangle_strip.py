@@ -29,7 +29,7 @@ class TriangleStrip:
         verts = jnp.asarray(self.vertices, dtype=jnp.float64)
         return jnp.mean(verts, axis=0) + jnp.asarray(self.position, dtype=jnp.float64)
 
-    def getB(self, observers: ArrayLike) -> jnp.ndarray:
+    def getB(self, observers: ArrayLike, *, in_out: str = "auto") -> jnp.ndarray:
         return getB(
             "trianglestrip",
             observers,
@@ -37,9 +37,10 @@ class TriangleStrip:
             current=self.current,
             position=self.position,
             orientation=self.orientation,
+            in_out=in_out,
         )
 
-    def getH(self, observers: ArrayLike) -> jnp.ndarray:
+    def getH(self, observers: ArrayLike, *, in_out: str = "auto") -> jnp.ndarray:
         return getH(
             "trianglestrip",
             observers,
@@ -47,9 +48,10 @@ class TriangleStrip:
             current=self.current,
             position=self.position,
             orientation=self.orientation,
+            in_out=in_out,
         )
 
-    def getJ(self, observers: ArrayLike) -> jnp.ndarray:
+    def getJ(self, observers: ArrayLike, *, in_out: str = "auto") -> jnp.ndarray:
         return getJ(
             "trianglestrip",
             observers,
@@ -57,9 +59,10 @@ class TriangleStrip:
             current=self.current,
             position=self.position,
             orientation=self.orientation,
+            in_out=in_out,
         )
 
-    def getM(self, observers: ArrayLike) -> jnp.ndarray:
+    def getM(self, observers: ArrayLike, *, in_out: str = "auto") -> jnp.ndarray:
         return getM(
             "trianglestrip",
             observers,
@@ -67,4 +70,5 @@ class TriangleStrip:
             current=self.current,
             position=self.position,
             orientation=self.orientation,
+            in_out=in_out,
         )

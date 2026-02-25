@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Sequence
 from math import prod
 from typing import Any
@@ -324,6 +325,7 @@ def _evaluate_source_field(
     field_name: str,
     *,
     sumup: bool,
+    in_out: str,
 ) -> tuple[jnp.ndarray, int]:
     if isinstance(source, Sequence) and not isinstance(source, (str, bytes)):
         if not source:
@@ -337,7 +339,10 @@ def _evaluate_source_field(
                 raise TypeError(
                     f"Source object {type(src).__name__!r} has no get{field_name} method."
                 )
-            terms.append(jnp.asarray(method(observers), dtype=jnp.float64))
+            if "in_out" in inspect.signature(method).parameters:
+                terms.append(jnp.asarray(method(observers, in_out=in_out), dtype=jnp.float64))
+            else:
+                terms.append(jnp.asarray(method(observers), dtype=jnp.float64))
 
         broadcasted = jnp.broadcast_arrays(*terms)
         stacked = jnp.stack(broadcasted, axis=0)
@@ -348,6 +353,8 @@ def _evaluate_source_field(
     method = getattr(source, f"get{field_name}", None)
     if method is None:
         raise TypeError(f"Source object {type(source).__name__!r} has no get{field_name} method.")
+    if "in_out" in inspect.signature(method).parameters:
+        return jnp.asarray(method(observers, in_out=in_out), dtype=jnp.float64), 1
     return jnp.asarray(method(observers), dtype=jnp.float64), 1
 
 
@@ -401,6 +408,7 @@ def getB(
     orientation: ArrayLike | None = None,
     squeeze: bool = True,
     sumup: bool = False,
+    in_out: str = "auto",
     **kwargs: ArrayLike,
 ) -> jnp.ndarray:
     """Return B-field in Tesla from source type strings or source objects."""
@@ -416,6 +424,7 @@ def getB(
             orientation=orientation,
             squeeze=squeeze,
             sumup=sumup,
+            in_out=in_out,
             **kwargs,
         )
 
@@ -423,7 +432,7 @@ def getB(
         raise ValueError("Observers are required when calling getB with source objects.")
     obs = _extract_observers(observers)
     obs_input = jnp.asarray(obs, dtype=jnp.float64)
-    field, n_sources = _evaluate_source_field(source, observers, "B", sumup=sumup)
+    field, n_sources = _evaluate_source_field(source, observers, "B", sumup=sumup, in_out=in_out)
     return _apply_squeeze(field, obs_input, squeeze=squeeze, sumup=sumup, n_sources=n_sources)
 
 
@@ -435,6 +444,7 @@ def getH(
     orientation: ArrayLike | None = None,
     squeeze: bool = True,
     sumup: bool = False,
+    in_out: str = "auto",
     **kwargs: ArrayLike,
 ) -> jnp.ndarray:
     """Return H-field in A/m from source type strings or source objects."""
@@ -450,6 +460,7 @@ def getH(
             orientation=orientation,
             squeeze=squeeze,
             sumup=sumup,
+            in_out=in_out,
             **kwargs,
         )
 
@@ -457,7 +468,7 @@ def getH(
         raise ValueError("Observers are required when calling getH with source objects.")
     obs = _extract_observers(observers)
     obs_input = jnp.asarray(obs, dtype=jnp.float64)
-    field, n_sources = _evaluate_source_field(source, observers, "H", sumup=sumup)
+    field, n_sources = _evaluate_source_field(source, observers, "H", sumup=sumup, in_out=in_out)
     return _apply_squeeze(field, obs_input, squeeze=squeeze, sumup=sumup, n_sources=n_sources)
 
 
@@ -469,6 +480,7 @@ def getJ(
     orientation: ArrayLike | None = None,
     squeeze: bool = True,
     sumup: bool = False,
+    in_out: str = "auto",
     **kwargs: ArrayLike,
 ) -> jnp.ndarray:
     """Return J-field from source type strings or source objects."""
@@ -484,6 +496,7 @@ def getJ(
             orientation=orientation,
             squeeze=squeeze,
             sumup=sumup,
+            in_out=in_out,
             **kwargs,
         )
 
@@ -491,7 +504,7 @@ def getJ(
         raise ValueError("Observers are required when calling getJ with source objects.")
     obs = _extract_observers(observers)
     obs_input = jnp.asarray(obs, dtype=jnp.float64)
-    field, n_sources = _evaluate_source_field(source, observers, "J", sumup=sumup)
+    field, n_sources = _evaluate_source_field(source, observers, "J", sumup=sumup, in_out=in_out)
     return _apply_squeeze(field, obs_input, squeeze=squeeze, sumup=sumup, n_sources=n_sources)
 
 
@@ -503,6 +516,7 @@ def getM(
     orientation: ArrayLike | None = None,
     squeeze: bool = True,
     sumup: bool = False,
+    in_out: str = "auto",
     **kwargs: ArrayLike,
 ) -> jnp.ndarray:
     """Return M-field from source type strings or source objects."""
@@ -518,6 +532,7 @@ def getM(
             orientation=orientation,
             squeeze=squeeze,
             sumup=sumup,
+            in_out=in_out,
             **kwargs,
         )
 
@@ -525,7 +540,7 @@ def getM(
         raise ValueError("Observers are required when calling getM with source objects.")
     obs = _extract_observers(observers)
     obs_input = jnp.asarray(obs, dtype=jnp.float64)
-    field, n_sources = _evaluate_source_field(source, observers, "M", sumup=sumup)
+    field, n_sources = _evaluate_source_field(source, observers, "M", sumup=sumup, in_out=in_out)
     return _apply_squeeze(field, obs_input, squeeze=squeeze, sumup=sumup, n_sources=n_sources)
 
 

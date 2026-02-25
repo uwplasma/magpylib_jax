@@ -31,7 +31,7 @@ class Polyline:
         verts = jnp.asarray(self.vertices, dtype=jnp.float64)
         return jnp.mean(verts, axis=0) + jnp.asarray(self.position, dtype=jnp.float64)
 
-    def _field(self, field_name: str, observers: ArrayLike) -> jnp.ndarray:
+    def _field(self, field_name: str, observers: ArrayLike, *, in_out: str) -> jnp.ndarray:
         obs = jnp.asarray(observers, dtype=jnp.float64)
         if obs.ndim == 1:
             obs2 = obs[None, :]
@@ -58,6 +58,7 @@ class Polyline:
                 current=cur_rep,
                 position=self.position,
                 orientation=self.orientation,
+                in_out=in_out,
             )
         elif field_name == "H":
             out = getH(
@@ -68,6 +69,7 @@ class Polyline:
                 current=cur_rep,
                 position=self.position,
                 orientation=self.orientation,
+                in_out=in_out,
             )
         elif field_name == "J":
             out = getJ(
@@ -78,6 +80,7 @@ class Polyline:
                 current=cur_rep,
                 position=self.position,
                 orientation=self.orientation,
+                in_out=in_out,
             )
         else:
             out = getM(
@@ -88,6 +91,7 @@ class Polyline:
                 current=cur_rep,
                 position=self.position,
                 orientation=self.orientation,
+                in_out=in_out,
             )
 
         out = out.reshape((obs2.shape[0], nseg, 3)).sum(axis=1)
@@ -95,14 +99,14 @@ class Polyline:
             return out[0]
         return out.reshape((*obs.shape[:-1], 3))
 
-    def getB(self, observers: ArrayLike) -> jnp.ndarray:
-        return self._field("B", observers)
+    def getB(self, observers: ArrayLike, *, in_out: str = "auto") -> jnp.ndarray:
+        return self._field("B", observers, in_out=in_out)
 
-    def getH(self, observers: ArrayLike) -> jnp.ndarray:
-        return self._field("H", observers)
+    def getH(self, observers: ArrayLike, *, in_out: str = "auto") -> jnp.ndarray:
+        return self._field("H", observers, in_out=in_out)
 
-    def getJ(self, observers: ArrayLike) -> jnp.ndarray:
-        return self._field("J", observers)
+    def getJ(self, observers: ArrayLike, *, in_out: str = "auto") -> jnp.ndarray:
+        return self._field("J", observers, in_out=in_out)
 
-    def getM(self, observers: ArrayLike) -> jnp.ndarray:
-        return self._field("M", observers)
+    def getM(self, observers: ArrayLike, *, in_out: str = "auto") -> jnp.ndarray:
+        return self._field("M", observers, in_out=in_out)

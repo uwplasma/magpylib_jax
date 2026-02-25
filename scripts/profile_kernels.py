@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import os
@@ -78,7 +79,11 @@ def _profile_entry(
     mem_dir.mkdir(parents=True, exist_ok=True)
 
     hlo_path = hlo_dir / f"{name}.hlo.txt"
-    hlo_path.write_text(_hlo_text(jit_new, observers), encoding="utf-8")
+    hlo_text = _hlo_text(jit_new, observers)
+    hlo_path.write_text(hlo_text, encoding="utf-8")
+    hlo_bytes = hlo_text.encode("utf-8")
+    hlo_size = len(hlo_bytes)
+    hlo_hash = hashlib.sha256(hlo_bytes).hexdigest()
 
     trace_path = trace_dir / name
     trace_path.mkdir(parents=True, exist_ok=True)
@@ -97,6 +102,8 @@ def _profile_entry(
         "steady_state_runtime_s": runtime_s,
         "max_abs_parity_error_T": max_abs_error,
         "peak_memory_bytes": _peak_rss_bytes(),
+        "hlo_size_bytes": hlo_size,
+        "hlo_hash": hlo_hash,
         "hlo_path": str(hlo_path),
         "trace_path": str(trace_path),
         "memory_profile_path": str(mem_path),

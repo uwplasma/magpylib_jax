@@ -10,6 +10,15 @@ from magpylib_jax.constants import MU0
 from magpylib_jax.core.geometry import ensure_observers
 
 _FOUR_PI = 4.0 * jnp.pi
+_TETRA_FACES = jnp.array(
+    [
+        [0, 2, 1],
+        [0, 1, 3],
+        [1, 2, 3],
+        [0, 3, 2],
+    ],
+    dtype=jnp.int32,
+)
 
 
 def _broadcast_vec3(arr: jnp.ndarray, n: int) -> jnp.ndarray:
@@ -308,16 +317,8 @@ def tetrahedron_bfield(
     pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), n)
     tet = _check_tetra_chirality(tet)
 
-    faces = jnp.stack(
-        (
-            tet[:, (0, 2, 1), :],
-            tet[:, (0, 1, 3), :],
-            tet[:, (1, 2, 3), :],
-            tet[:, (0, 3, 2), :],
-        ),
-        axis=0,
-    )
-    b = jnp.sum(jax.vmap(lambda tri: triangle_bfield(obs, tri, pol))(faces), axis=0)
+    faces = tet[:, _TETRA_FACES, :]
+    b = jnp.sum(jax.vmap(lambda tri: triangle_bfield(obs, tri, pol))(faces.swapaxes(0, 1)), axis=0)
 
     if in_out == "inside":
         inside = jnp.ones((n,), dtype=bool)
@@ -404,15 +405,48 @@ def _moller_trumbore_hits(
     return valid & (u >= -eps) & (v >= -eps) & (u + v <= 1.0 + eps) & (t > eps)
 
 
+def _point_on_triangles(
+    point: jnp.ndarray,
+    triangles: jnp.ndarray,
+    *,
+    eps: float = 1e-7,
+) -> jnp.ndarray:
+    v0 = triangles[:, 0]
+    v1 = triangles[:, 1]
+    v2 = triangles[:, 2]
+    n = jnp.cross(v1 - v0, v2 - v0)
+    n_norm = _safe_norm(n, axis=1)
+    dist = jnp.abs(jnp.sum((point[None, :] - v0) * n, axis=1)) / n_norm
+    on_plane = dist <= eps
+
+    v0v1 = v1 - v0
+    v0v2 = v2 - v0
+    v0p = point[None, :] - v0
+    dot00 = jnp.sum(v0v1 * v0v1, axis=1)
+    dot01 = jnp.sum(v0v1 * v0v2, axis=1)
+    dot02 = jnp.sum(v0v1 * v0p, axis=1)
+    dot11 = jnp.sum(v0v2 * v0v2, axis=1)
+    dot12 = jnp.sum(v0v2 * v0p, axis=1)
+    denom = dot00 * dot11 - dot01 * dot01
+    inv = jnp.where(jnp.abs(denom) > 1e-16, 1.0 / denom, 0.0)
+    u = (dot11 * dot02 - dot01 * dot12) * inv
+    v = (dot00 * dot12 - dot01 * dot02) * inv
+    inside = (u >= -eps) & (v >= -eps) & (u + v <= 1.0 + eps)
+    return jnp.any(on_plane & inside & (n_norm > 1e-12))
+
+
 def _point_inside_mesh(point: jnp.ndarray, triangles: jnp.ndarray) -> jnp.ndarray:
     ray = jnp.array([0.737, 0.511, 0.442], dtype=jnp.float64)
     ray = ray / _safe_norm(ray)
     hits = _moller_trumbore_hits(point, triangles, ray)
     count = jnp.sum(hits.astype(jnp.int32))
-    return (count % 2) == 1
+    inside = (count % 2) == 1
+    return inside | _point_on_triangles(point, triangles)
 
 
 def _inside_mask_mesh(observers: jnp.ndarray, mesh: jnp.ndarray) -> jnp.ndarray:
+    if mesh.ndim == 3:
+        return jax.vmap(lambda obs: _point_inside_mesh(obs, mesh))(observers)
     return jax.vmap(_point_inside_mesh, in_axes=(0, 0))(observers, mesh)
 
 
@@ -433,14 +467,22 @@ def magnet_trimesh_bfield(
     """B-field of uniformly polarized closed triangular meshes."""
     obs = ensure_observers(observers)
     n = obs.shape[0]
-    mesh_arr = _broadcast_mesh(jnp.asarray(mesh, dtype=jnp.float64), n)
+    mesh_arr = jnp.asarray(mesh, dtype=jnp.float64)
+    if mesh_arr.ndim == 4:
+        mesh_arr = _broadcast_mesh(mesh_arr, n)
     pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), n)
 
     # Evaluate each face as a batched triangle field and reduce over faces.
     # This avoids flatten+repeat expansions and lowers peak memory pressure.
-    mesh_by_face = jnp.swapaxes(mesh_arr, 0, 1)  # (n_faces, n_obs, 3, 3)
-    b_faces = jax.vmap(lambda face_vertices: triangle_bfield(obs, face_vertices, pol))(mesh_by_face)
-    b = jnp.sum(b_faces, axis=0)
+    if mesh_arr.ndim == 3:
+        b_faces = jax.vmap(lambda face_vertices: triangle_bfield(obs, face_vertices, pol))(mesh_arr)
+        b = jnp.sum(b_faces, axis=0)
+    else:
+        mesh_by_face = jnp.swapaxes(mesh_arr, 0, 1)  # (n_faces, n_obs, 3, 3)
+        b_faces = jax.vmap(lambda face_vertices: triangle_bfield(obs, face_vertices, pol))(
+            mesh_by_face
+        )
+        b = jnp.sum(b_faces, axis=0)
 
     if in_out == "outside":
         inside = jnp.zeros((n,), dtype=bool)
@@ -471,7 +513,9 @@ def magnet_trimesh_jfield(
 ) -> jnp.ndarray:
     obs = ensure_observers(observers)
     n = obs.shape[0]
-    mesh_arr = _broadcast_mesh(jnp.asarray(mesh, dtype=jnp.float64), n)
+    mesh_arr = jnp.asarray(mesh, dtype=jnp.float64)
+    if mesh_arr.ndim == 4:
+        mesh_arr = _broadcast_mesh(mesh_arr, n)
     pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), n)
 
     if in_out == "outside":

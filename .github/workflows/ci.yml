@@ -100,8 +100,19 @@ jobs:
           python scripts/check_profiling_thresholds.py \
             profiling/latest_ci.json \
             profiling/thresholds.json
+      - name: Summarize profiling deltas
+        run: |
+          python scripts/summarize_profiling.py \
+            profiling/latest_ci.json \
+            profiling/thresholds.json \
+            --output profiling/latest_ci_summary.json
       - name: Upload profiling artifacts
         uses: actions/upload-artifact@v4
         with:
           name: profiling-ci-artifacts
           path: profiling/ci_artifacts
+      - name: Upload profiling summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: profiling-ci-summary
+          path: profiling/latest_ci_summary.json

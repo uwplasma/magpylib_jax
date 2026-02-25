@@ -20,17 +20,17 @@ class Collection:
         self.sources.extend(sources)
         return self
 
-    def getB(self, observers: ArrayLike) -> jnp.ndarray:
-        return getB(self.sources, observers, sumup=True)
+    def getB(self, observers: ArrayLike, *, in_out: str = "auto") -> jnp.ndarray:
+        return getB(self.sources, observers, sumup=True, in_out=in_out)
 
-    def getH(self, observers: ArrayLike) -> jnp.ndarray:
-        return getH(self.sources, observers, sumup=True)
+    def getH(self, observers: ArrayLike, *, in_out: str = "auto") -> jnp.ndarray:
+        return getH(self.sources, observers, sumup=True, in_out=in_out)
 
-    def getJ(self, observers: ArrayLike) -> jnp.ndarray:
-        return getJ(self.sources, observers, sumup=True)
+    def getJ(self, observers: ArrayLike, *, in_out: str = "auto") -> jnp.ndarray:
+        return getJ(self.sources, observers, sumup=True, in_out=in_out)
 
-    def getM(self, observers: ArrayLike) -> jnp.ndarray:
-        return getM(self.sources, observers, sumup=True)
+    def getM(self, observers: ArrayLike, *, in_out: str = "auto") -> jnp.ndarray:
+        return getM(self.sources, observers, sumup=True, in_out=in_out)
 
     def __iter__(self):
         return iter(self.sources)

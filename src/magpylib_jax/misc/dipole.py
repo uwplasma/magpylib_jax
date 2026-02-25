@@ -18,38 +18,42 @@ class Dipole:
     position: ArrayLike = (0.0, 0.0, 0.0)
     orientation: ArrayLike | None = None
 
-    def getH(self, observers: ArrayLike) -> jnp.ndarray:
+    def getH(self, observers: ArrayLike, *, in_out: str = "auto") -> jnp.ndarray:
         return getH(
             "dipole",
             observers,
             moment=self.moment,
             position=self.position,
             orientation=self.orientation,
+            in_out=in_out,
         )
 
-    def getB(self, observers: ArrayLike) -> jnp.ndarray:
+    def getB(self, observers: ArrayLike, *, in_out: str = "auto") -> jnp.ndarray:
         return getB(
             "dipole",
             observers,
             moment=self.moment,
             position=self.position,
             orientation=self.orientation,
+            in_out=in_out,
         )
 
-    def getJ(self, observers: ArrayLike) -> jnp.ndarray:
+    def getJ(self, observers: ArrayLike, *, in_out: str = "auto") -> jnp.ndarray:
         return getJ(
             "dipole",
             observers,
             moment=self.moment,
             position=self.position,
             orientation=self.orientation,
+            in_out=in_out,
         )
 
-    def getM(self, observers: ArrayLike) -> jnp.ndarray:
+    def getM(self, observers: ArrayLike, *, in_out: str = "auto") -> jnp.ndarray:
         return getM(
             "dipole",
             observers,
             moment=self.moment,
             position=self.position,
             orientation=self.orientation,
+            in_out=in_out,
         )

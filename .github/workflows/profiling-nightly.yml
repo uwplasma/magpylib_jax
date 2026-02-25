@@ -29,10 +29,17 @@ jobs:
           python scripts/check_profiling_thresholds.py \
             profiling/latest_nightly.json \
             profiling/thresholds.json
+      - name: Summarize nightly deltas
+        run: |
+          python scripts/summarize_profiling.py \
+            profiling/latest_nightly.json \
+            profiling/thresholds.json \
+            --output profiling/latest_nightly_summary.json
       - name: Upload nightly artifacts
         uses: actions/upload-artifact@v4
         with:
           name: profiling-nightly-artifacts
           path: |
             profiling/latest_nightly.json
+            profiling/latest_nightly_summary.json
             profiling/nightly_artifacts
