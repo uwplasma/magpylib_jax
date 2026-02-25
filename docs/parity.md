@@ -1,14 +1,15 @@
 # Parity Strategy
 
-`magpylib_jax` follows a source-by-source parity process:
+`magpylib_jax` follows a source-by-source parity workflow:
 
-1. Port analytical kernel into JAX.
-2. Add parity tests vs Magpylib for random and profile points.
-3. Add physics and differentiability checks.
-4. Add benchmark and CI threshold gates.
+1. Port kernel/object implementation in JAX.
+2. Add parity tests against upstream Magpylib (random + profile points).
+3. Add mirrored upstream-file tests for object behavior.
+4. Add physics and differentiability tests.
+5. Gate behavior in CI with strict parity markers and threshold checks.
 
-The live tracking table is in:
+Live tracking tables:
 - `PARITY_MATRIX.md`
 - `MIGRATION_PLAN.md`
 
-Pending capabilities are explicitly listed until parity tests and CI gates are in place.
+For pending work, entries remain marked `Partial`/`Pending` until parity and CI gates are in place.

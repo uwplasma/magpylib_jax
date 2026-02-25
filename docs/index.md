@@ -5,9 +5,9 @@ JAX-native, end-to-end differentiable magnetic field computations inspired by Ma
 ## Highlights
 
 - Differentiable source kernels using JAX
-- Functional and object APIs
-- Numerical parity tests against Magpylib for implemented features
-- Coverage and benchmark regression gates in CI
+- Functional and object APIs with path/orientation shape compatibility coverage
+- Numerical parity tests and upstream-file mirrored tests against Magpylib
+- Coverage, benchmark, and profiling regression gates in CI/nightly workflows
 
 ```{toctree}
 :maxdepth: 2

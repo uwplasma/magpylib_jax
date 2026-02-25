@@ -2,7 +2,7 @@
 
 ## Benchmark pipeline
 
-Benchmarks compare `magpylib_jax` vs upstream `magpylib` for implemented source types.
+Benchmarks compare `magpylib_jax` vs upstream `magpylib` for all currently implemented source families.
 
 Scripts:
 - `scripts/benchmark_vs_magpylib.py`
@@ -11,13 +11,30 @@ Scripts:
 Thresholds:
 - `benchmarks/thresholds.json`
 
+## Kernel profiling pipeline
+
+Kernel-level profiling tracks compile/runtime/parity/memory and captures XLA artifacts.
+
+Scripts:
+- `scripts/profile_kernels.py`
+- `scripts/check_profiling_thresholds.py`
+
+Artifacts produced per source family:
+- JAX trace (`jax.profiler.trace`)
+- HLO dump (`compiler_ir(..., dialect="hlo")`)
+- device memory profile snapshot (`jax.profiler.save_device_memory_profile`)
+
+Thresholds:
+- `profiling/thresholds.json`
+
 ## What is measured
 
-- Median runtime over repeated runs.
-- JAX compile time for each source type.
-- Max absolute parity error in Tesla.
+- JAX compile time per source type.
+- Steady-state runtime (median over repeated runs).
+- Max absolute parity error (Tesla).
+- Peak process memory (bytes).
 
 ## CI regression gates
 
-- Error thresholds per source type.
-- Runtime slowdown limits relative to upstream Magpylib.
+- `ci.yml`: benchmark regression + profiling regression jobs.
+- `profiling-nightly.yml`: nightly profiling with artifact upload.

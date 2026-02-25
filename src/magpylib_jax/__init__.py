@@ -2,9 +2,16 @@
 
 from magpylib_jax import current, magnet, misc
 from magpylib_jax.collection import Collection
-from magpylib_jax.current import Circle, Polyline
+from magpylib_jax.current import Circle, Polyline, TriangleSheet, TriangleStrip
 from magpylib_jax.functional import getB, getH, getJ, getM
-from magpylib_jax.magnet import Cuboid, Cylinder, Sphere, Tetrahedron
+from magpylib_jax.magnet import (
+    Cuboid,
+    Cylinder,
+    CylinderSegment,
+    Sphere,
+    Tetrahedron,
+    TriangularMesh,
+)
 from magpylib_jax.misc import Dipole, Triangle
 from magpylib_jax.sensor import Sensor
 
@@ -13,12 +20,16 @@ __all__ = [
     "Collection",
     "Cuboid",
     "Cylinder",
+    "CylinderSegment",
     "Dipole",
     "Polyline",
     "Sensor",
     "Sphere",
     "Tetrahedron",
     "Triangle",
+    "TriangleSheet",
+    "TriangleStrip",
+    "TriangularMesh",
     "current",
     "getB",
     "getH",

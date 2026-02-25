@@ -72,12 +72,37 @@ def test_extended_geometry_properties() -> None:
         polarization=(0, 0, 1),
         position=(5, 6, 7),
     )
+    cylseg = mpj.magnet.CylinderSegment(
+        polarization=(0, 0, 1),
+        dimension=(1.0, 2.0, 3.0, 0.0, 90.0),
+        position=(1, 2, 3),
+    )
+    tmesh = mpj.magnet.TriangularMesh(
+        vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)],
+        faces=[(0, 2, 1), (0, 1, 3), (1, 2, 3), (0, 3, 2)],
+        polarization=(0, 0, 1),
+        position=(2, 3, 4),
+        reorient_faces=False,
+    )
 
     assert abs(sph.volume - ((4 / 3) * np.pi)) < 1e-12
     assert abs(tet.volume - (1 / 6)) < 1e-12
+    assert abs(cylseg.volume - ((2.0**2 - 1.0**2) * np.pi * 3.0 * 0.25)) < 1e-12
+    assert abs(tmesh.volume - (1 / 6)) < 1e-12
     np.testing.assert_allclose(np.asarray(sph.centroid), np.array([3.0, 4.0, 5.0]))
     np.testing.assert_allclose(np.asarray(tri.barycenter), np.array([0.0, 0.0, 0.0]))
     np.testing.assert_allclose(np.asarray(tri.centroid), np.array([10.0, 11.0, 12.0]))
     np.testing.assert_allclose(np.asarray(line.centroid), np.array([9.0, 9.0, 10.0]))
     np.testing.assert_allclose(np.asarray(tet.barycenter), np.array([0.25, 0.25, 0.25]))
     np.testing.assert_allclose(np.asarray(tet.centroid), np.array([5.25, 6.25, 7.25]))
+    alpha = np.deg2rad(45.0)
+    rbar = (2.0 / 3.0) * (np.sin(alpha) / alpha) * ((2.0**3 - 1.0**3) / (2.0**2 - 1.0**2))
+    c = rbar / np.sqrt(2.0)
+    np.testing.assert_allclose(np.asarray(cylseg.centroid), np.array([1.0 + c, 2.0 + c, 3.0]))
+    verts = np.array([(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)], dtype=float)
+    faces = np.array([(0, 2, 1), (0, 1, 3), (1, 2, 3), (0, 3, 2)], dtype=int)
+    tri = verts[faces]
+    ctri = np.mean(tri, axis=1)
+    area = 0.5 * np.linalg.norm(np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0]), axis=1)
+    tmesh_bary = np.sum(ctri * area[:, None], axis=0) / np.sum(area)
+    np.testing.assert_allclose(np.asarray(tmesh.centroid), np.array([2.0, 3.0, 4.0]) + tmesh_bary)

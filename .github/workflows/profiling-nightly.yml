@@ -1,0 +1,38 @@
+name: Profiling Nightly
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  profile-nightly:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[test]'
+      - name: Run profiling suite
+        run: |
+          python scripts/profile_kernels.py \
+            --n-observers 4000 \
+            --repeats 3 \
+            --output profiling/latest_nightly.json \
+            --output-dir profiling/nightly_artifacts
+      - name: Check nightly thresholds
+        run: |
+          python scripts/check_profiling_thresholds.py \
+            profiling/latest_nightly.json \
+            profiling/thresholds.json
+      - name: Upload nightly artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: profiling-nightly-artifacts
+          path: |
+            profiling/latest_nightly.json
+            profiling/nightly_artifacts

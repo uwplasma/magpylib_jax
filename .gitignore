@@ -13,3 +13,6 @@ dist/
 *.egg-info/
 docs/_build/
 benchmarks/latest.json
+benchmarks/*.local.json
+profiling/artifacts/
+profiling/*.local.json

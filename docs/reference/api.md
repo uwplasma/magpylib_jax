@@ -20,3 +20,8 @@
 .. automodule:: magpylib_jax.core.kernels
    :members:
 ```
+
+```{eval-rst}
+.. automodule:: magpylib_jax.core.kernels_extended
+   :members:
+```

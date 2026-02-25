@@ -18,14 +18,15 @@ Deliver a fully differentiable, JAX-native replacement for Magpylib with matched
 | Circle current source (`current.Circle`) | Implemented | Yes | Yes |
 | Cuboid magnet (`magnet.Cuboid`) | Implemented | Yes | Yes |
 | Cylinder magnet (`magnet.Cylinder`) | Implemented | Yes | Yes |
+| CylinderSegment magnet (`magnet.CylinderSegment`) | Implemented | Yes | Yes |
 | Sphere magnet (`magnet.Sphere`) | Implemented | Yes | Yes |
-| Polyline current (`current.Polyline`) | Implemented | Yes | Partial |
-| Triangle surface (`misc.Triangle`) | Implemented | Yes | Partial |
-| Tetrahedron magnet (`magnet.Tetrahedron`) | Implemented | Yes | Partial |
-| CylinderSegment magnet | Planned | Planned | Planned |
-| TriangleSheet / TriangleStrip currents | Planned | Planned | Planned |
-| TriangularMesh magnet | Planned | Planned | Planned |
-| Collection/Sensor/path interfaces | Partial (Collection/Sensor + squeeze/sumup basics) | Partial | Partial |
+| Polyline current (`current.Polyline`) | Implemented | Yes | Yes |
+| Triangle surface (`misc.Triangle`) | Implemented | Yes | Yes |
+| TriangleSheet current (`current.TriangleSheet`) | Implemented | Yes | Yes |
+| TriangleStrip current (`current.TriangleStrip`) | Implemented | Yes | Yes |
+| TriangularMesh magnet (`magnet.TriangularMesh`) | Implemented | Yes | Yes |
+| Tetrahedron magnet (`magnet.Tetrahedron`) | Implemented | Yes | Yes |
+| Collection/Sensor/path interfaces | Implemented (core workflows) | Yes | Partial |
 
 ## Phases
 
@@ -35,15 +36,15 @@ Deliver a fully differentiable, JAX-native replacement for Magpylib with matched
 
 2. Public API compatibility
 - Add object model and functional API wrappers matching Magpylib behavior.
-- Add compatibility layer for common constructor and field-call patterns.
+- Add compatibility layer for constructor and field-call patterns.
 
 3. Validation and regression gating
-- Grow parity tests to match upstream source test coverage for each implemented source.
-- Add gradient stability tests with finite-difference checks.
+- Grow parity tests to mirror upstream source coverage categories.
+- Add gradient stability tests with finite-difference sanity checks.
 
 4. Performance and memory
-- Add benchmark suite (single-source, multi-source, batched observers).
-- Track memory profile and kernel compile/runtime split.
+- Benchmark suite (single-source, multi-source, batched observers).
+- Kernel profiling (compile/runtime/HLO/trace/memory) with CI thresholds.
 
 5. Documentation and release
 - Expand user docs, API reference, migration notes.
@@ -51,6 +52,14 @@ Deliver a fully differentiable, JAX-native replacement for Magpylib with matched
 
 ## Execution status
 
-- Phase 1 advanced: dipole, circle, cuboid, cylinder, sphere, polyline, triangle, and tetrahedron kernels implemented.
-- Phase 2 advanced: expanded functional/object API + compatibility objects and basic squeeze/sumup behavior.
-- Phase 3 advanced: parity/physics/differentiability coverage and strict parity gate tests in CI.
+- Phase 1: Implemented for currently targeted source families.
+- Phase 2: Implemented for core path/orientation/sensor shaping workflows.
+- Phase 3: Implemented with parity gates, mirrored upstream object tests, and >90% coverage policy.
+- Phase 4: Implemented baseline benchmark + profiling gates; optimization loop continues.
+- Phase 5: In progress (ongoing documentation expansion and release hardening).
+
+## Next optimization targets
+
+1. Tighten parity tolerances around singular neighborhoods for sheet/segment kernels.
+2. Continue allocation reduction and shape-specialized JIT paths for triangle/tetra/cylinder families.
+3. Expand nightly profiling trend analysis and automatic regression reporting.

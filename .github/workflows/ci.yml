@@ -76,3 +76,32 @@ jobs:
             --output benchmarks/latest.json
       - name: Validate thresholds
         run: python scripts/check_benchmark_thresholds.py benchmarks/latest.json benchmarks/thresholds.json
+
+  profiling-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[test]'
+      - name: Run kernel profiling report
+        run: |
+          python scripts/profile_kernels.py \
+            --n-observers 600 \
+            --repeats 1 \
+            --output profiling/latest_ci.json \
+            --output-dir profiling/ci_artifacts
+      - name: Validate profiling thresholds
+        run: |
+          python scripts/check_profiling_thresholds.py \
+            profiling/latest_ci.json \
+            profiling/thresholds.json
+      - name: Upload profiling artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: profiling-ci-artifacts
+          path: profiling/ci_artifacts

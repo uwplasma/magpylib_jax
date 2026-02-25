@@ -3,8 +3,9 @@
 The active migration plan lives in the repository root at `MIGRATION_PLAN.md`.
 Parity tracking lives in `PARITY_MATRIX.md`.
 
-Near-term priorities:
+Current priorities:
 
-1. Port pending source kernels (`CylinderSegment`, `TriangleSheet/Strip`, `TriangularMesh`).
-2. Expand motion/path/orientation API parity and full output-shape parity.
-3. Add deeper performance profiling (kernel-level and XLA-level) with regression dashboards.
+1. Tighten mirrored upstream coverage beyond object-level tests (`test_BHMJ_level`, additional edge/singularity classes).
+2. Continue kernel optimization (triangle/tetra/cylinder families) with shape-specialized JIT paths and reduced allocation patterns.
+3. Expand profiling dashboards and trend tracking from nightly artifacts.
+4. Iterate documentation depth (equations, numerics, profiling interpretation, and benchmark case studies).

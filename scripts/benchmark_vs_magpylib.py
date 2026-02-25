@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import time
 from pathlib import Path
 
@@ -12,10 +13,10 @@ import jax
 import magpylib as magpy
 import numpy as np
 
-import magpylib_jax as mpj
-
+os.environ.setdefault("JAX_PLATFORMS", "cpu")
 jax.config.update("jax_enable_x64", True)
 logging.getLogger("jax._src.xla_bridge").setLevel(logging.ERROR)
+import magpylib_jax as mpj  # noqa: E402
 
 
 def _timeit(fn, repeats: int) -> float:
@@ -145,6 +146,77 @@ def main() -> None:
         "tetrahedron",
         lambda: tet_ref.getB(observers),
         lambda: tet_new.getB(observers),
+        args.repeats,
+        observers,
+    )
+
+    cylseg_ref = magpy.magnet.CylinderSegment(
+        polarization=(0.1, -0.2, 0.3),
+        dimension=(0.4, 1.2, 1.1, -30.0, 110.0),
+    )
+    cylseg_new = mpj.magnet.CylinderSegment(
+        polarization=(0.1, -0.2, 0.3),
+        dimension=(0.4, 1.2, 1.1, -30.0, 110.0),
+    )
+    entries["cylindersegment"] = _entry(
+        "cylindersegment",
+        lambda: cylseg_ref.getB(observers),
+        lambda: cylseg_new.getB(observers),
+        args.repeats,
+        observers,
+    )
+
+    sheet_vertices = [[0, 0, 0], [0, 1, 0], [1, 0, 0], [1, 1, 0]]
+    sheet_faces = [[0, 1, 2], [1, 2, 3]]
+    sheet_cds = [[0.7, 0.1, 0.0], [0.7, 0.1, 0.0]]
+    sheet_ref = magpy.current.TriangleSheet(
+        vertices=sheet_vertices,
+        faces=sheet_faces,
+        current_densities=sheet_cds,
+    )
+    sheet_new = mpj.current.TriangleSheet(
+        vertices=sheet_vertices,
+        faces=sheet_faces,
+        current_densities=sheet_cds,
+    )
+    entries["trianglesheet"] = _entry(
+        "trianglesheet",
+        lambda: sheet_ref.getB(observers),
+        lambda: sheet_new.getB(observers),
+        args.repeats,
+        observers,
+    )
+
+    strip_vertices = [[0, 0, 0], [0, 1, 0], [1, 0, 0], [1, 1, 0], [2, 0, 0]]
+    strip_ref = magpy.current.TriangleStrip(vertices=strip_vertices, current=1.4)
+    strip_new = mpj.current.TriangleStrip(vertices=strip_vertices, current=1.4)
+    entries["trianglestrip"] = _entry(
+        "trianglestrip",
+        lambda: strip_ref.getB(observers),
+        lambda: strip_new.getB(observers),
+        args.repeats,
+        observers,
+    )
+
+    mesh_vertices = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]]
+    mesh_faces = [[0, 2, 1], [0, 1, 3], [1, 2, 3], [0, 3, 2]]
+    mesh_ref = magpy.magnet.TriangularMesh(
+        vertices=mesh_vertices,
+        faces=mesh_faces,
+        polarization=(0.1, -0.2, 0.3),
+        reorient_faces=False,
+        check_open=False,
+    )
+    mesh_new = mpj.magnet.TriangularMesh(
+        vertices=mesh_vertices,
+        faces=mesh_faces,
+        polarization=(0.1, -0.2, 0.3),
+        reorient_faces=False,
+    )
+    entries["triangularmesh"] = _entry(
+        "triangularmesh",
+        lambda: mesh_ref.getB(observers),
+        lambda: mesh_new.getB(observers),
         args.repeats,
         observers,
     )

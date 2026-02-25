@@ -21,16 +21,16 @@ class Collection:
         return self
 
     def getB(self, observers: ArrayLike) -> jnp.ndarray:
-        return getB(self.sources, observers)
+        return getB(self.sources, observers, sumup=True)
 
     def getH(self, observers: ArrayLike) -> jnp.ndarray:
-        return getH(self.sources, observers)
+        return getH(self.sources, observers, sumup=True)
 
     def getJ(self, observers: ArrayLike) -> jnp.ndarray:
-        return getJ(self.sources, observers)
+        return getJ(self.sources, observers, sumup=True)
 
     def getM(self, observers: ArrayLike) -> jnp.ndarray:
-        return getM(self.sources, observers)
+        return getM(self.sources, observers, sumup=True)
 
     def __iter__(self):
         return iter(self.sources)

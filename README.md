@@ -1,41 +1,35 @@
 # magpylib_jax
 
-Differentiable magnetic field modeling in JAX, with Magpylib-style APIs and parity-focused validation.
+Differentiable magnetic field modeling in JAX with Magpylib-compatible APIs, parity gates, and profiling/benchmark CI.
 
-`magpylib_jax` is built for optimization and inverse design workflows where you need:
-- analytical magnetic field models,
-- automatic differentiation through source and observer parameters,
-- explicit numerical parity checks against upstream [Magpylib](https://github.com/magpylib/magpylib),
-- reproducible CI gates for physics, parity, performance, and documentation.
+`magpylib_jax` targets optimization and inverse-design workflows where you need:
+- analytical or high-fidelity kernel models,
+- reliable `jax.grad/jacrev` differentiation through source and observer parameters,
+- behavior parity checks against upstream [Magpylib](https://github.com/magpylib/magpylib),
+- reproducible performance and memory regression tracking.
 
-## Current capabilities
+## Implemented source families
 
-Implemented kernels and objects:
 - `misc.Dipole`
 - `current.Circle`
+- `current.Polyline`
+- `current.TriangleSheet`
+- `current.TriangleStrip`
+- `misc.Triangle`
 - `magnet.Cuboid`
 - `magnet.Cylinder`
+- `magnet.CylinderSegment`
 - `magnet.Sphere`
-- `current.Polyline`
-- `misc.Triangle`
 - `magnet.Tetrahedron`
+- `magnet.TriangularMesh`
 
-Implemented compatibility utilities:
-- functional API: `getB/getH/getJ/getM`
-- object API and additive containers: `Collection`, `Sensor`
-- parity behavior gates (`B/H/J/M`, inside/outside/singular profiles)
-- benchmark regression thresholds in CI
+## Compatibility coverage
 
-Pending ports (tracked in [PARITY_MATRIX.md](PARITY_MATRIX.md)):
-- `CylinderSegment`
-- `TriangleSheet/TriangleStrip`
-- `TriangularMesh`
-
-## Why JAX here?
-
-- End-to-end differentiability for geometry and material parameters.
-- Efficient vectorization and JIT compilation for large observer batches.
-- Stable testing + profiling infrastructure to preserve correctness while optimizing kernels.
+- Functional API: `getB/getH/getJ/getM`
+- Object API: `Collection`, `Sensor`, source classes above
+- Path/motion/orientation coverage for core source/sensor workflows
+- Shape/squeeze behavior parity checks vs Magpylib
+- Upstream-file mirrored object tests (`test_obj_*` categories)
 
 ## Quickstart
 
@@ -53,43 +47,44 @@ import jax
 import jax.numpy as jnp
 import magpylib_jax as mpj
 
-src = mpj.magnet.Cuboid(
+src = mpj.magnet.CylinderSegment(
     polarization=(0.1, -0.2, 0.3),
-    dimension=(1.0, 0.8, 1.2),
+    dimension=(0.4, 1.2, 1.1, -30.0, 110.0),
 )
-obs = jnp.array([0.2, 0.1, 0.5])
+obs = jnp.array([1.2, 0.2, 0.4])
 
 B = src.getB(obs)
 
-# Differentiate Bz with respect to cuboid x-size
-def bz(dim_x):
-    s = mpj.magnet.Cuboid(
+def bz(r2):
+    s = mpj.magnet.CylinderSegment(
         polarization=(0.1, -0.2, 0.3),
-        dimension=(dim_x, 0.8, 1.2),
+        dimension=(0.4, r2, 1.1, -30.0, 110.0),
     )
     return s.getB(obs)[2]
 
-grad_bz = jax.grad(bz)(1.0)
+print(jax.grad(bz)(1.2))
 ```
 
-## Testing and parity standards
+## Validation + profiling gates
 
-CI currently enforces:
-- test suite + strict parity profile gates,
-- lint and type checks,
-- documentation build,
+CI enforces:
+- full test suite + strict parity gates,
+- lint + type checks,
+- docs build,
 - coverage threshold (`>=90%`),
-- benchmark thresholds (error + runtime slowdown bounds).
+- benchmark thresholds (runtime slowdown + parity error),
+- kernel profiling thresholds (compile/runtime/parity/memory) with HLO, trace, and memory snapshots.
 
-See:
-- [PARITY_MATRIX.md](PARITY_MATRIX.md)
-- [MIGRATION_PLAN.md](MIGRATION_PLAN.md)
+Key files:
+- [`PARITY_MATRIX.md`](PARITY_MATRIX.md)
+- [`MIGRATION_PLAN.md`](MIGRATION_PLAN.md)
+- [`benchmarks/thresholds.json`](benchmarks/thresholds.json)
+- [`profiling/thresholds.json`](profiling/thresholds.json)
 
 ## Documentation
 
-Detailed docs include equations, numerical methods, examples, parity strategy, testing, and performance notes:
-- local: `docs/`
-- Read the Docs config: [`.readthedocs.yaml`](.readthedocs.yaml)
+Detailed docs are in `docs/` (equations, numerics, examples, parity strategy, testing, performance, API).
+Read the Docs config is in [`.readthedocs.yaml`](.readthedocs.yaml).
 
 ## License
 

@@ -4,9 +4,13 @@
     "circle": 5e-10,
     "cuboid": 5e-8,
     "cylinder": 5e-7,
+    "cylindersegment": 3e-3,
     "sphere": 5e-10,
     "polyline": 1e-8,
     "triangle": 1e-6,
+    "trianglesheet": 5e-6,
+    "trianglestrip": 5e-6,
+    "triangularmesh": 5e-10,
     "tetrahedron": 1e-5
   },
   "max_runtime_slowdown_vs_magpylib": {
@@ -14,9 +18,13 @@
     "circle": 15.0,
     "cuboid": 20.0,
     "cylinder": 30.0,
+    "cylindersegment": 80.0,
     "sphere": 20.0,
     "polyline": 30.0,
     "triangle": 40.0,
+    "trianglesheet": 120.0,
+    "trianglestrip": 120.0,
+    "triangularmesh": 60.0,
     "tetrahedron": 60.0
   }
 }

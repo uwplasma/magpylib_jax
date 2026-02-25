@@ -23,8 +23,33 @@ class Sensor:
 
     @property
     def observers(self) -> jnp.ndarray:
-        value = self.pixel if self.pixel is not None else self.position
-        return jnp.asarray(value, dtype=jnp.float64)
+        pix = None if self.pixel is None else jnp.asarray(self.pixel, dtype=jnp.float64)
+        pos = None if self.position is None else jnp.asarray(self.position, dtype=jnp.float64)
+
+        if pix is None:
+            assert pos is not None
+            if pos.ndim == 1:
+                return pos
+            if pos.ndim == 2 and pos.shape[1] == 3:
+                return pos[:, None, :]
+            raise ValueError(
+                f"Sensor `position` must have shape (3,) or (p,3), got {pos.shape}."
+            )
+        if pos is None:
+            assert pix is not None
+            return pix
+
+        if pos.ndim == 1:
+            pos = pos[None, :]
+        if pos.ndim != 2 or pos.shape[1] != 3:
+            raise ValueError(
+                f"Sensor `position` must have shape (3,) or (p,3), got {pos.shape}."
+            )
+        if pix.shape[-1] != 3:
+            raise ValueError(f"Sensor `pixel` must have trailing dimension 3, got {pix.shape}.")
+
+        # Broadcast sensor path over pixel layout.
+        return pos[(slice(None),) + (None,) * (pix.ndim - 1)] + pix[None, ...]
 
     def getB(self, sources: object) -> jnp.ndarray:
         return getB(sources, self.observers)
