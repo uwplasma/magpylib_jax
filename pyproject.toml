@@ -49,8 +49,11 @@ packages = ["src/magpylib_jax"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-addopts = "-ra --strict-config --strict-markers"
+addopts = "-ra --strict-config --strict-markers --cov=src/magpylib_jax --cov-report=term-missing --cov-fail-under=90"
 testpaths = ["tests"]
+markers = [
+  "parity_gate: strict parity behavior profiles used as CI gates",
+]
 
 [tool.ruff]
 line-length = 100
@@ -67,3 +70,9 @@ disallow_untyped_defs = false
 check_untyped_defs = true
 warn_return_any = false
 ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["src/magpylib_jax"]
+
+[tool.coverage.report]
+fail_under = 90

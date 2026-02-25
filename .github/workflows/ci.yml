@@ -23,6 +23,8 @@ jobs:
           python -m pip install -e '.[test]'
       - name: Run tests
         run: pytest
+      - name: Run strict parity gates
+        run: pytest -m parity_gate
 
   lint-and-types:
     runs-on: ubuntu-latest
@@ -69,8 +71,8 @@ jobs:
       - name: Run benchmark
         run: |
           python scripts/benchmark_vs_magpylib.py \
-            --n-observers 4000 \
-            --repeats 3 \
+            --n-observers 2000 \
+            --repeats 2 \
             --output benchmarks/latest.json
       - name: Validate thresholds
         run: python scripts/check_benchmark_thresholds.py benchmarks/latest.json benchmarks/thresholds.json

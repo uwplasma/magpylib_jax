@@ -1,30 +1,41 @@
 # magpylib_jax
 
-`magpylib_jax` is a JAX-native magnetic field library designed to be fully differentiable end-to-end, while tracking Magpylib functionality and numerical behavior.
+Differentiable magnetic field modeling in JAX, with Magpylib-style APIs and parity-focused validation.
 
-## Current status
+`magpylib_jax` is built for optimization and inverse design workflows where you need:
+- analytical magnetic field models,
+- automatic differentiation through source and observer parameters,
+- explicit numerical parity checks against upstream [Magpylib](https://github.com/magpylib/magpylib),
+- reproducible CI gates for physics, parity, performance, and documentation.
 
-This repository is bootstrapped and includes:
+## Current capabilities
 
-- Differentiable JAX kernels for:
-  - Dipole field (`misc.Dipole`, `core.dipole_hfield`)
-  - Circular current loop field (`current.Circle`, `core.current_circle_hfield`)
-  - Cuboid magnet field (`magnet.Cuboid`)
-  - Cylinder magnet field (`magnet.Cylinder`)
-- Functional API (`getH`, `getB`) and object API (source classes)
-- Compatibility layer (`Collection`, `Sensor`, object/list dispatch in `getB/getH/getJ/getM`)
-- Parity tests against upstream `magpylib` for implemented features
-- Differentiability tests (`grad`, `jacrev`)
-- Benchmark script scaffold for performance and parity checks
-- CI for tests, lint, types, and docs
-- Read the Docs configuration + Sphinx docs scaffold
+Implemented kernels and objects:
+- `misc.Dipole`
+- `current.Circle`
+- `magnet.Cuboid`
+- `magnet.Cylinder`
+- `magnet.Sphere`
+- `current.Polyline`
+- `misc.Triangle`
+- `magnet.Tetrahedron`
 
-## Design goals
+Implemented compatibility utilities:
+- functional API: `getB/getH/getJ/getM`
+- object API and additive containers: `Collection`, `Sensor`
+- parity behavior gates (`B/H/J/M`, inside/outside/singular profiles)
+- benchmark regression thresholds in CI
 
-- JAX-first, vectorized, `jit`/`vmap` friendly kernels
-- Differentiable with respect to observers and source parameters (away from physical singularities)
-- Numerical parity against Magpylib for all supported source types
-- Memory-aware kernels for large batched field evaluations
+Pending ports (tracked in [PARITY_MATRIX.md](PARITY_MATRIX.md)):
+- `CylinderSegment`
+- `TriangleSheet/TriangleStrip`
+- `TriangularMesh`
+
+## Why JAX here?
+
+- End-to-end differentiability for geometry and material parameters.
+- Efficient vectorization and JIT compilation for large observer batches.
+- Stable testing + profiling infrastructure to preserve correctness while optimizing kernels.
 
 ## Quickstart
 
@@ -35,9 +46,50 @@ pip install -e '.[test,docs]'
 pytest
 ```
 
-## Project roadmap
+## Example
 
-See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for the phased migration and validation matrix.
+```python
+import jax
+import jax.numpy as jnp
+import magpylib_jax as mpj
+
+src = mpj.magnet.Cuboid(
+    polarization=(0.1, -0.2, 0.3),
+    dimension=(1.0, 0.8, 1.2),
+)
+obs = jnp.array([0.2, 0.1, 0.5])
+
+B = src.getB(obs)
+
+# Differentiate Bz with respect to cuboid x-size
+def bz(dim_x):
+    s = mpj.magnet.Cuboid(
+        polarization=(0.1, -0.2, 0.3),
+        dimension=(dim_x, 0.8, 1.2),
+    )
+    return s.getB(obs)[2]
+
+grad_bz = jax.grad(bz)(1.0)
+```
+
+## Testing and parity standards
+
+CI currently enforces:
+- test suite + strict parity profile gates,
+- lint and type checks,
+- documentation build,
+- coverage threshold (`>=90%`),
+- benchmark thresholds (error + runtime slowdown bounds).
+
+See:
+- [PARITY_MATRIX.md](PARITY_MATRIX.md)
+- [MIGRATION_PLAN.md](MIGRATION_PLAN.md)
+
+## Documentation
+
+Detailed docs include equations, numerical methods, examples, parity strategy, testing, and performance notes:
+- local: `docs/`
+- Read the Docs config: [`.readthedocs.yaml`](.readthedocs.yaml)
 
 ## License
 

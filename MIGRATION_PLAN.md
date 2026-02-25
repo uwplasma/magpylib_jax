@@ -18,9 +18,14 @@ Deliver a fully differentiable, JAX-native replacement for Magpylib with matched
 | Circle current source (`current.Circle`) | Implemented | Yes | Yes |
 | Cuboid magnet (`magnet.Cuboid`) | Implemented | Yes | Yes |
 | Cylinder magnet (`magnet.Cylinder`) | Implemented | Yes | Yes |
-| Sphere magnet | Planned | Planned | Planned |
-| Triangle/Polyline/TriangularMesh/Tetrahedron | Planned | Planned | Planned |
-| Collection/Sensor/path interfaces | Partial (Collection/Sensor) | Partial | Partial |
+| Sphere magnet (`magnet.Sphere`) | Implemented | Yes | Yes |
+| Polyline current (`current.Polyline`) | Implemented | Yes | Partial |
+| Triangle surface (`misc.Triangle`) | Implemented | Yes | Partial |
+| Tetrahedron magnet (`magnet.Tetrahedron`) | Implemented | Yes | Partial |
+| CylinderSegment magnet | Planned | Planned | Planned |
+| TriangleSheet / TriangleStrip currents | Planned | Planned | Planned |
+| TriangularMesh magnet | Planned | Planned | Planned |
+| Collection/Sensor/path interfaces | Partial (Collection/Sensor + squeeze/sumup basics) | Partial | Partial |
 
 ## Phases
 
@@ -46,6 +51,6 @@ Deliver a fully differentiable, JAX-native replacement for Magpylib with matched
 
 ## Execution status
 
-- Phase 1 advanced: dipole, circle, cuboid, and cylinder kernels implemented.
-- Phase 2 advanced: functional/object API + compatibility objects implemented.
-- Phase 3 advanced: parity + differentiability tests extended to new sources.
+- Phase 1 advanced: dipole, circle, cuboid, cylinder, sphere, polyline, triangle, and tetrahedron kernels implemented.
+- Phase 2 advanced: expanded functional/object API + compatibility objects and basic squeeze/sumup behavior.
+- Phase 3 advanced: parity/physics/differentiability coverage and strict parity gate tests in CI.

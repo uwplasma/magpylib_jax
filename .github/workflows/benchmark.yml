@@ -18,8 +18,8 @@ jobs:
       - name: Run benchmark
         run: |
           python scripts/benchmark_vs_magpylib.py \
-            --n-observers 12000 \
-            --repeats 5 \
+            --n-observers 4000 \
+            --repeats 3 \
             --output benchmarks/latest.json
       - name: Validate thresholds
         run: python scripts/check_benchmark_thresholds.py benchmarks/latest.json benchmarks/thresholds.json

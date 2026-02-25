@@ -3,12 +3,20 @@
     "dipole": 1e-10,
     "circle": 5e-10,
     "cuboid": 5e-8,
-    "cylinder": 5e-7
+    "cylinder": 5e-7,
+    "sphere": 5e-10,
+    "polyline": 1e-8,
+    "triangle": 1e-6,
+    "tetrahedron": 1e-5
   },
   "max_runtime_slowdown_vs_magpylib": {
     "dipole": 10.0,
     "circle": 15.0,
     "cuboid": 20.0,
-    "cylinder": 30.0
+    "cylinder": 30.0,
+    "sphere": 20.0,
+    "polyline": 30.0,
+    "triangle": 40.0,
+    "tetrahedron": 60.0
   }
 }

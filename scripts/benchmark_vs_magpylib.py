@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import time
 from pathlib import Path
 
@@ -14,6 +15,7 @@ import numpy as np
 import magpylib_jax as mpj
 
 jax.config.update("jax_enable_x64", True)
+logging.getLogger("jax._src.xla_bridge").setLevel(logging.ERROR)
 
 
 def _timeit(fn, repeats: int) -> float:
@@ -100,6 +102,49 @@ def main() -> None:
         "cylinder",
         lambda: cyl_ref.getB(observers),
         lambda: cyl_new.getB(observers),
+        args.repeats,
+        observers,
+    )
+
+    sph_ref = magpy.magnet.Sphere(polarization=(0.11, -0.07, 0.13), diameter=1.3)
+    sph_new = mpj.magnet.Sphere(polarization=(0.11, -0.07, 0.13), diameter=1.3)
+    entries["sphere"] = _entry(
+        "sphere",
+        lambda: sph_ref.getB(observers),
+        lambda: sph_new.getB(observers),
+        args.repeats,
+        observers,
+    )
+
+    line_vertices = [(-0.5, -0.1, 0.3), (0.2, 0.4, 0.7), (0.9, 0.6, -0.2), (1.2, -0.3, 0.1)]
+    line_ref = magpy.current.Polyline(current=1.7, vertices=line_vertices)
+    line_new = mpj.current.Polyline(current=1.7, vertices=line_vertices)
+    entries["polyline"] = _entry(
+        "polyline",
+        lambda: line_ref.getB(observers),
+        lambda: line_new.getB(observers),
+        args.repeats,
+        observers,
+    )
+
+    tri_vertices = [(-0.2, -0.1, 0.0), (0.9, 0.3, 0.2), (0.1, 0.8, -0.2)]
+    tri_ref = magpy.misc.Triangle(vertices=tri_vertices, polarization=(0.2, -0.1, 0.3))
+    tri_new = mpj.misc.Triangle(vertices=tri_vertices, polarization=(0.2, -0.1, 0.3))
+    entries["triangle"] = _entry(
+        "triangle",
+        lambda: tri_ref.getB(observers),
+        lambda: tri_new.getB(observers),
+        args.repeats,
+        observers,
+    )
+
+    tet_vertices = [(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)]
+    tet_ref = magpy.magnet.Tetrahedron(vertices=tet_vertices, polarization=(0.1, -0.2, 0.3))
+    tet_new = mpj.magnet.Tetrahedron(vertices=tet_vertices, polarization=(0.1, -0.2, 0.3))
+    entries["tetrahedron"] = _entry(
+        "tetrahedron",
+        lambda: tet_ref.getB(observers),
+        lambda: tet_new.getB(observers),
         args.repeats,
         observers,
     )
