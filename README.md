@@ -81,6 +81,16 @@ Key files:
 - [`benchmarks/thresholds.json`](benchmarks/thresholds.json)
 - [`profiling/thresholds.json`](profiling/thresholds.json)
 
+### Profiling sweep (local)
+
+```bash
+python scripts/profile_kernels.py --n-observers 512 --repeats 1 \
+  --output profiling/profile.local.json --output-dir profiling/artifacts/local
+python scripts/check_profiling_thresholds.py profiling/profile.local.json
+```
+
+Update `profiling/thresholds.json` when intentional kernel changes shift HLO size or runtime.
+
 ## Documentation
 
 Detailed docs are in `docs/` (equations, numerics, examples, parity strategy, testing, performance, API).

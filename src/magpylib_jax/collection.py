@@ -35,6 +35,12 @@ class Collection:
     def __iter__(self):
         return iter(self.sources)
 
+    def __len__(self) -> int:
+        return len(self.sources)
+
+    def __getitem__(self, idx: int) -> object:
+        return self.sources[idx]
+
     def __add__(self, other: object) -> Collection:
         if isinstance(other, Collection):
             return Collection([*self.sources, *other.sources])

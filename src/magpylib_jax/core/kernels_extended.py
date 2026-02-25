@@ -19,6 +19,9 @@ _TETRA_FACES = jnp.array(
     ],
     dtype=jnp.int32,
 )
+_IN_OUT_FLAGS = {"auto": 0, "inside": 1, "outside": 2}
+
+_JIT_KERNEL_CACHE: dict[tuple[str, int, int], object] = {}
 
 
 def _broadcast_vec3(arr: jnp.ndarray, n: int) -> jnp.ndarray:
@@ -190,6 +193,63 @@ def _triangle_norm_vector(vertices: jnp.ndarray) -> jnp.ndarray:
     return n / n_norm[:, None]
 
 
+def _triangle_geom_terms(
+    tri: jnp.ndarray,
+) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    """Precompute triangle normals and edge terms for reuse."""
+    a = tri[..., 1, :] - tri[..., 0, :]
+    b = tri[..., 2, :] - tri[..., 0, :]
+    n = jnp.cross(a, b)
+    n_norm = _safe_norm(n, axis=-1, keepdims=True)
+    nvec = n / n_norm
+    L = tri[..., (1, 2, 0), :] - tri[..., (0, 1, 2), :]
+    l2 = jnp.sum(L * L, axis=-1)
+    l1 = jnp.sqrt(l2)
+    return nvec, L, l1, l2
+
+
+def _triangle_bfield_const_precomp(
+    obs: jnp.ndarray,
+    tri: jnp.ndarray,
+    pol: jnp.ndarray,
+    nvec: jnp.ndarray,
+    L: jnp.ndarray,
+    l1: jnp.ndarray,
+    l2: jnp.ndarray,
+) -> jnp.ndarray:
+    """B-field for constant triangle using precomputed geometry."""
+    R = tri[None, :, :] - obs[:, None, :]
+    r2 = jnp.sum(R * R, axis=-1)
+    r = jnp.sqrt(r2)
+
+    b = jnp.sum(R * L[None, :, :], axis=-1)
+    bl = b / l1
+    ind = jnp.abs(r + bl)
+
+    integ1 = 1.0 / l1 * jnp.log((jnp.sqrt(l2 + 2.0 * b + r2) + l1 + bl) / ind)
+    integ2 = -(1.0 / l1) * jnp.log(jnp.abs(l1 - r) / r)
+    integ = jnp.where(ind > 1e-12, integ1, integ2)
+
+    PQR = jnp.sum(integ[:, :, None] * L[None, :, :], axis=1)
+    sigma = jnp.sum(pol * nvec[None, :], axis=1)
+    B = sigma[:, None] * (nvec[None, :] * _solid_angle(R, r)[:, None] - jnp.cross(nvec, PQR))
+    B = B / (_FOUR_PI)
+    return jnp.nan_to_num(B, nan=0.0)
+
+
+def _in_out_flag(in_out: str) -> int:
+    if in_out not in _IN_OUT_FLAGS:
+        raise ValueError(f"in_out must be one of {sorted(_IN_OUT_FLAGS)}, got {in_out!r}.")
+    return _IN_OUT_FLAGS[in_out]
+
+
+def _jit_kernel(name: str, fn, n_obs: int, in_out_flag: int):
+    key = (name, int(n_obs), int(in_out_flag))
+    if key not in _JIT_KERNEL_CACHE:
+        _JIT_KERNEL_CACHE[key] = jax.jit(fn, static_argnames=("in_out_flag",))
+    return _JIT_KERNEL_CACHE[key]
+
+
 def _solid_angle(R: jnp.ndarray, r: jnp.ndarray) -> jnp.ndarray:
     """Solid angle for vectors R with shape (n,3,3) and norms r with shape (n,3)."""
     N = jnp.sum(R[:, 2] * jnp.cross(R[:, 1], R[:, 0]), axis=1)
@@ -337,7 +397,11 @@ def tetrahedron_bfield(
         tet_const = tet if tet.ndim == 2 else tet[0]
         tet_const = _check_tetra_chirality(tet_const[None, :, :])[0]
         faces = tet_const[_TETRA_FACES]
-        b_faces = jax.vmap(lambda tri: triangle_bfield(obs, tri, pol))(faces)
+        nvec, L, l1, l2 = _triangle_geom_terms(faces)
+        b_faces = jax.vmap(
+            _triangle_bfield_const_precomp,
+            in_axes=(None, 0, None, 0, 0, 0, 0),
+        )(obs, faces, pol, nvec, L, l1, l2)
         b = jnp.sum(b_faces, axis=0)
 
         if in_out == "inside":
@@ -515,14 +579,14 @@ def magnet_trimesh_bfield(
     # Evaluate each face as a batched triangle field and reduce over faces.
     # This avoids flatten+repeat expansions and lowers peak memory pressure.
     if mesh_arr.ndim == 3:
-        b_faces = jax.vmap(lambda face_vertices: triangle_bfield(obs, face_vertices, pol))(mesh_arr)
-        b = jnp.sum(b_faces, axis=0)
-    else:
-        mesh_by_face = jnp.swapaxes(mesh_arr, 0, 1)  # (n_faces, n_obs, 3, 3)
-        b_faces = jax.vmap(lambda face_vertices: triangle_bfield(obs, face_vertices, pol))(
-            mesh_by_face
-        )
-        b = jnp.sum(b_faces, axis=0)
+        flag = _in_out_flag(in_out)
+        return _magnet_trimesh_bfield_const_impl(obs, mesh_arr, pol, in_out_flag=flag)
+
+    mesh_by_face = jnp.swapaxes(mesh_arr, 0, 1)  # (n_faces, n_obs, 3, 3)
+    b_faces = jax.vmap(lambda face_vertices: triangle_bfield(obs, face_vertices, pol))(
+        mesh_by_face
+    )
+    b = jnp.sum(b_faces, axis=0)
 
     if in_out == "outside":
         inside = jnp.zeros((n,), dtype=bool)
@@ -532,6 +596,62 @@ def magnet_trimesh_bfield(
         inside = _inside_mask_mesh(obs, mesh_arr)
 
     return b + jnp.where(inside[:, None], pol, 0.0)
+
+
+def _magnet_trimesh_bfield_const_impl(
+    obs: jnp.ndarray,
+    mesh_arr: jnp.ndarray,
+    pol: jnp.ndarray,
+    *,
+    in_out_flag: int,
+) -> jnp.ndarray:
+    nvec, L, l1, l2 = _triangle_geom_terms(mesh_arr)
+
+    def _accumulate_faces() -> jnp.ndarray:
+        def body(i: int, acc: jnp.ndarray) -> jnp.ndarray:
+            return acc + _triangle_bfield_const_precomp(
+                obs, mesh_arr[i], pol, nvec[i], L[i], l1[i], l2[i]
+            )
+
+        init = jnp.zeros((obs.shape[0], 3), dtype=jnp.float64)
+        return jax.lax.fori_loop(0, mesh_arr.shape[0], body, init)
+
+    if mesh_arr.shape[0] <= 64:
+        b_faces = jax.vmap(
+            _triangle_bfield_const_precomp,
+            in_axes=(None, 0, None, 0, 0, 0, 0),
+        )(obs, mesh_arr, pol, nvec, L, l1, l2)
+        b = jnp.sum(b_faces, axis=0)
+    else:
+        b = _accumulate_faces()
+
+    if in_out_flag == _IN_OUT_FLAGS["outside"]:
+        inside = jnp.zeros((obs.shape[0],), dtype=bool)
+    elif in_out_flag == _IN_OUT_FLAGS["inside"]:
+        inside = jnp.ones((obs.shape[0],), dtype=bool)
+    else:
+        inside = _inside_mask_mesh(obs, mesh_arr)
+    return b + jnp.where(inside[:, None], pol, 0.0)
+
+
+def magnet_trimesh_bfield_jit(
+    observers: ArrayLike,
+    mesh: ArrayLike,
+    polarizations: ArrayLike,
+    in_out: str = "auto",
+) -> jnp.ndarray:
+    """JIT-specialized triangular mesh B-field for fixed observer counts."""
+    obs = ensure_observers(observers)
+    mesh_arr = jnp.asarray(mesh, dtype=jnp.float64)
+    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), obs.shape[0])
+    flag = _in_out_flag(in_out)
+    jit_fn = _jit_kernel(
+        "triangularmesh_bfield",
+        _magnet_trimesh_bfield_const_impl,
+        obs.shape[0],
+        flag,
+    )
+    return jit_fn(obs, mesh_arr, pol, in_out_flag=flag)
 
 
 def magnet_trimesh_hfield(
@@ -708,6 +828,19 @@ def magnet_cylinder_segment_bfield(
     dim = _ensure_dim5(dimensions, obs.shape[0])
     mesh = _build_cylinder_segment_mesh(dim)
     return magnet_trimesh_bfield(obs, mesh, polarizations, in_out=in_out)
+
+
+def magnet_cylinder_segment_bfield_jit(
+    observers: ArrayLike,
+    dimensions: ArrayLike,
+    polarizations: ArrayLike,
+    in_out: str = "auto",
+) -> jnp.ndarray:
+    """JIT-specialized cylinder-segment B-field for fixed observer counts."""
+    obs = ensure_observers(observers)
+    dim = _ensure_dim5(dimensions, obs.shape[0])
+    mesh = _build_cylinder_segment_mesh(dim)
+    return magnet_trimesh_bfield_jit(obs, mesh, polarizations, in_out=in_out)
 
 
 def magnet_cylinder_segment_hfield(

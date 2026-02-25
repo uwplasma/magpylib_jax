@@ -34,6 +34,15 @@ Thresholds:
 - Max absolute parity error (Tesla).
 - Peak process memory (bytes).
 
+## Updating thresholds
+
+When kernel changes intentionally alter HLO size, compile time, or runtime:
+
+1. Run `scripts/profile_kernels.py` with the standard observer count.
+2. Review the JSON output and HLO artifacts.
+3. Update `profiling/thresholds.json` with conservative budgets.
+4. Re-run `scripts/check_profiling_thresholds.py` to confirm.
+
 ## CI regression gates
 
 - `ci.yml`: benchmark regression + profiling regression jobs.

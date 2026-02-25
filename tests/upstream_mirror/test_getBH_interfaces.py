@@ -40,6 +40,18 @@ def test_getB_interfaces_list_sources() -> None:
     np.testing.assert_allclose(b_sum, b_stack[0] + b_stack[1])
 
 
+def test_getB_interfaces_list_observers() -> None:
+    src = mpj.magnet.Cuboid(
+        polarization=(1, 2, 3),
+        dimension=(1, 2, 3),
+    )
+    poso = [[(-1, -1, -1)] * 2] * 2
+
+    b_stack = src.getB([poso, poso])
+    assert b_stack.shape == (2, 4, 3)
+    np.testing.assert_allclose(b_stack[0], b_stack[1])
+
+
 def test_getH_interface_equivalence() -> None:
     src = mpj.magnet.Cuboid(
         polarization=(22, -33, 44),
@@ -73,6 +85,18 @@ def test_getH_interfaces_list_sources() -> None:
 
     np.testing.assert_allclose(h_stack[0], h_stack[1])
     np.testing.assert_allclose(h_sum, h_stack[0] + h_stack[1])
+
+
+def test_getH_interfaces_list_observers() -> None:
+    src = mpj.magnet.Cuboid(
+        polarization=(22, -33, 44),
+        dimension=(3, 2, 3),
+    )
+    poso = [[(-1, -2, -3)] * 2] * 2
+
+    h_stack = src.getH([poso, poso])
+    assert h_stack.shape == (2, 4, 3)
+    np.testing.assert_allclose(h_stack[0], h_stack[1])
 
 
 def test_getHBMJ_self_consistency() -> None:

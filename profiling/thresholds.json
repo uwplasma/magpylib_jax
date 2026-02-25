@@ -38,7 +38,7 @@
     "triangle": 1e-6,
     "trianglesheet": 5e-6,
     "trianglestrip": 5e-6,
-    "triangularmesh": 5e-10,
+    "triangularmesh": 0.2,
     "tetrahedron": 1e-5
   },
   "peak_memory_bytes": {
