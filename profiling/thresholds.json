@@ -8,10 +8,14 @@
     "sphere": 20.0,
     "polyline": 25.0,
     "triangle": 30.0,
+    "triangle_jit": 30.0,
     "trianglesheet": 40.0,
+    "trianglesheet_jit": 40.0,
     "trianglestrip": 40.0,
+    "trianglestrip_jit": 40.0,
     "triangularmesh": 35.0,
-    "tetrahedron": 35.0
+    "tetrahedron": 35.0,
+    "tetrahedron_jit": 35.0
   },
   "steady_state_runtime_s": {
     "dipole": 2.0,
@@ -22,10 +26,14 @@
     "sphere": 2.0,
     "polyline": 3.0,
     "triangle": 4.0,
+    "triangle_jit": 4.0,
     "trianglesheet": 6.0,
+    "trianglesheet_jit": 6.0,
     "trianglestrip": 6.0,
+    "trianglestrip_jit": 6.0,
     "triangularmesh": 4.0,
-    "tetrahedron": 4.0
+    "tetrahedron": 4.0,
+    "tetrahedron_jit": 4.0
   },
   "max_abs_parity_error_T": {
     "dipole": 1e-10,
@@ -36,10 +44,14 @@
     "sphere": 5e-10,
     "polyline": 1e-8,
     "triangle": 1e-6,
+    "triangle_jit": 1e-6,
     "trianglesheet": 5e-6,
+    "trianglesheet_jit": 5e-6,
     "trianglestrip": 5e-6,
+    "trianglestrip_jit": 5e-6,
     "triangularmesh": 0.2,
-    "tetrahedron": 1e-5
+    "tetrahedron": 1e-5,
+    "tetrahedron_jit": 1e-5
   },
   "peak_memory_bytes": {
     "dipole": 3500000000,
@@ -50,10 +62,14 @@
     "sphere": 3500000000,
     "polyline": 3500000000,
     "triangle": 3500000000,
+    "triangle_jit": 3500000000,
     "trianglesheet": 3500000000,
+    "trianglesheet_jit": 3500000000,
     "trianglestrip": 3500000000,
+    "trianglestrip_jit": 3500000000,
     "triangularmesh": 3500000000,
-    "tetrahedron": 3500000000
+    "tetrahedron": 3500000000,
+    "tetrahedron_jit": 3500000000
   },
   "hlo_size_bytes": {
     "dipole": 2000000,
@@ -64,9 +80,13 @@
     "sphere": 2000000,
     "polyline": 2000000,
     "triangle": 40000,
+    "triangle_jit": 50000,
     "trianglesheet": 50000,
+    "trianglesheet_jit": 65000,
     "trianglestrip": 60000,
+    "trianglestrip_jit": 75000,
     "triangularmesh": 110000,
-    "tetrahedron": 90000
+    "tetrahedron": 90000,
+    "tetrahedron_jit": 110000
   }
 }

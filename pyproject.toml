@@ -25,6 +25,7 @@ classifiers = [
 dependencies = [
   "jax[cpu]>=0.5.0",
   "numpy>=1.26",
+  "scipy>=1.11",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +33,7 @@ test = [
   "pytest>=8.3",
   "pytest-cov>=5.0",
   "magpylib>=5.2",
+  "pandas>=2.2",
 ]
 docs = [
   "sphinx>=8.0",

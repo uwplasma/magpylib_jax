@@ -2,70 +2,194 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import numpy as np
 
 import jax.numpy as jnp
 
 from magpylib_jax._types import ArrayLike
+from magpylib_jax.core.base import (
+    BaseGeo,
+    MagpylibBadUserInput,
+    check_format_input_vector,
+)
+from magpylib_jax.core.style import SensorStyle
 from magpylib_jax.functional import getB, getH, getJ, getM
 
 
-@dataclass(frozen=True)
-class Sensor:
+class Sensor(BaseGeo):
     """Sensor with one or multiple pixel locations."""
 
-    pixel: ArrayLike | None = None
-    position: ArrayLike | None = None
+    _is_sensor = True
+    _style_class = SensorStyle
 
-    def __post_init__(self) -> None:
-        if self.pixel is None and self.position is None:
-            raise ValueError("Provide `pixel` or `position`.")
+    def __init__(
+        self,
+        pixel: ArrayLike | None = None,
+        position: ArrayLike = (0.0, 0.0, 0.0),
+        orientation: ArrayLike | None = None,
+        handedness: str = "right",
+        style=None,
+        style_label: str | None = None,
+        **kwargs,
+    ) -> None:
+        self._pixel = None
+        self.pixel = pixel
+        self.handedness = handedness
+        super().__init__(
+            position=position,
+            orientation=orientation,
+            style=style,
+            style_label=style_label,
+            **kwargs,
+        )
+
+    @property
+    def pixel(self):
+        return self._pixel
+
+    @pixel.setter
+    def pixel(self, pix):
+        self._pixel = check_format_input_vector(
+            pix,
+            name="pixel",
+            dims=tuple(range(1, 20)),
+            shape_m1=3,
+            sig_type="array-like with shape (o1, o2, ..., 3) or None",
+            allow_None=True,
+        )
+
+    @property
+    def handedness(self) -> str:
+        return self._handedness
+
+    @handedness.setter
+    def handedness(self, val: str) -> None:
+        if val not in ("right", "left"):
+            msg = (
+                f"Input handedness of {self} must be either 'right' or 'left'; "
+                f"instead received {val!r}."
+            )
+            raise MagpylibBadUserInput(msg)
+        self._handedness = val
 
     @property
     def observers(self) -> jnp.ndarray:
-        pix = None if self.pixel is None else jnp.asarray(self.pixel, dtype=jnp.float64)
-        pos = None if self.position is None else jnp.asarray(self.position, dtype=jnp.float64)
-
+        pix = self._pixel
         if pix is None:
-            assert pos is not None
-            if pos.ndim == 1:
-                return pos
-            if pos.ndim == 2 and pos.shape[1] == 3:
-                return pos[:, None, :]
-            raise ValueError(
-                f"Sensor `position` must have shape (3,) or (p,3), got {pos.shape}."
-            )
-        if pos is None:
-            assert pix is not None
-            return pix
+            pix = np.zeros((1, 3), dtype=float)
+            pix_shape = (1, 3)
+        else:
+            pix = np.asarray(pix, dtype=float)
+            if pix.shape == (3,):
+                pix = pix[None, :]
+            pix_shape = pix.shape
+        pix_flat = pix.reshape((-1, 3))
 
-        if pos.ndim == 1:
-            pos = pos[None, :]
-        if pos.ndim != 2 or pos.shape[1] != 3:
-            raise ValueError(
-                f"Sensor `position` must have shape (3,) or (p,3), got {pos.shape}."
-            )
-        if pix.shape[-1] != 3:
-            raise ValueError(f"Sensor `pixel` must have trailing dimension 3, got {pix.shape}.")
+        pos_path = np.asarray(self._position, dtype=float)
+        rot_mats = self._orientation.as_matrix()
+        obs_path = []
+        for idx in range(pos_path.shape[0]):
+            rot = rot_mats[min(idx, rot_mats.shape[0] - 1)]
+            obs = pix_flat @ rot.T + pos_path[idx]
+            obs_path.append(obs)
+        obs_path = np.stack(obs_path, axis=0)
 
-        # Broadcast sensor path over pixel layout.
-        return pos[(slice(None),) + (None,) * (pix.ndim - 1)] + pix[None, ...]
+        if pos_path.shape[0] == 1:
+            return jnp.asarray(obs_path[0].reshape(pix_shape), dtype=jnp.float64)
+        return jnp.asarray(
+            obs_path.reshape((pos_path.shape[0],) + pix_shape[:-1] + (3,)),
+            dtype=jnp.float64,
+        )
 
     @property
     def centroid(self) -> jnp.ndarray:
-        obs = jnp.asarray(self.observers, dtype=jnp.float64)
-        if obs.ndim == 1:
-            return obs
-        return jnp.mean(obs.reshape((-1, 3)), axis=0)
+        if self._pixel is None:
+            return jnp.asarray(self.position, dtype=jnp.float64)
+        pix_mean = np.mean(np.asarray(self._pixel, dtype=float).reshape(-1, 3), axis=0)
+        centroid = np.asarray(self._position, dtype=float) + pix_mean
+        if centroid.shape[0] == 1:
+            centroid = centroid[0]
+        return jnp.asarray(centroid, dtype=jnp.float64)
 
-    def getB(self, sources: object, *, in_out: str = "auto") -> jnp.ndarray:
-        return getB(sources, self.observers, in_out=in_out)
+    def getB(
+        self,
+        *sources: object,
+        in_out: str = "auto",
+        squeeze: bool = True,
+        sumup: bool = False,
+        pixel_agg: str | None = None,
+        output: str = "ndarray",
+    ) -> jnp.ndarray:
+        srcs = sources[0] if len(sources) == 1 else list(sources)
+        return getB(
+            srcs,
+            self,
+            in_out=in_out,
+            squeeze=squeeze,
+            sumup=sumup,
+            pixel_agg=pixel_agg,
+            output=output,
+        )
 
-    def getH(self, sources: object, *, in_out: str = "auto") -> jnp.ndarray:
-        return getH(sources, self.observers, in_out=in_out)
+    def getH(
+        self,
+        *sources: object,
+        in_out: str = "auto",
+        squeeze: bool = True,
+        sumup: bool = False,
+        pixel_agg: str | None = None,
+        output: str = "ndarray",
+    ) -> jnp.ndarray:
+        srcs = sources[0] if len(sources) == 1 else list(sources)
+        return getH(
+            srcs,
+            self,
+            in_out=in_out,
+            squeeze=squeeze,
+            sumup=sumup,
+            pixel_agg=pixel_agg,
+            output=output,
+        )
 
-    def getJ(self, sources: object, *, in_out: str = "auto") -> jnp.ndarray:
-        return getJ(sources, self.observers, in_out=in_out)
+    def getJ(
+        self,
+        *sources: object,
+        in_out: str = "auto",
+        squeeze: bool = True,
+        sumup: bool = False,
+        pixel_agg: str | None = None,
+        output: str = "ndarray",
+    ) -> jnp.ndarray:
+        srcs = sources[0] if len(sources) == 1 else list(sources)
+        return getJ(
+            srcs,
+            self,
+            in_out=in_out,
+            squeeze=squeeze,
+            sumup=sumup,
+            pixel_agg=pixel_agg,
+            output=output,
+        )
 
-    def getM(self, sources: object, *, in_out: str = "auto") -> jnp.ndarray:
-        return getM(sources, self.observers, in_out=in_out)
+    def getM(
+        self,
+        *sources: object,
+        in_out: str = "auto",
+        squeeze: bool = True,
+        sumup: bool = False,
+        pixel_agg: str | None = None,
+        output: str = "ndarray",
+    ) -> jnp.ndarray:
+        srcs = sources[0] if len(sources) == 1 else list(sources)
+        return getM(
+            srcs,
+            self,
+            in_out=in_out,
+            squeeze=squeeze,
+            sumup=sumup,
+            pixel_agg=pixel_agg,
+            output=output,
+        )
+
+    def copy(self, **kwargs) -> Sensor:
+        return super().copy(**kwargs)

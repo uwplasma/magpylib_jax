@@ -22,6 +22,7 @@ _TETRA_FACES = jnp.array(
 _IN_OUT_FLAGS = {"auto": 0, "inside": 1, "outside": 2}
 
 _JIT_KERNEL_CACHE: dict[tuple[str, int, int], object] = {}
+_JIT_SIMPLE_CACHE: dict[tuple[str, int], object] = {}
 
 
 def _broadcast_vec3(arr: jnp.ndarray, n: int) -> jnp.ndarray:
@@ -250,6 +251,22 @@ def _jit_kernel(name: str, fn, n_obs: int, in_out_flag: int):
     return _JIT_KERNEL_CACHE[key]
 
 
+def _jit_kernel_simple(name: str, fn, n_obs: int):
+    key = (name, int(n_obs))
+    if key not in _JIT_SIMPLE_CACHE:
+        _JIT_SIMPLE_CACHE[key] = jax.jit(fn)
+    return _JIT_SIMPLE_CACHE[key]
+
+
+def _triangle_bfield_const_impl(
+    obs: jnp.ndarray,
+    tri: jnp.ndarray,
+    pol: jnp.ndarray,
+) -> jnp.ndarray:
+    nvec, L, l1, l2 = _triangle_geom_terms(tri[None, :, :])
+    return _triangle_bfield_const_precomp(obs, tri, pol, nvec[0], L[0], l1[0], l2[0])
+
+
 def _solid_angle(R: jnp.ndarray, r: jnp.ndarray) -> jnp.ndarray:
     """Solid angle for vectors R with shape (n,3,3) and norms r with shape (n,3)."""
     N = jnp.sum(R[:, 2] * jnp.cross(R[:, 1], R[:, 0]), axis=1)
@@ -342,6 +359,21 @@ def triangle_mfield(
     return jnp.zeros_like(obs)
 
 
+def triangle_bfield_jit(
+    observers: ArrayLike,
+    vertices: ArrayLike,
+    polarizations: ArrayLike,
+) -> jnp.ndarray:
+    """JIT-specialized triangle B-field for fixed observer counts."""
+    obs = ensure_observers(observers)
+    tri = jnp.asarray(vertices, dtype=jnp.float64)
+    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), obs.shape[0])
+    if tri.ndim != 2:
+        return triangle_bfield(obs, tri, pol)
+    jit_fn = _jit_kernel_simple("triangle_bfield", _triangle_bfield_const_impl, obs.shape[0])
+    return jit_fn(obs, tri, pol)
+
+
 def _check_tetra_chirality(vertices: jnp.ndarray) -> jnp.ndarray:
     vecs = jnp.stack(
         (
@@ -380,6 +412,31 @@ def _points_inside_tetra_single(points: jnp.ndarray, vertices: jnp.ndarray) -> j
         & jnp.all(newp <= 1.0, axis=1)
         & (jnp.sum(newp, axis=1) <= 1.0)
     )
+
+
+def _tetrahedron_bfield_const_impl(
+    obs: jnp.ndarray,
+    tet_const: jnp.ndarray,
+    pol: jnp.ndarray,
+    *,
+    in_out_flag: int,
+) -> jnp.ndarray:
+    tet_const = _check_tetra_chirality(tet_const[None, :, :])[0]
+    faces = tet_const[_TETRA_FACES]
+    nvec, L, l1, l2 = _triangle_geom_terms(faces)
+    b_faces = jax.vmap(
+        _triangle_bfield_const_precomp,
+        in_axes=(None, 0, None, 0, 0, 0, 0),
+    )(obs, faces, pol, nvec, L, l1, l2)
+    b = jnp.sum(b_faces, axis=0)
+
+    if in_out_flag == _IN_OUT_FLAGS["outside"]:
+        inside = jnp.zeros((obs.shape[0],), dtype=bool)
+    elif in_out_flag == _IN_OUT_FLAGS["inside"]:
+        inside = jnp.ones((obs.shape[0],), dtype=bool)
+    else:
+        inside = _points_inside_tetra_single(obs, tet_const)
+    return b + jnp.where(inside[:, None], pol, 0.0)
 
 
 def tetrahedron_bfield(
@@ -427,6 +484,30 @@ def tetrahedron_bfield(
     else:
         inside = _points_inside_tetra(obs, tet)
     return b + jnp.where(inside[:, None], pol, 0.0)
+
+
+def tetrahedron_bfield_jit(
+    observers: ArrayLike,
+    vertices: ArrayLike,
+    polarizations: ArrayLike,
+    in_out: str = "auto",
+) -> jnp.ndarray:
+    """JIT-specialized tetrahedron B-field for fixed observer counts."""
+    obs = ensure_observers(observers)
+    tet = jnp.asarray(vertices, dtype=jnp.float64)
+    if tet.ndim == 3 and tet.shape[0] == 1:
+        tet = tet[0]
+    if tet.ndim != 2:
+        return tetrahedron_bfield(obs, tet, polarizations, in_out=in_out)
+    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), obs.shape[0])
+    flag = _in_out_flag(in_out)
+    jit_fn = _jit_kernel(
+        "tetrahedron_bfield",
+        _tetrahedron_bfield_const_impl,
+        obs.shape[0],
+        flag,
+    )
+    return jit_fn(obs, tet, pol, in_out_flag=flag)
 
 
 def tetrahedron_hfield(
@@ -548,10 +629,92 @@ def _point_inside_mesh(point: jnp.ndarray, triangles: jnp.ndarray) -> jnp.ndarra
     return inside | _point_on_triangles(point, triangles)
 
 
+def _v_norm2_jax(a: jnp.ndarray) -> jnp.ndarray:
+    return jnp.sum(a * a, axis=-1)
+
+
+def _v_norm_proj_jax(a: jnp.ndarray, b: jnp.ndarray) -> jnp.ndarray:
+    ab = jnp.sum(a * b, axis=-1)
+    return ab / jnp.sqrt(_v_norm2_jax(a) * _v_norm2_jax(b))
+
+
+def _v_dot_cross3d_jax(a: jnp.ndarray, b: jnp.ndarray, c: jnp.ndarray) -> jnp.ndarray:
+    return jnp.sum(jnp.cross(a, b) * c, axis=-1)
+
+
+def _lines_end_in_trimesh_jax(lines: jnp.ndarray, faces: jnp.ndarray) -> jnp.ndarray:
+    normals = jnp.cross(faces[:, 0] - faces[:, 2], faces[:, 1] - faces[:, 2])
+    normals = jnp.broadcast_to(normals, (lines.shape[0],) + normals.shape)
+
+    l0 = lines[:, 0][:, None, :]
+    l1 = lines[:, 1][:, None, :]
+
+    ref_pts = jnp.broadcast_to(faces[:, 2], (lines.shape[0], faces.shape[0], 3))
+    eps = 1e-16
+    coincide = _v_norm2_jax(l1 - ref_pts) < eps
+    ref_pts2 = jnp.broadcast_to(faces[:, 1], ref_pts.shape)
+    ref_pts = jnp.where(coincide[..., None], ref_pts2, ref_pts)
+
+    proj0 = _v_norm_proj_jax(l0 - ref_pts, normals)
+    proj1 = _v_norm_proj_jax(l1 - ref_pts, normals)
+
+    eps = 1e-7
+    plane_touch = jnp.abs(proj1) < eps
+    plane_cross = jnp.sign(proj0) != jnp.sign(proj1)
+
+    faces0 = faces[:, 0][None, :, :]
+    faces1 = faces[:, 1][None, :, :]
+    faces2 = faces[:, 2][None, :, :]
+    a = faces0 - l0
+    b = faces1 - l0
+    c = faces2 - l0
+    d = l1 - l0
+
+    area1 = _v_dot_cross3d_jax(a, b, d)
+    area2 = _v_dot_cross3d_jax(b, c, d)
+    area3 = _v_dot_cross3d_jax(c, a, d)
+
+    eps = 1e-12
+    pass_through_boundary = (jnp.abs(area1) < eps) | (jnp.abs(area2) < eps) | (jnp.abs(area3) < eps)
+    area1 = jnp.sign(area1)
+    area2 = jnp.sign(area2)
+    area3 = jnp.sign(area3)
+    pass_through_inside = (area1 == area2) & (area2 == area3)
+    pass_through = pass_through_boundary | pass_through_inside
+
+    result_cross = pass_through & plane_cross
+    result_touch = pass_through & plane_touch
+
+    inside1 = (jnp.sum(result_cross, axis=1) % 2) != 0
+    inside2 = jnp.any(result_touch, axis=1)
+    return inside1 | inside2
+
+
+def _mask_inside_trimesh_jax(points: jnp.ndarray, faces: jnp.ndarray) -> jnp.ndarray:
+    vertices = faces.reshape((-1, 3))
+    xmin, ymin, zmin = jnp.min(vertices, axis=0)
+    xmax, ymax, zmax = jnp.max(vertices, axis=0)
+    eps = 1e-12
+    mx = (points[:, 0] < xmax + eps) & (points[:, 0] > xmin - eps)
+    my = (points[:, 1] < ymax + eps) & (points[:, 1] > ymin - eps)
+    mz = (points[:, 2] < zmax + eps) & (points[:, 2] > zmin - eps)
+    mask_box = mx & my & mz
+
+    start_point_outside = jnp.array(
+        [xmin, ymin, zmin], dtype=jnp.float64
+    ) - jnp.array([12.0012345, 5.9923456, 6.9932109], dtype=jnp.float64)
+    start_pts = jnp.broadcast_to(start_point_outside, points.shape)
+    lines = jnp.stack((start_pts, points), axis=1)
+    mask_inside2 = _lines_end_in_trimesh_jax(lines, faces)
+    return mask_box & mask_inside2
+
+
 def _inside_mask_mesh(observers: jnp.ndarray, mesh: jnp.ndarray) -> jnp.ndarray:
     if mesh.ndim == 3:
-        return jax.vmap(lambda obs: _point_inside_mesh(obs, mesh))(observers)
-    return jax.vmap(_point_inside_mesh, in_axes=(0, 0))(observers, mesh)
+        return _mask_inside_trimesh_jax(observers, mesh)
+    return jax.vmap(lambda obs, face: _mask_inside_trimesh_jax(obs[None, :], face)[0])(
+        observers, mesh
+    )
 
 
 def _broadcast_mesh(mesh: jnp.ndarray, n: int) -> jnp.ndarray:
@@ -1024,6 +1187,21 @@ def current_trisheet_bfield(
     return MU0 * current_trisheet_hfield(observers, vertices, faces, current_densities)
 
 
+def current_trisheet_bfield_jit(
+    observers: ArrayLike,
+    vertices: ArrayLike,
+    faces: ArrayLike,
+    current_densities: ArrayLike,
+) -> jnp.ndarray:
+    """JIT-specialized triangle sheet B-field for fixed observer counts."""
+    obs = ensure_observers(observers)
+    verts = jnp.asarray(vertices, dtype=jnp.float64)
+    facs = jnp.asarray(faces, dtype=jnp.int32)
+    cds = jnp.asarray(current_densities, dtype=jnp.float64)
+    jit_fn = _jit_kernel_simple("trianglesheet_bfield", current_trisheet_bfield, obs.shape[0])
+    return jit_fn(obs, verts, facs, cds)
+
+
 def _strip_triangles(vertices: jnp.ndarray) -> jnp.ndarray:
     return jnp.stack((vertices[:-2], vertices[1:-1], vertices[2:]), axis=1)
 
@@ -1066,3 +1244,16 @@ def current_tristrip_bfield(
     current: ArrayLike,
 ) -> jnp.ndarray:
     return MU0 * current_tristrip_hfield(observers, vertices, current)
+
+
+def current_tristrip_bfield_jit(
+    observers: ArrayLike,
+    vertices: ArrayLike,
+    current: ArrayLike,
+) -> jnp.ndarray:
+    """JIT-specialized triangle strip B-field for fixed observer counts."""
+    obs = ensure_observers(observers)
+    verts = jnp.asarray(vertices, dtype=jnp.float64)
+    curr = jnp.asarray(current, dtype=jnp.float64)
+    jit_fn = _jit_kernel_simple("trianglestrip_bfield", current_tristrip_bfield, obs.shape[0])
+    return jit_fn(obs, verts, curr)

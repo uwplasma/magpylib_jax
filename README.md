@@ -30,6 +30,7 @@ Differentiable magnetic field modeling in JAX with Magpylib-compatible APIs, par
 - Path/motion/orientation coverage for core source/sensor workflows
 - Shape/squeeze behavior parity checks vs Magpylib
 - Upstream-file mirrored object tests (`test_obj_*` categories)
+- Fixed-observer-count JIT entrypoints for hotspot kernels (triangle*, tetrahedron, mesh)
 
 ## Quickstart
 
@@ -63,6 +64,26 @@ def bz(r2):
     return s.getB(obs)[2]
 
 print(jax.grad(bz)(1.2))
+```
+
+## Differentiable fitting (mini loop)
+
+```python
+import jax
+import jax.numpy as jnp
+import magpylib_jax as mpj
+
+obs = jnp.array([[0.2, 0.1, 0.4], [0.5, 0.0, 0.7]])
+target = jnp.array([[2.0e-4, 0.0, 3.0e-4], [1.0e-4, 0.0, 2.0e-4]])
+
+def loss_fn(pol):
+    src = mpj.magnet.Cuboid(dimension=(1.0, 0.8, 1.2), polarization=pol)
+    pred = src.getB(obs)
+    return jnp.mean((pred - target) ** 2)
+
+pol = jnp.array([0.05, -0.02, 0.08])
+for _ in range(50):
+    pol = pol - 1e-1 * jax.grad(loss_fn)(pol)
 ```
 
 ## Validation + profiling gates

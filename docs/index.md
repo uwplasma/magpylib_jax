@@ -21,6 +21,7 @@ examples
 testing
 performance
 parity
+parity_checklist
 reference/api
 roadmap
 ```

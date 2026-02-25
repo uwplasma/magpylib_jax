@@ -123,6 +123,12 @@ def _profile_entry(
 
 def _profiles(observers: np.ndarray) -> dict[str, tuple]:
     import magpylib_jax as mpj
+    from magpylib_jax.core.kernels_extended import (
+        current_trisheet_bfield_jit,
+        current_tristrip_bfield_jit,
+        tetrahedron_bfield_jit,
+        triangle_bfield_jit,
+    )
 
     tri_vertices = [(-0.2, -0.1, 0.0), (0.9, 0.3, 0.2), (0.1, 0.8, -0.2)]
     tetra_vertices = [(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)]
@@ -215,13 +221,55 @@ def _profiles(observers: np.ndarray) -> dict[str, tuple]:
         ),
     }
 
-    return {
+    profiles = {
         name: (
             lambda obs, src=src_ref: src.getB(obs),
             lambda obs, src=src_new: src.getB(obs),
         )
         for name, (src_ref, src_new) in refs_news.items()
     }
+
+    profiles.update(
+        {
+            "triangle_jit": (
+                lambda obs: magpy.misc.Triangle(
+                    vertices=tri_vertices, polarization=(0.2, -0.1, 0.3)
+                ).getB(obs),
+                lambda obs: triangle_bfield_jit(
+                    obs, tri_vertices, np.array((0.2, -0.1, 0.3))
+                ),
+            ),
+            "trianglesheet_jit": (
+                lambda obs: magpy.current.TriangleSheet(
+                    vertices=sheet_vertices, faces=sheet_faces, current_densities=sheet_cds
+                ).getB(obs),
+                lambda obs: current_trisheet_bfield_jit(
+                    obs,
+                    np.array(sheet_vertices, dtype=float),
+                    np.array(sheet_faces, dtype=int),
+                    np.array(sheet_cds, dtype=float),
+                ),
+            ),
+            "trianglestrip_jit": (
+                lambda obs: magpy.current.TriangleStrip(
+                    vertices=strip_vertices, current=1.4
+                ).getB(obs),
+                lambda obs: current_tristrip_bfield_jit(
+                    obs, np.array(strip_vertices, dtype=float), np.array(1.4, dtype=float)
+                ),
+            ),
+            "tetrahedron_jit": (
+                lambda obs: magpy.magnet.Tetrahedron(
+                    vertices=tetra_vertices, polarization=(0.1, -0.2, 0.3)
+                ).getB(obs),
+                lambda obs: tetrahedron_bfield_jit(
+                    obs, np.array(tetra_vertices, dtype=float), np.array((0.1, -0.2, 0.3))
+                ),
+            ),
+        }
+    )
+
+    return profiles
 
 
 def main() -> None:

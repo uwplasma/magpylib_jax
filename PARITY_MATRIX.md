@@ -34,10 +34,10 @@ This matrix tracks upstream test-file parity and corresponding local checks.
 | `tests/test_field_cylinder.py` (segment sections) | `tests/parity/test_cylinder_segment_parity.py`, `tests/parity_gates/test_source_profiles.py` | Implemented |
 | `tests/test_BHMJ_level.py` (mesh/sheet/strip portions) | `tests/parity_gates/test_source_profiles.py` | Partial |
 | `tests/test_obj_Sensor.py` | `tests/upstream_mirror/test_obj_Sensor.py` | Partial |
-| `tests/test_obj_Collection.py` | `tests/upstream_mirror/test_obj_Collection.py` | Partial |
-| `tests/test_getBH_interfaces.py` | `tests/upstream_mirror/test_getBH_interfaces.py` | Partial |
-| `tests/test_obj_BaseGeo.py` | `tests/upstream_mirror/test_obj_BaseGeo.py` | Partial |
-| `tests/test_obj_BaseGeo_v4motion.py` | `tests/upstream_mirror/test_obj_BaseGeo_v4motion.py` | Partial |
+| `tests/test_obj_Collection.py` | `tests/upstream_mirror/test_obj_Collection.py` | Implemented |
+| `tests/test_getBH_interfaces.py` | `tests/upstream_mirror/test_getBH_interfaces.py` | Implemented |
+| `tests/test_obj_BaseGeo.py` | `tests/upstream_mirror/test_obj_BaseGeo.py` | Implemented |
+| `tests/test_obj_BaseGeo_v4motion.py` | `tests/upstream_mirror/test_obj_BaseGeo_v4motion.py` | Implemented |
 | `tests/test_path.py` | `tests/upstream_mirror/test_path.py` | Partial |
 | `tests/test_physics_consistency.py` | `tests/upstream_mirror/test_physics_consistency.py` | Partial |
 
@@ -48,7 +48,7 @@ This matrix tracks upstream test-file parity and corresponding local checks.
 | Object + functional dispatch | `tests/test_compatibility.py` | Implemented |
 | Motion/path/orientation semantics | `tests/test_motion_shape_compat.py` | Implemented |
 | Multi-source/sensor shaping and `squeeze` behavior | `tests/test_motion_shape_compat.py`, `tests/parity_gates/test_source_profiles.py::test_squeeze_and_sumup_shapes` | Implemented |
-| `B/H/J/M` behavior gates by source profiles | `tests/parity_gates/test_source_profiles.py` | Implemented |
+| `B/H/J/M` behavior gates by source profiles | `tests/parity_gates/test_source_profiles.py`, `tests/parity_gates/test_source_boundaries.py` | Implemented |
 
 ## Physics + regression checks
 

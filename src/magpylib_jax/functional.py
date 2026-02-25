@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Sequence
+from itertools import product
 from math import prod
 from typing import Any
 
+import numpy as np
 import jax.numpy as jnp
 
 from magpylib_jax._types import ArrayLike
@@ -16,6 +18,7 @@ from magpylib_jax.core.geometry import (
     to_global_field,
     to_local_coordinates,
 )
+from magpylib_jax.core.base import BaseSource, MagpylibBadUserInput, MagpylibMissingInput
 from magpylib_jax.core.kernels import (
     current_circle_bfield,
     current_circle_hfield,
@@ -78,6 +81,132 @@ _ALIASES = {
     "triangular_mesh": "triangularmesh",
     "tetrahedron": "tetrahedron",
 }
+
+
+def _check_getbh_output_type(output: str) -> str:
+    acceptable = ("ndarray", "dataframe")
+    if output not in acceptable:
+        msg = f"Input output must be one of {acceptable}; instead received {output!r}."
+        raise ValueError(msg)
+    if output == "dataframe":
+        try:  # pragma: no cover - import check
+            import pandas as _  # noqa: F401
+        except Exception as err:  # pragma: no cover
+            msg = (
+                "Input output='dataframe' requires Pandas installation, "
+                "see https://pandas.pydata.org/docs/getting_started/install.html"
+            )
+            raise ModuleNotFoundError(msg) from err
+    return output
+
+
+def _check_pixel_agg(pixel_agg: str | None):
+    if pixel_agg is None:
+        return None
+    if callable(pixel_agg):
+        return pixel_agg
+    if not isinstance(pixel_agg, str):
+        raise AttributeError(
+            "Input pixel_agg must be a reference to a NumPy callable that reduces "
+            "an array shape like 'mean', 'std', 'median', 'min', ...; "
+            f"instead received {pixel_agg!r}."
+        )
+    if not hasattr(jnp, pixel_agg):
+        raise AttributeError(
+            "Input pixel_agg must be a reference to a NumPy callable that reduces "
+            "an array shape like 'mean', 'std', 'median', 'min', ...; "
+            f"instead received {pixel_agg!r}."
+        )
+    return getattr(jnp, pixel_agg)
+
+
+def _source_label(obj: object) -> str:
+    style = getattr(obj, "style", None)
+    label = getattr(style, "label", None) if style is not None else None
+    if label is None:
+        label = getattr(obj, "style_label", None)
+    return label or obj.__class__.__name__
+
+
+def _format_source_groups(source: object) -> list[dict[str, object]]:
+    if isinstance(source, (list, tuple)):
+        sources = list(source)
+    else:
+        sources = [source]
+    if not sources:
+        raise MagpylibBadUserInput("No sources provided.")
+
+    groups: list[dict[str, object]] = []
+    for src in sources:
+        if isinstance(src, (list, tuple)) and not isinstance(src, (BaseSource, str, bytes)):
+            groups.extend(_format_source_groups(src))
+            continue
+        if getattr(src, "_is_collection", False):
+            child_sources = getattr(src, "sources", [])
+            if not child_sources:
+                raise MagpylibBadUserInput("No sources provided.")
+            groups.append({"label": _source_label(src), "sources": child_sources})
+        elif isinstance(src, BaseSource) or getattr(src, "_is_source", False):
+            groups.append({"label": _source_label(src), "sources": [src]})
+        else:
+            raise MagpylibBadUserInput(f"Bad sources provided: {src!r}.")
+    return groups
+
+
+def _format_observers(observers: object, pixel_agg: str | None):
+    from magpylib_jax.sensor import Sensor  # local import to avoid cycles
+
+    if observers is None:
+        raise MagpylibBadUserInput("No observers provided.")
+
+    if getattr(observers, "_is_collection", False) or getattr(observers, "_is_sensor", False):
+        observers = (observers,)
+
+    if not isinstance(observers, (list, tuple, np.ndarray)):
+        raise MagpylibBadUserInput("Bad observers provided.")
+
+    if len(observers) == 0:  # type: ignore[arg-type]
+        raise MagpylibBadUserInput("Bad observers provided.")
+
+    # attempt to parse as single array-like
+    try:
+        arr = np.array(observers, dtype=float)
+        if arr.shape[-1] != 3:
+            raise ValueError
+        pix_shapes = [(1, 3) if arr.shape == (3,) else arr.shape]
+        return [Sensor(pixel=arr)], pix_shapes
+    except Exception:
+        pass
+
+    sensors = []
+    for obj in observers:  # type: ignore[iteration-over-annotation]
+        if getattr(obj, "_is_sensor", False):
+            sensors.append(obj)
+        elif getattr(obj, "_is_collection", False):
+            child_sensors = getattr(obj, "sensors", [])
+            if not child_sensors:
+                raise MagpylibBadUserInput("Bad observers provided.")
+            sensors.extend(child_sensors)
+        else:
+            try:
+                arr = np.array(obj, dtype=float)
+                if arr.shape[-1] != 3:
+                    raise ValueError
+                sensors.append(Sensor(pixel=arr))
+            except Exception as err:
+                raise MagpylibBadUserInput("Bad observers provided.") from err
+
+    pix_shapes = [
+        (1, 3) if (s.pixel is None or np.asarray(s.pixel).shape == (3,)) else np.asarray(s.pixel).shape
+        for s in sensors
+    ]
+    if pixel_agg is None and len(set(pix_shapes)) != 1:
+        msg = (
+            "Input observers must have similar shapes when pixel_agg is None; "
+            f"instead received shapes {pix_shapes}."
+        )
+        raise MagpylibBadUserInput(msg)
+    return sensors, pix_shapes
 
 
 def _normalize_source_type(source_type: str) -> str:
@@ -164,7 +293,7 @@ def _evaluate_core_field(
     if source_type == "dipole":
         moment = kwargs.get("moment")
         if moment is None:
-            raise ValueError("Dipole computation requires `moment`.")
+            raise MagpylibMissingInput("Input moment of Dipole must be set.")
         if output_field == "B":
             return dipole_bfield(obs_local, moment)
         if output_field == "H":
@@ -175,7 +304,7 @@ def _evaluate_core_field(
         diameter = kwargs.get("diameter")
         current = kwargs.get("current")
         if diameter is None or current is None:
-            raise ValueError("Circle computation requires `diameter` and `current`.")
+            raise MagpylibMissingInput("Input diameter of Circle must be set.")
         if output_field == "B":
             return current_circle_bfield(obs_local, diameter=diameter, current=current)
         if output_field == "H":
@@ -186,7 +315,7 @@ def _evaluate_core_field(
         dimension = kwargs.get("dimension")
         polarization = kwargs.get("polarization")
         if dimension is None or polarization is None:
-            raise ValueError("Cuboid computation requires `dimension` and `polarization`.")
+            raise MagpylibMissingInput("Input dimension of Cuboid must be set.")
         if output_field == "B":
             return magnet_cuboid_bfield(obs_local, dimension, polarization)
         if output_field == "H":
@@ -199,7 +328,7 @@ def _evaluate_core_field(
         dimension = kwargs.get("dimension")
         polarization = kwargs.get("polarization")
         if dimension is None or polarization is None:
-            raise ValueError("Cylinder computation requires `dimension` and `polarization`.")
+            raise MagpylibMissingInput("Input dimension of Cylinder must be set.")
         if output_field == "B":
             return magnet_cylinder_bfield(obs_local, dimension, polarization)
         if output_field == "H":
@@ -213,7 +342,7 @@ def _evaluate_core_field(
         polarization = kwargs.get("polarization")
         in_out = kwargs.get("in_out", "auto")
         if dimension is None or polarization is None:
-            raise ValueError("CylinderSegment computation requires `dimension` and `polarization`.")
+            raise MagpylibMissingInput("Input dimension of CylinderSegment must be set.")
         if output_field == "B":
             return magnet_cylinder_segment_bfield(obs_local, dimension, polarization, in_out=in_out)
         if output_field == "H":
@@ -226,7 +355,7 @@ def _evaluate_core_field(
         diameter = kwargs.get("diameter")
         polarization = kwargs.get("polarization")
         if diameter is None or polarization is None:
-            raise ValueError("Sphere computation requires `diameter` and `polarization`.")
+            raise MagpylibMissingInput("Input diameter of Sphere must be set.")
         if output_field == "B":
             return magnet_sphere_bfield(obs_local, diameter, polarization)
         if output_field == "H":
@@ -239,7 +368,7 @@ def _evaluate_core_field(
         vertices = kwargs.get("vertices")
         polarization = kwargs.get("polarization")
         if vertices is None or polarization is None:
-            raise ValueError("Triangle computation requires `vertices` and `polarization`.")
+            raise MagpylibMissingInput("Input vertices of Triangle must be set.")
         if output_field == "B":
             return triangle_bfield(obs_local, vertices, polarization)
         if output_field == "H":
@@ -253,10 +382,7 @@ def _evaluate_core_field(
         segment_end = kwargs.get("segment_end")
         current = kwargs.get("current")
         if segment_start is None or segment_end is None or current is None:
-            raise ValueError(
-                "Polyline computation requires `segment_start`, "
-                "`segment_end`, and `current`."
-            )
+            raise MagpylibMissingInput("Input vertices of Polyline must be set.")
         if output_field == "B":
             return current_polyline_bfield(obs_local, segment_start, segment_end, current)
         if output_field == "H":
@@ -268,9 +394,7 @@ def _evaluate_core_field(
         faces = kwargs.get("faces")
         current_densities = kwargs.get("current_densities")
         if vertices is None or faces is None or current_densities is None:
-            raise ValueError(
-                "TriangleSheet computation requires `vertices`, `faces`, and `current_densities`."
-            )
+            raise MagpylibMissingInput("Input vertices of TriangleSheet must be set.")
         if output_field == "B":
             return current_trisheet_bfield(obs_local, vertices, faces, current_densities)
         if output_field == "H":
@@ -281,7 +405,7 @@ def _evaluate_core_field(
         vertices = kwargs.get("vertices")
         current = kwargs.get("current")
         if vertices is None or current is None:
-            raise ValueError("TriangleStrip computation requires `vertices` and `current`.")
+            raise MagpylibMissingInput("Input vertices of TriangleStrip must be set.")
         if output_field == "B":
             return current_tristrip_bfield(obs_local, vertices, current)
         if output_field == "H":
@@ -293,7 +417,7 @@ def _evaluate_core_field(
         polarization = kwargs.get("polarization")
         in_out = kwargs.get("in_out", "auto")
         if mesh is None or polarization is None:
-            raise ValueError("TriangularMesh computation requires `mesh` and `polarization`.")
+            raise MagpylibMissingInput("Input vertices of TriangularMesh must be set.")
         if output_field == "B":
             return magnet_trimesh_bfield(obs_local, mesh, polarization, in_out=in_out)
         if output_field == "H":
@@ -307,7 +431,7 @@ def _evaluate_core_field(
         polarization = kwargs.get("polarization")
         in_out = kwargs.get("in_out", "auto")
         if vertices is None or polarization is None:
-            raise ValueError("Tetrahedron computation requires `vertices` and `polarization`.")
+            raise MagpylibMissingInput("Input vertices of Tetrahedron must be set.")
         if output_field == "B":
             return tetrahedron_bfield(obs_local, vertices, polarization, in_out=in_out)
         if output_field == "H":
@@ -356,6 +480,232 @@ def _evaluate_source_field(
     if "in_out" in inspect.signature(method).parameters:
         return jnp.asarray(method(observers, in_out=in_out), dtype=jnp.float64), 1
     return jnp.asarray(method(observers), dtype=jnp.float64), 1
+
+
+def _source_kwargs_from_object(source: object, *, in_out: str) -> tuple[str, dict[str, ArrayLike]]:
+    stype = getattr(source, "_source_type", None)
+    if stype is None:
+        stype = type(source).__name__.lower()
+
+    if stype == "cuboid":
+        return stype, {"dimension": source.dimension, "polarization": source._polarization}
+    if stype == "cylinder":
+        return stype, {"dimension": source.dimension, "polarization": source._polarization}
+    if stype == "cylindersegment":
+        return stype, {
+            "dimension": source.dimension,
+            "polarization": source._polarization,
+            "in_out": in_out,
+        }
+    if stype == "sphere":
+        return stype, {"diameter": source.diameter, "polarization": source._polarization}
+    if stype == "triangularmesh":
+        return stype, {"mesh": source.mesh, "polarization": source._polarization, "in_out": in_out}
+    if stype == "tetrahedron":
+        return stype, {"vertices": source.vertices, "polarization": source._polarization, "in_out": in_out}
+    if stype == "triangle":
+        return stype, {"vertices": source.vertices, "polarization": source.polarization}
+    if stype == "circle":
+        return stype, {"diameter": source.diameter, "current": source.current}
+    if stype == "polyline":
+        verts = jnp.asarray(source.vertices, dtype=jnp.float64)
+        return stype, {
+            "segment_start": verts[:-1],
+            "segment_end": verts[1:],
+            "current": source.current,
+        }
+    if stype == "trianglesheet":
+        return stype, {
+            "vertices": source.vertices,
+            "faces": source.faces,
+            "current_densities": source.current_densities,
+        }
+    if stype == "trianglestrip":
+        return stype, {"vertices": source.vertices, "current": source.current}
+    if stype == "dipole":
+        return stype, {"moment": source.moment}
+
+    raise MagpylibBadUserInput(f"Unsupported source type {stype!r}.")
+
+
+def _compute_field(
+    source: str | object,
+    observers: object,
+    field: str,
+    *,
+    position: ArrayLike = (0.0, 0.0, 0.0),
+    orientation: ArrayLike | None = None,
+    squeeze: bool = True,
+    sumup: bool = False,
+    pixel_agg: str | None = None,
+    output: str = "ndarray",
+    in_out: str = "auto",
+    **kwargs: ArrayLike,
+) -> jnp.ndarray:
+    output = _check_getbh_output_type(output)
+    pixel_agg_func = _check_pixel_agg(pixel_agg)
+
+    if isinstance(source, str):
+        src_type = _normalize_source_type(source)
+        pos_path, rot_path = broadcast_pose(position=position, orientation=orientation)
+        src_specs = [
+            {
+                "type": src_type,
+                "pos": jnp.asarray(pos_path, dtype=jnp.float64),
+                "rot": jnp.asarray(rot_path, dtype=jnp.float64),
+                "kwargs": {**kwargs, "in_out": in_out},
+                "label": src_type,
+            }
+        ]
+        group_specs = [{"label": src_type, "indices": [0]}]
+    else:
+        groups = _format_source_groups(source)
+        src_specs = []
+        group_specs = []
+        for group in groups:
+            idxs: list[int] = []
+            for src in group["sources"]:  # type: ignore[index]
+                if hasattr(src, "_require_inputs"):
+                    src._require_inputs()
+                stype, skw = _source_kwargs_from_object(src, in_out=in_out)
+                idxs.append(len(src_specs))
+                src_specs.append(
+                    {
+                        "type": stype,
+                        "pos": jnp.asarray(src._position, dtype=jnp.float64),
+                        "rot": jnp.asarray(src._orientation.as_matrix(), dtype=jnp.float64),
+                        "kwargs": skw,
+                        "label": _source_label(src),
+                    }
+                )
+            group_specs.append(
+                {
+                    "label": group["label"],
+                    "indices": idxs,
+                }
+            )
+
+    sensors, pix_shapes = _format_observers(observers, pixel_agg)
+    pix_nums = [int(np.prod(ps[:-1])) for ps in pix_shapes]
+    pix_inds = np.cumsum([0, *pix_nums])
+    pix_all_same = len(set(pix_shapes)) == 1
+
+    # precompute sensor data
+    sensor_data = []
+    for sens in sensors:
+        pix = sens.pixel
+        if pix is None:
+            pix_arr = jnp.zeros((1, 3), dtype=jnp.float64)
+            pix_shape = (1, 3)
+        else:
+            pix_arr = jnp.asarray(pix, dtype=jnp.float64)
+            if pix_arr.shape == (3,):
+                pix_arr = pix_arr[None, :]
+            pix_shape = pix_arr.shape
+        pix_flat = pix_arr.reshape((-1, 3))
+        sensor_data.append(
+            {
+                "pix_flat": pix_flat,
+                "pix_shape": pix_shape,
+                "pos": jnp.asarray(sens._position, dtype=jnp.float64),
+                "rot": jnp.asarray(sens._orientation.as_matrix(), dtype=jnp.float64),
+                "handedness": sens.handedness,
+            }
+        )
+
+    path_lengths = [int(spec["pos"].shape[0]) for spec in src_specs] + [
+        int(sd["pos"].shape[0]) for sd in sensor_data
+    ]
+    max_path_len = max(path_lengths) if path_lengths else 1
+
+    b_sources = []
+    for spec in src_specs:
+        b_paths = []
+        for p in range(max_path_len):
+            poso_parts = []
+            for sd in sensor_data:
+                idx = min(p, int(sd["pos"].shape[0]) - 1)
+                rot = sd["rot"][idx]
+                pos = sd["pos"][idx]
+                obs = sd["pix_flat"] @ rot.T + pos
+                poso_parts.append(obs)
+            poso = jnp.concatenate(poso_parts, axis=0)
+
+            src_idx = min(p, int(spec["pos"].shape[0]) - 1)
+            src_pos = spec["pos"][src_idx]
+            src_rot = spec["rot"][src_idx]
+            obs_local = (poso - src_pos) @ src_rot
+            field_local = _evaluate_core_field(spec["type"], field, obs_local, spec["kwargs"])
+            field_global = field_local @ src_rot.T
+
+            slices = []
+            offset = 0
+            for sd, pix_count in zip(sensor_data, pix_nums, strict=False):
+                seg = field_global[offset : offset + pix_count]
+                sens_rot = sd["rot"][min(p, int(sd["rot"].shape[0]) - 1)]
+                seg = seg @ sens_rot
+                if sd["handedness"] == "left":
+                    seg = seg * jnp.array([-1.0, 1.0, 1.0], dtype=jnp.float64)
+                slices.append(seg)
+                offset += pix_count
+            b_paths.append(jnp.concatenate(slices, axis=0))
+        b_sources.append(jnp.stack(b_paths, axis=0))
+
+    if not b_sources:
+        raise MagpylibBadUserInput("No sources provided.")
+
+    B_src = jnp.stack(b_sources, axis=0)
+    b_groups = []
+    for group in group_specs:
+        idxs = group["indices"]
+        if len(idxs) == 1:
+            b_groups.append(B_src[idxs[0]])
+        else:
+            b_groups.append(jnp.sum(jnp.take(B_src, jnp.asarray(idxs), axis=0), axis=0))
+    B = jnp.stack(b_groups, axis=0)
+    n_groups = len(group_specs)
+
+    if pix_all_same:
+        B = B.reshape((n_groups, max_path_len, len(sensors), *pix_shapes[0]))
+        if pixel_agg is not None:
+            axes = tuple(range(3, B.ndim - 1))
+            if axes:
+                B = pixel_agg_func(B, axis=axes)
+            else:
+                B = pixel_agg_func(B)
+    else:
+        # pixel_agg must be provided when shapes differ
+        Bsplit = jnp.split(B, pix_inds[1:-1], axis=2)
+        Bagg = [jnp.expand_dims(pixel_agg_func(b, axis=2), axis=2) for b in Bsplit]
+        B = jnp.concatenate(Bagg, axis=2)
+
+    if sumup:
+        B = jnp.sum(B, axis=0, keepdims=True)
+
+    if output == "dataframe":
+        import pandas as pd  # type: ignore
+
+        if sumup and len(group_specs) > 1:
+            src_ids = [f"sumup ({len(group_specs)})"]
+        else:
+            src_ids = [spec["label"] for spec in group_specs]
+        sens_ids = [
+            getattr(sens.style, "label", None) or getattr(sens, "style_label", None) or "Sensor"
+            for sens in sensors
+        ]
+        num_pixels = int(np.prod(pix_shapes[0][:-1])) if pixel_agg is None else 1
+        df_field = pd.DataFrame(
+            data=product(src_ids, range(max_path_len), sens_ids, range(num_pixels)),
+            columns=["source", "path", "sensor", "pixel"],
+        )
+        df_field[[field + k for k in "xyz"]] = np.asarray(B).reshape(-1, 3)
+        return df_field
+
+    if squeeze:
+        B = jnp.squeeze(B)
+    elif pixel_agg is not None:
+        B = jnp.expand_dims(B, axis=-2)
+    return B
 
 
 def _get_field_from_type(
@@ -408,32 +758,25 @@ def getB(
     orientation: ArrayLike | None = None,
     squeeze: bool = True,
     sumup: bool = False,
+    pixel_agg: str | None = None,
+    output: str = "ndarray",
     in_out: str = "auto",
     **kwargs: ArrayLike,
 ) -> jnp.ndarray:
     """Return B-field in Tesla from source type strings or source objects."""
-    if isinstance(source, str):
-        if observers is None:
-            raise ValueError("Observers are required when calling getB with source type strings.")
-        obs = _extract_observers(observers)
-        return _get_field_from_type(
-            source,
-            obs,
-            "B",
-            position=position,
-            orientation=orientation,
-            squeeze=squeeze,
-            sumup=sumup,
-            in_out=in_out,
-            **kwargs,
-        )
-
-    if observers is None:
-        raise ValueError("Observers are required when calling getB with source objects.")
-    obs = _extract_observers(observers)
-    obs_input = jnp.asarray(obs, dtype=jnp.float64)
-    field, n_sources = _evaluate_source_field(source, observers, "B", sumup=sumup, in_out=in_out)
-    return _apply_squeeze(field, obs_input, squeeze=squeeze, sumup=sumup, n_sources=n_sources)
+    return _compute_field(
+        source,
+        observers,
+        "B",
+        position=position,
+        orientation=orientation,
+        squeeze=squeeze,
+        sumup=sumup,
+        pixel_agg=pixel_agg,
+        output=output,
+        in_out=in_out,
+        **kwargs,
+    )
 
 
 def getH(
@@ -444,32 +787,25 @@ def getH(
     orientation: ArrayLike | None = None,
     squeeze: bool = True,
     sumup: bool = False,
+    pixel_agg: str | None = None,
+    output: str = "ndarray",
     in_out: str = "auto",
     **kwargs: ArrayLike,
 ) -> jnp.ndarray:
     """Return H-field in A/m from source type strings or source objects."""
-    if isinstance(source, str):
-        if observers is None:
-            raise ValueError("Observers are required when calling getH with source type strings.")
-        obs = _extract_observers(observers)
-        return _get_field_from_type(
-            source,
-            obs,
-            "H",
-            position=position,
-            orientation=orientation,
-            squeeze=squeeze,
-            sumup=sumup,
-            in_out=in_out,
-            **kwargs,
-        )
-
-    if observers is None:
-        raise ValueError("Observers are required when calling getH with source objects.")
-    obs = _extract_observers(observers)
-    obs_input = jnp.asarray(obs, dtype=jnp.float64)
-    field, n_sources = _evaluate_source_field(source, observers, "H", sumup=sumup, in_out=in_out)
-    return _apply_squeeze(field, obs_input, squeeze=squeeze, sumup=sumup, n_sources=n_sources)
+    return _compute_field(
+        source,
+        observers,
+        "H",
+        position=position,
+        orientation=orientation,
+        squeeze=squeeze,
+        sumup=sumup,
+        pixel_agg=pixel_agg,
+        output=output,
+        in_out=in_out,
+        **kwargs,
+    )
 
 
 def getJ(
@@ -480,32 +816,25 @@ def getJ(
     orientation: ArrayLike | None = None,
     squeeze: bool = True,
     sumup: bool = False,
+    pixel_agg: str | None = None,
+    output: str = "ndarray",
     in_out: str = "auto",
     **kwargs: ArrayLike,
 ) -> jnp.ndarray:
     """Return J-field from source type strings or source objects."""
-    if isinstance(source, str):
-        if observers is None:
-            raise ValueError("Observers are required when calling getJ with source type strings.")
-        obs = _extract_observers(observers)
-        return _get_field_from_type(
-            source,
-            obs,
-            "J",
-            position=position,
-            orientation=orientation,
-            squeeze=squeeze,
-            sumup=sumup,
-            in_out=in_out,
-            **kwargs,
-        )
-
-    if observers is None:
-        raise ValueError("Observers are required when calling getJ with source objects.")
-    obs = _extract_observers(observers)
-    obs_input = jnp.asarray(obs, dtype=jnp.float64)
-    field, n_sources = _evaluate_source_field(source, observers, "J", sumup=sumup, in_out=in_out)
-    return _apply_squeeze(field, obs_input, squeeze=squeeze, sumup=sumup, n_sources=n_sources)
+    return _compute_field(
+        source,
+        observers,
+        "J",
+        position=position,
+        orientation=orientation,
+        squeeze=squeeze,
+        sumup=sumup,
+        pixel_agg=pixel_agg,
+        output=output,
+        in_out=in_out,
+        **kwargs,
+    )
 
 
 def getM(
@@ -516,32 +845,25 @@ def getM(
     orientation: ArrayLike | None = None,
     squeeze: bool = True,
     sumup: bool = False,
+    pixel_agg: str | None = None,
+    output: str = "ndarray",
     in_out: str = "auto",
     **kwargs: ArrayLike,
 ) -> jnp.ndarray:
     """Return M-field from source type strings or source objects."""
-    if isinstance(source, str):
-        if observers is None:
-            raise ValueError("Observers are required when calling getM with source type strings.")
-        obs = _extract_observers(observers)
-        return _get_field_from_type(
-            source,
-            obs,
-            "M",
-            position=position,
-            orientation=orientation,
-            squeeze=squeeze,
-            sumup=sumup,
-            in_out=in_out,
-            **kwargs,
-        )
-
-    if observers is None:
-        raise ValueError("Observers are required when calling getM with source objects.")
-    obs = _extract_observers(observers)
-    obs_input = jnp.asarray(obs, dtype=jnp.float64)
-    field, n_sources = _evaluate_source_field(source, observers, "M", sumup=sumup, in_out=in_out)
-    return _apply_squeeze(field, obs_input, squeeze=squeeze, sumup=sumup, n_sources=n_sources)
+    return _compute_field(
+        source,
+        observers,
+        "M",
+        position=position,
+        orientation=orientation,
+        squeeze=squeeze,
+        sumup=sumup,
+        pixel_agg=pixel_agg,
+        output=output,
+        in_out=in_out,
+        **kwargs,
+    )
 
 
 def vgetH(source_type: str, observers: ArrayLike, **kwargs: ArrayLike) -> jnp.ndarray:

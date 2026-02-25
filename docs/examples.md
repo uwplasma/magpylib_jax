@@ -34,3 +34,28 @@ sens = mpj.Sensor(pixel=[(0.1, 0.2, 0.3), (0.2, 0.0, 0.4)])
 
 B = sens.getB(col)
 ```
+
+## Differentiable optimization loop
+
+```python
+import jax
+import jax.numpy as jnp
+import magpylib_jax as mpj
+
+obs = jnp.array([[0.2, 0.1, 0.4], [0.5, 0.0, 0.7]])
+target = jnp.array([[2.0e-4, 0.0, 3.0e-4], [1.0e-4, 0.0, 2.0e-4]])
+
+def loss_fn(pol):
+    src = mpj.magnet.Cuboid(
+        dimension=(1.0, 0.8, 1.2),
+        polarization=pol,
+    )
+    pred = src.getB(obs)
+    return jnp.mean((pred - target) ** 2)
+
+pol = jnp.array([0.05, -0.02, 0.08])
+lr = 1e-1
+for _ in range(50):
+    grad = jax.grad(loss_fn)(pol)
+    pol = pol - lr * grad
+```
