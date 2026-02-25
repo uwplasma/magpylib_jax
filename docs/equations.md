@@ -12,6 +12,10 @@ This project uses closed-form analytical field expressions (no mesh-based PDE so
   - Outside: equivalent dipole expression with moment scaling by sphere radius.
 - Line current segment/polyline:
   - Biot-Savart closed forms per segment, summed over segments.
+- Triangle sheet / strip:
+  - Analytical current-sheet field using an elementar triangle in a local frame.
+  - Each triangle is translated + rotated into \((0,0,0)\), \((u_1,0,0)\), \((u_2,v_2,0)\).
+  - Piecewise formulas handle off-sheet, in-plane, and edge cases with \(\arctan\)/\(\operatorname{atanh}\)/log terms.
 - Triangle and tetrahedron:
   - Surface-charge / solid-angle based formulations.
 

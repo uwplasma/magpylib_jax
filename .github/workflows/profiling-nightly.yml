@@ -29,6 +29,11 @@ jobs:
           python scripts/check_profiling_thresholds.py \
             profiling/latest_nightly.json \
             profiling/thresholds.json
+      - name: Check HLO hash baseline
+        run: |
+          python scripts/check_hlo_diffs.py \
+            profiling/latest_nightly.json \
+            profiling/hlo_baseline.json
       - name: Summarize nightly deltas
         run: |
           python scripts/summarize_profiling.py \

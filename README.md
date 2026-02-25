@@ -101,6 +101,7 @@ Key files:
 - [`MIGRATION_PLAN.md`](MIGRATION_PLAN.md)
 - [`benchmarks/thresholds.json`](benchmarks/thresholds.json)
 - [`profiling/thresholds.json`](profiling/thresholds.json)
+- [`profiling/hlo_baseline.json`](profiling/hlo_baseline.json)
 
 ### Profiling sweep (local)
 
@@ -108,6 +109,7 @@ Key files:
 python scripts/profile_kernels.py --n-observers 512 --repeats 1 \
   --output profiling/profile.local.json --output-dir profiling/artifacts/local
 python scripts/check_profiling_thresholds.py profiling/profile.local.json
+python scripts/check_hlo_diffs.py profiling/profile.local.json profiling/hlo_baseline.json
 ```
 
 Update `profiling/thresholds.json` when intentional kernel changes shift HLO size or runtime.

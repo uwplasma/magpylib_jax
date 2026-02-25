@@ -74,14 +74,6 @@ def _profile_entry(
     repeats: int,
     out_dir: Path,
 ) -> dict[str, float | str]:
-    jit_new = _jit_for_profile(name, new_fn, int(observers.shape[0]))
-
-    compile_s = _compile_time(jit_new, observers)
-    runtime_s = _median_runtime(lambda: jit_new(observers), repeats)
-    ref_out = ref_fn(observers)
-    new_out = np.asarray(jit_new(observers))
-    max_abs_error = float(np.max(np.abs(new_out - ref_out)))
-
     hlo_dir = out_dir / "hlo"
     trace_dir = out_dir / "trace"
     mem_dir = out_dir / "memory"
@@ -89,23 +81,45 @@ def _profile_entry(
     trace_dir.mkdir(parents=True, exist_ok=True)
     mem_dir.mkdir(parents=True, exist_ok=True)
 
+    jit_new = None
+    compile_s = 0.0
+    runtime_s = 0.0
     hlo_path = hlo_dir / f"{name}.hlo.txt"
-    hlo_text = _hlo_text(jit_new, observers)
-    hlo_path.write_text(hlo_text, encoding="utf-8")
-    hlo_bytes = hlo_text.encode("utf-8")
-    hlo_size = len(hlo_bytes)
-    hlo_hash = hashlib.sha256(hlo_bytes).hexdigest()
-
     trace_path = trace_dir / name
-    trace_path.mkdir(parents=True, exist_ok=True)
-    with jax.profiler.trace(str(trace_path), create_perfetto_link=False):
-        _ = jit_new(observers).block_until_ready()
-
     mem_path = mem_dir / f"{name}.memory.prof"
+    hlo_text = "unavailable\n"
+    hlo_size = 0
+    hlo_hash = "unavailable"
+
     try:
-        jax.profiler.save_device_memory_profile(str(mem_path))
-    except Exception:  # pragma: no cover - backend-dependent
+        jit_new = _jit_for_profile(name, new_fn, int(observers.shape[0]))
+        compile_s = _compile_time(jit_new, observers)
+        runtime_s = _median_runtime(lambda: jit_new(observers), repeats)
+        new_out = np.asarray(jit_new(observers))
+        hlo_text = _hlo_text(jit_new, observers)
+        hlo_path.write_text(hlo_text, encoding="utf-8")
+        hlo_bytes = hlo_text.encode("utf-8")
+        hlo_size = len(hlo_bytes)
+        hlo_hash = hashlib.sha256(hlo_bytes).hexdigest()
+
+        trace_path.mkdir(parents=True, exist_ok=True)
+        with jax.profiler.trace(str(trace_path), create_perfetto_link=False):
+            _ = jit_new(observers).block_until_ready()
+
+        try:
+            jax.profiler.save_device_memory_profile(str(mem_path))
+        except Exception:  # pragma: no cover - backend-dependent
+            mem_path.write_text("unavailable\n", encoding="utf-8")
+    except Exception as err:  # pragma: no cover - profiling fallback
+        logging.warning("JIT profiling failed for %s: %s", name, err)
+        runtime_s = _median_runtime(lambda: new_fn(observers), repeats)
+        new_out = np.asarray(new_fn(observers))
+        hlo_path.write_text(hlo_text, encoding="utf-8")
+        trace_path.mkdir(parents=True, exist_ok=True)
         mem_path.write_text("unavailable\n", encoding="utf-8")
+
+    ref_out = ref_fn(observers)
+    max_abs_error = float(np.max(np.abs(new_out - ref_out)))
 
     return {
         "name": name,

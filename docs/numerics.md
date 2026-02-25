@@ -6,6 +6,8 @@
 - Explicit handling of singular locations (on-source, edges, corners).
 - Masked special-case formulas for near-degenerate geometries.
 - Bulirsch CEL-based elliptic integral routines for robust cylinder/circle expressions.
+- Current sheet kernels use explicit in-plane/edge masks to zero the field on the sheet
+  and to switch to the correct edge-limit expressions.
 
 ## Differentiability considerations
 

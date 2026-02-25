@@ -119,18 +119,18 @@ def magnet_sphere_mfield(
     return magnet_sphere_jfield(observers, diameters, polarizations) / MU0
 
 
-def current_polyline_hfield(
-    observers: ArrayLike,
-    segments_start: ArrayLike,
-    segments_end: ArrayLike,
-    currents: ArrayLike,
+def _current_segment_hfield(
+    observers: jnp.ndarray,
+    segment_start: jnp.ndarray,
+    segment_end: jnp.ndarray,
+    current: jnp.ndarray,
 ) -> jnp.ndarray:
-    """H-field of straight current segments."""
+    """H-field for a single current segment."""
     obs = ensure_observers(observers)
-    p1 = _broadcast_vec3(jnp.asarray(segments_start, dtype=jnp.float64), obs.shape[0])
-    p2 = _broadcast_vec3(jnp.asarray(segments_end, dtype=jnp.float64), obs.shape[0])
+    p1 = _broadcast_vec3(segment_start, obs.shape[0])
+    p2 = _broadcast_vec3(segment_end, obs.shape[0])
 
-    cur = jnp.asarray(currents, dtype=jnp.float64)
+    cur = jnp.asarray(current, dtype=jnp.float64)
     if cur.ndim == 0:
         cur = jnp.broadcast_to(cur, (obs.shape[0],))
     else:
@@ -175,6 +175,31 @@ def current_polyline_hfield(
         & jnp.all(jnp.isfinite(p2), axis=1)
     )
     return jnp.where(valid[:, None], h, 0.0)
+
+
+def current_polyline_hfield(
+    observers: ArrayLike,
+    segments_start: ArrayLike,
+    segments_end: ArrayLike,
+    currents: ArrayLike,
+) -> jnp.ndarray:
+    """H-field of straight current segments."""
+    obs = ensure_observers(observers)
+    p1 = jnp.asarray(segments_start, dtype=jnp.float64)
+    p2 = jnp.asarray(segments_end, dtype=jnp.float64)
+    if p1.ndim == 1:
+        return _current_segment_hfield(obs, p1, p2, currents)
+    if p2.shape != p1.shape or p1.shape[-1] != 3:
+        raise ValueError("Polyline segments must have shape (n,3).")
+
+    cur = jnp.asarray(currents, dtype=jnp.float64)
+    if cur.ndim == 0:
+        cur = jnp.broadcast_to(cur, (p1.shape[0],))
+    else:
+        cur = jnp.broadcast_to(cur.reshape((-1,)), (p1.shape[0],))
+
+    h_segments = jax.vmap(lambda a, b, c: _current_segment_hfield(obs, a, b, c))(p1, p2, cur)
+    return jnp.sum(h_segments, axis=0)
 
 
 def current_polyline_bfield(
@@ -1108,12 +1133,307 @@ def _triangle_barycentric_mask(
     return (dist < 1e-10) & (u >= -1e-10) & (v >= -1e-10) & (w >= -1e-10)
 
 
+def _rot_x(theta: jnp.ndarray) -> jnp.ndarray:
+    c = jnp.cos(theta)
+    s = jnp.sin(theta)
+    return jnp.asarray(
+        [[1.0, 0.0, 0.0], [0.0, c, -s], [0.0, s, c]], dtype=jnp.float64
+    )
+
+
+def _rot_z(alpha: jnp.ndarray) -> jnp.ndarray:
+    c = jnp.cos(alpha)
+    s = jnp.sin(alpha)
+    return jnp.asarray(
+        [[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]], dtype=jnp.float64
+    )
+
+
+def _triangle_coordinate_transform(
+    tri: jnp.ndarray,
+) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    """Transform a triangle to elementar sheet coordinates.
+
+    Returns (u1, u2, v2) coordinates, translation, and rotation matrix.
+    """
+    a, b, c = tri
+    translation = a
+    b1 = b - a
+    c1 = c - a
+
+    theta = -jnp.arctan2(b1[2], b1[1])
+    r21 = _rot_x(theta)
+    b2 = r21 @ b1
+    c2 = r21 @ c1
+
+    alpha = -jnp.arctan2(b2[1], b2[0])
+    r22 = _rot_z(alpha)
+    b3 = r22 @ b2
+    c3 = r22 @ c2
+
+    psi = -jnp.arctan2(c3[2], c3[1])
+    r3 = _rot_x(psi)
+    c4 = r3 @ c3
+
+    rotation = r3 @ r22 @ r21
+    coords = jnp.asarray([b3[0], c4[0], c4[1]], dtype=jnp.float64)
+    return coords, translation, rotation
+
+
+def _safe_sqrt(x: jnp.ndarray) -> jnp.ndarray:
+    return jnp.sqrt(jnp.maximum(x, 0.0))
+
+
+def _safe_atanh(x: jnp.ndarray) -> jnp.ndarray:
+    eps = 1e-15
+    return jnp.arctanh(jnp.clip(x, -1.0 + eps, 1.0 - eps))
+
+
+def _safe_logabs(x: jnp.ndarray) -> jnp.ndarray:
+    return jnp.log(jnp.maximum(jnp.abs(x), 1e-30))
+
+
+def _elementar_current_sheet_hfield(
+    observers: jnp.ndarray,
+    coordinates: jnp.ndarray,
+    current_densities: jnp.ndarray,
+) -> jnp.ndarray:
+    """H-field for elementar current sheet in local coordinates."""
+    num_tol = 1e-10
+    x, y, z = observers.T
+    u1, u2, v2 = coordinates
+    ju, jv = current_densities
+
+    in_plane = jnp.abs(z) < num_tol
+    critical_value01 = (x * v2 - y * u2) / (u1 * v2)
+    critical_value02 = y / v2
+    critical_value1 = jnp.abs(y)
+    critical_value2 = jnp.abs(u2 * y - v2 * x)
+    critical_value3 = jnp.abs(v2 * (x - u1) + y * (u1 - u2))
+
+    mask0 = (
+        in_plane
+        & (critical_value01 + critical_value02 <= 1.0 + num_tol)
+        & (critical_value01 >= -num_tol)
+        & (critical_value02 >= -num_tol)
+    )
+    mask1 = in_plane & (critical_value1 < num_tol) & (~mask0)
+    mask2 = in_plane & (critical_value2 < num_tol) & (~mask0)
+    mask3 = in_plane & (critical_value3 < num_tol) & (~mask0)
+    mask_plane = ~(mask0 | mask1 | mask2 | mask3) & in_plane
+    mask_general = ~in_plane
+
+    sqrt1 = _safe_sqrt(x**2 + y**2 + z**2)
+    sqrt2 = _safe_sqrt(u1**2 - 2 * u1 * x + x**2 + y**2 + z**2)
+    sqrt3 = _safe_sqrt(u2**2 - 2 * u2 * x + v2**2 - 2 * v2 * y + x**2 + y**2 + z**2)
+    sqrt4 = _safe_sqrt(u1**2 - 2 * u1 * u2 + u2**2 + v2**2)
+    sqrt5 = _safe_sqrt(u2**2 + v2**2)
+
+    hx_general = (
+        jnp.arctan((-u2 * (y**2 + z**2) + v2 * x * y) / (v2 * z * sqrt1))
+        + jnp.arctan((v2 * y * (u1 - x) - (u1 - u2) * (y**2 + z**2)) / (v2 * z * sqrt2))
+        - jnp.arctan(
+            (-u2 * (y**2 + z**2) - v2**2 * x + v2 * y * (u2 + x)) / (v2 * z * sqrt3)
+        )
+        - jnp.arctan(
+            (
+                -u1 * (v2**2 - 2 * v2 * y + y**2 + z**2)
+                + u2 * (y**2 + z**2)
+                + v2**2 * x
+                - v2 * y * (u2 + x)
+            )
+            / (v2 * z * sqrt3)
+        )
+    ) / (u1 * v2 * z)
+
+    hz_general = -(
+        ju * _safe_atanh(x / sqrt1)
+        + ju * _safe_atanh((u1 - x) / sqrt2)
+        - (ju * (u1 - u2) - jv * v2)
+        * _safe_atanh((u1**2 - u1 * (u2 + x) + u2 * x + v2 * y) / (sqrt4 * sqrt2))
+        / sqrt4
+        + (ju * (u1 - u2) - jv * v2)
+        * _safe_atanh(
+            (u1 * (u2 - x) - u2**2 + u2 * x + v2 * (-v2 + y)) / (sqrt4 * sqrt3)
+        )
+        / sqrt4
+        + (ju * u2 + jv * v2) * _safe_atanh((-u2 * x - v2 * y) / (sqrt5 * sqrt1)) / sqrt5
+        - (ju * u2 + jv * v2)
+        * _safe_atanh((u2**2 - u2 * x + v2 * (v2 - y)) / (sqrt5 * sqrt3))
+        / sqrt5
+    ) / (u1 * v2)
+
+    sqrt_xy = _safe_sqrt(x**2 + y**2)
+    sqrt_u1 = _safe_sqrt(u1**2 - 2 * u1 * x + x**2 + y**2)
+    sqrt_u2 = _safe_sqrt(u2**2 - 2 * u2 * x + v2**2 - 2 * v2 * y + x**2 + y**2)
+    sqrt_u12 = _safe_sqrt(u1**2 - 2 * u1 * u2 + u2**2 + v2**2)
+    sqrt_u2v2 = _safe_sqrt(u2**2 + v2**2)
+
+    hz_plane = -(
+        ju * _safe_atanh(x / sqrt_xy)
+        + ju * _safe_atanh((u1 - x) / sqrt_u1)
+        - (ju * (u1 - u2) - jv * v2)
+        * _safe_atanh((u1**2 - u1 * (u2 + x) + u2 * x + v2 * y) / (sqrt_u12 * sqrt_u1))
+        / sqrt_u12
+        + (ju * (u1 - u2) - jv * v2)
+        * _safe_atanh(
+            (u1 * (u2 - x) - u2**2 + u2 * x + v2 * (-v2 + y)) / (sqrt_u12 * sqrt_u2)
+        )
+        / sqrt_u12
+        + (ju * u2 + jv * v2)
+        * _safe_atanh((-u2 * x - v2 * y) / (sqrt_u2v2 * sqrt_xy))
+        / sqrt_u2v2
+        - (ju * u2 + jv * v2)
+        * _safe_atanh((u2**2 - u2 * x + v2 * (v2 - y)) / (sqrt_u2v2 * sqrt_u2))
+        / sqrt_u2v2
+    ) / (u1 * v2)
+
+    hz_edge1 = (
+        -ju * x * _safe_logabs(x) / _safe_sqrt(x**2)
+        - ju * (u1 - x) * _safe_logabs(-u1 + x) / _safe_sqrt((u1 - x) ** 2)
+        + (ju * (u1 - u2) - jv * v2)
+        * _safe_atanh(
+            (u1 * (-u2 + x) + u2**2 - u2 * x + v2**2)
+            / (sqrt_u12 * _safe_sqrt(u2**2 - 2 * u2 * x + v2**2 + x**2))
+        )
+        / sqrt_u12
+        + (ju * (u1 - u2) - jv * v2)
+        * _safe_atanh((u1 - u2) * (u1 - x) / (sqrt_u12 * _safe_sqrt((u1 - x) ** 2)))
+        / sqrt_u12
+        + (ju * u2 + jv * v2)
+        * _safe_atanh(
+            (u2**2 - u2 * x + v2**2)
+            / (sqrt_u2v2 * _safe_sqrt(u2**2 - 2 * u2 * x + v2**2 + x**2))
+        )
+        / sqrt_u2v2
+        - (ju * u2 + jv * v2)
+        * _safe_atanh(u2 * (u1 - x) / (sqrt_u2v2 * _safe_sqrt((u1 - x) ** 2)))
+        / sqrt_u2v2
+    ) / (u1 * v2)
+
+    hz_edge2 = (
+        -ju
+        * _safe_atanh(
+            (u1 * v2 - u2 * y)
+            / (
+                v2
+                * _safe_sqrt(u1**2 - 2 * u1 * u2 * y / v2 + y**2 * (u2**2 / v2**2 + 1))
+            )
+        )
+        + ju
+        * _safe_atanh(
+            u2 * (v2 - y)
+            / (v2 * _safe_sqrt((u2**2 + v2**2) * (v2 - y) ** 2 / v2**2))
+        )
+        + (ju * (u1 - u2) - jv * v2)
+        * _safe_atanh(
+            (u1**2 * v2 - u1 * u2 * (v2 + y) + y * (u2**2 + v2**2))
+            / (
+                v2
+                * _safe_sqrt(u1**2 - 2 * u1 * u2 * y / v2 + y**2 * (u2**2 / v2**2 + 1))
+                * sqrt_u12
+            )
+        )
+        / sqrt_u12
+        + (ju * (u1 - u2) - jv * v2)
+        * _safe_atanh(
+            (v2 - y) * (-u1 * u2 + u2**2 + v2**2)
+            / (
+                v2
+                * _safe_sqrt((u2**2 + v2**2) * (v2 - y) ** 2 / v2**2)
+                * sqrt_u12
+            )
+        )
+        / sqrt_u12
+        + y
+        * (ju * u2 + jv * v2)
+        * _safe_logabs(y * (-(u2**2) - v2**2))
+        / (v2 * _safe_sqrt(y**2 * (u2**2 + v2**2) / v2**2))
+        + (v2 - y)
+        * (ju * u2 + jv * v2)
+        * _safe_logabs((u2**2 + v2**2) * (v2 - y))
+        / (v2 * _safe_sqrt((u2**2 + v2**2) * (v2 - y) ** 2 / v2**2))
+    ) / (u1 * v2)
+
+    hz_edge3 = (
+        ju
+        * v2
+        * _safe_atanh(
+            (u1 * (-v2 + y) - u2 * y)
+            / (
+                v2
+                * _safe_sqrt(
+                    (u1**2 * (v2 - y) ** 2 + 2 * u1 * u2 * y * (v2 - y) + y**2 * (u2**2 + v2**2))
+                    / v2**2
+                )
+            )
+        )
+        + ju
+        * v2
+        * _safe_atanh(
+            (u1 - u2)
+            * (v2 - y)
+            / (
+                v2
+                * _safe_sqrt((v2 - y) ** 2 * (u1**2 - 2 * u1 * u2 + u2**2 + v2**2) / v2**2)
+            )
+        )
+        - v2
+        * (ju * u2 + jv * v2)
+        * _safe_atanh(
+            (u1 * u2 * (-v2 + y) + y * (-(u2**2) - v2**2))
+            / (
+                v2
+                * _safe_sqrt(
+                    (u1**2 * (v2 - y) ** 2 + 2 * u1 * u2 * y * (v2 - y) + y**2 * (u2**2 + v2**2))
+                    / v2**2
+                )
+                * sqrt_u2v2
+            )
+        )
+        / sqrt_u2v2
+        + v2
+        * (ju * u2 + jv * v2)
+        * _safe_atanh(
+            (v2 - y)
+            * (-u1 * u2 + u2**2 + v2**2)
+            / (
+                v2
+                * _safe_sqrt((v2 - y) ** 2 * (u1**2 - 2 * u1 * u2 + u2**2 + v2**2) / v2**2)
+                * sqrt_u2v2
+            )
+        )
+        / sqrt_u2v2
+        - y
+        * (ju * (-u1 + u2) + jv * v2)
+        * _safe_logabs(y * (-(u1**2) + 2 * u1 * u2 - u2**2 - v2**2))
+        / _safe_sqrt(y**2 * (u1**2 - 2 * u1 * u2 + u2**2 + v2**2) / v2**2)
+        - (v2 - y)
+        * (ju * (-u1 + u2) + jv * v2)
+        * _safe_logabs((v2 - y) * (u1**2 - 2 * u1 * u2 + u2**2 + v2**2))
+        / _safe_sqrt((v2 - y) ** 2 * (u1**2 - 2 * u1 * u2 + u2**2 + v2**2) / v2**2)
+    ) / (u1 * v2**2)
+
+    hx = jnp.where(mask_general, hx_general, 0.0)
+    hz = jnp.where(mask_general, hz_general, 0.0)
+    hz = jnp.where(mask_plane, hz_plane, hz)
+    hz = jnp.where(mask1, hz_edge1, hz)
+    hz = jnp.where(mask2, hz_edge2, hz)
+    hz = jnp.where(mask3, hz_edge3, hz)
+
+    scale = (u1 * v2) / _FOUR_PI
+    hx_scaled = hx * jv * z * scale
+    hy_scaled = hx * (-ju) * z * scale
+    hz_scaled = hz * scale
+
+    return jnp.stack((hx_scaled, hy_scaled, hz_scaled), axis=1)
+
+
 def current_triangle_sheet_hfield(
     observers: ArrayLike,
     vertices: ArrayLike,
     current_densities: ArrayLike,
 ) -> jnp.ndarray:
-    """Differentiable quadrature kernel for a single triangular current sheet."""
     obs = ensure_observers(observers)
     tri = jnp.asarray(vertices, dtype=jnp.float64)
     if tri.shape != (3, 3):
@@ -1124,34 +1444,21 @@ def current_triangle_sheet_hfield(
             f"Triangle sheet current density must have shape (3,), got {cd.shape}."
         )
 
-    a, b, c = tri
-    e1 = b - a
-    e2 = c - a
-    nvec = jnp.cross(e1, e2)
-    area2 = _safe_norm(nvec)
-    nhat = nvec / area2
-    area = area2 / 2.0
-    degenerate = area < 1e-15
+    coords, translation, rotation = _triangle_coordinate_transform(tri)
+    obs_loc = (obs - translation[None, :]) @ rotation.T
+    cd_loc = (rotation @ cd)[:2]
 
-    # Current density projected onto triangle plane.
-    cd_proj = cd - nhat * jnp.dot(cd, nhat)
-    qpts = (
-        _TRI_Q_L[:, 0:1] * a[None, :]
-        + _TRI_Q_L[:, 1:2] * b[None, :]
-        + _TRI_Q_L[:, 2:3] * c[None, :]
+    u1, u2, v2 = coords
+    degenerate = (
+        jnp.isnan(u1)
+        | jnp.isnan(u2)
+        | jnp.isnan(v2)
+        | (jnp.abs(u1) < 1e-15)
+        | (jnp.abs(v2) < 1e-15)
     )
-
-    def _accumulate_one(point: jnp.ndarray) -> jnp.ndarray:
-        rv = point[None, :] - qpts
-        rn = _safe_norm(rv, axis=1, keepdims=True)
-        integrand = jnp.cross(jnp.broadcast_to(cd_proj[None, :], rv.shape), rv) / (rn**3)
-        return jnp.sum((_TRI_Q_W[:, None] * integrand), axis=0)
-
-    h = jax.vmap(_accumulate_one)(obs) * (area / _FOUR_PI)
-    on_sheet = _triangle_barycentric_mask(obs, tri, nhat)
-    h = jnp.where(on_sheet[:, None], 0.0, h)
-    h = jnp.where(degenerate, 0.0, h)
-    return h
+    h_local = _elementar_current_sheet_hfield(obs_loc, coords, cd_loc)
+    h_local = jnp.where(degenerate, 0.0, h_local)
+    return h_local @ rotation
 
 
 def current_trisheet_hfield(

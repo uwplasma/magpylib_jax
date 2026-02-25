@@ -18,6 +18,7 @@ Kernel-level profiling tracks compile/runtime/parity/memory and captures XLA art
 Scripts:
 - `scripts/profile_kernels.py`
 - `scripts/check_profiling_thresholds.py`
+- `scripts/check_hlo_diffs.py`
 
 Kernel-level JIT entrypoints (fixed observer count):
 - `magpylib_jax.core.kernels_extended.magnet_trimesh_bfield_jit`
@@ -38,6 +39,7 @@ Artifacts produced per source family:
 
 Thresholds:
 - `profiling/thresholds.json`
+- `profiling/hlo_baseline.json`
 
 ## What is measured
 
@@ -54,6 +56,8 @@ When kernel changes intentionally alter HLO size, compile time, or runtime:
 2. Review the JSON output and HLO artifacts.
 3. Update `profiling/thresholds.json` with conservative budgets.
 4. Re-run `scripts/check_profiling_thresholds.py` to confirm.
+5. Update `profiling/hlo_baseline.json` if the HLO hashes change intentionally, then run
+   `scripts/check_hlo_diffs.py` to verify the new baseline.
 
 For new JIT entrypoints, add thresholds under matching keys (e.g., `triangle_jit`, `tetrahedron_jit`)
 and keep the budgets conservative until a profiling sweep establishes tighter bounds.

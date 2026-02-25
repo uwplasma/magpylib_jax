@@ -1,28 +1,31 @@
 import numpy as np
 
+import magpylib as magpy
 import magpylib_jax as mpj
+from magpylib.func import polyline_field
 from magpylib_jax.constants import MU0
 
 
-def test_dipole_approximation() -> None:
+def test_dipole_approximation():
+    """test if all source fields converge towards the correct dipole field at distance"""
     pol = np.array([0.111, 0.222, 0.333])
     pos = (1234, -234, 345)
 
     src1 = mpj.magnet.Cuboid(polarization=pol, dimension=(1, 1, 1))
-    b1 = np.asarray(src1.getB(pos))
+    b1 = src1.getB(pos)
 
     dia = np.sqrt(4 / np.pi)
     src2 = mpj.magnet.Cylinder(polarization=pol, dimension=(dia, 1))
-    b2 = np.asarray(src2.getB(pos))
+    b2 = src2.getB(pos)
     np.testing.assert_allclose(b1, b2, rtol=1e-5, atol=1e-8)
 
     dia = (6 / np.pi) ** (1 / 3)
     src3 = mpj.magnet.Sphere(polarization=pol, diameter=dia)
-    b3 = np.asarray(src3.getB(pos))
+    b3 = src3.getB(pos)
     np.testing.assert_allclose(b1, b3, rtol=1e-5, atol=1e-8)
 
     src4 = mpj.misc.Dipole(moment=pol)
-    b4 = np.asarray(src4.getB(pos))
+    b4 = src4.getB(pos)
     np.testing.assert_allclose(b1, b4, rtol=1e-5, atol=1e-8)
 
     dia = 2
@@ -30,59 +33,324 @@ def test_dipole_approximation() -> None:
     m0 = dia**2 * np.pi**2 / 10 * i0
     src1 = mpj.current.Circle(current=i0, diameter=dia)
     src2 = mpj.misc.Dipole(moment=(0, 0, m0))
-    h1 = np.asarray(src1.getH(pos))
-    h2 = np.asarray(src2.getH(pos))
+    h1 = src1.getH(pos)
+    h2 = src2.getH(pos)
     np.testing.assert_allclose(h1, h2, rtol=1e-5, atol=1e-8)
 
 
-def test_circle_vs_cylinder_field() -> None:
-    rng = np.random.default_rng(0)
-    pos_obs = rng.uniform(0.0, 1.0, size=(25, 3))
-    pos_obs[:, 2] += 10.0
+def test_Circle_vs_Cylinder_field():
+    """
+    The H-field of a loop with radius r0 (m) and current i0 (A) is the same
+    as the H-field of a cylinder with radius r0 (m), height h0 (m) and
+    magnetization (0, 0, 4pi/10*i0/h0) !!!
+    """
+
+    pos_obs = np.array(
+        [
+            [2.62974227e-01, 8.47810369e-01, 1.08754479e01],
+            [3.84185491e-01, 2.95441595e-01, 1.00902470e01],
+            [6.42119527e-01, 2.06572582e-01, 1.00111349e01],
+            [2.77437481e-01, 7.70421483e-01, 1.01708024e01],
+            [6.38134375e-01, 6.60523111e-01, 1.02255165e01],
+            [4.05896210e-01, 7.18840810e-01, 1.09878512e01],
+            [4.25483323e-01, 5.97011185e-01, 1.03105633e01],
+            [1.86350557e-01, 9.45180347e-01, 1.00771425e01],
+            [7.31784172e-03, 3.43762111e-01, 1.01388689e01],
+            [9.76180294e-01, 2.86980987e-01, 1.07162604e01],
+            [4.19970335e-01, 6.78011898e-01, 1.07462700e01],
+            [2.51709117e-01, 1.80214678e-01, 1.05292310e01],
+            [1.38341488e-01, 7.64969048e-01, 1.04836868e01],
+            [7.16320259e-01, 5.17108288e-01, 1.04404834e01],
+            [1.36719186e-01, 8.03444934e-02, 1.05825844e01],
+            [3.02549448e-01, 8.01158793e-01, 1.06895803e01],
+            [6.96369978e-01, 8.41086725e-01, 1.05991355e01],
+            [1.56389836e-02, 8.83332094e-01, 1.00294123e01],
+            [5.72854015e-01, 9.78889329e-01, 1.00856741e01],
+            [5.90518725e-01, 2.71810008e-01, 1.09421650e01],
+            [9.78841160e-01, 8.49649719e-01, 1.02277205e01],
+            [3.34356881e-01, 4.85928671e-01, 1.08996289e01],
+            [4.57102605e-01, 7.29004951e-01, 1.06881211e01],
+            [7.70055121e-01, 7.79513350e-01, 1.00064163e01],
+            [4.38978477e-01, 2.42722989e-01, 1.07810591e01],
+            [2.94965451e-01, 8.16939582e-01, 1.08524609e01],
+            [9.10294019e-01, 1.01999675e-01, 1.05777031e01],
+            [1.98324922e-01, 8.69170938e-01, 1.06498450e01],
+            [2.04949091e-01, 7.29157637e-02, 1.08216263e01],
+            [4.03860840e-01, 2.51733457e-01, 1.09413861e01],
+            [8.42429689e-01, 7.53521494e-01, 1.06840432e01],
+            [5.47487506e-01, 2.17112793e-01, 1.08309858e01],
+            [1.32920817e-02, 8.90027375e-01, 1.05206045e01],
+            [2.12434323e-01, 1.07809620e-01, 1.05248679e01],
+            [9.24972525e-01, 4.02334232e-01, 1.01218881e01],
+            [4.72828420e-01, 8.84518608e-01, 1.03564702e01],
+            [7.47506193e-01, 8.50172276e-02, 1.08471793e01],
+            [5.59375134e-01, 7.49345280e-01, 1.04832901e01],
+            [1.53289823e-01, 1.22688627e-01, 1.01417979e01],
+            [6.20682956e-01, 2.04842717e-01, 1.02372747e01],
+            [5.26696817e-01, 9.97967209e-01, 1.01548900e01],
+            [3.12286750e-01, 8.55676144e-02, 1.08151431e01],
+            [3.36130598e-01, 9.23647162e-01, 1.01808101e01],
+            [6.48032234e-01, 6.77714891e-01, 1.06903143e01],
+            [4.97615700e-02, 6.86552664e-01, 1.04692230e01],
+            [1.39612563e-01, 5.94597678e-01, 1.09177616e01],
+            [9.49958586e-01, 3.03275707e-01, 1.04126750e01],
+            [7.90362802e-02, 2.05629309e-01, 1.08460663e01],
+            [6.39251869e-01, 1.27717311e-01, 1.03640598e01],
+            [1.75346719e-01, 7.76144247e-01, 1.07590716e01],
+            [4.80488839e-01, 6.44113412e-01, 1.00806087e01],
+            [3.30249230e-01, 2.90567396e-01, 1.02823508e01],
+            [2.32507704e-01, 3.11357670e-01, 1.00585207e01],
+            [9.93932043e-01, 8.13588626e-01, 1.02441850e01],
+            [6.14110393e-02, 8.24710989e-01, 1.03036766e01],
+            [7.54284742e-01, 4.75888115e-01, 1.02980990e01],
+            [9.03436653e-01, 1.38604212e-02, 1.02052852e01],
+            [3.25406232e-01, 5.01599309e-01, 1.02273729e01],
+            [6.10904352e-01, 2.01374297e-02, 1.05994945e01],
+            [5.13886308e-01, 7.47646233e-01, 1.00881973e01],
+            [7.66062767e-01, 8.55628912e-01, 1.02443255e01],
+            [4.12965850e-01, 6.71639134e-02, 1.08920383e01],
+            [2.22162237e-01, 4.35458370e-01, 1.00005670e01],
+            [6.92063517e-01, 4.77425107e-01, 1.09109479e01],
+            [4.73624739e-02, 5.67853047e-01, 1.02619257e01],
+            [7.35614319e-01, 3.04928294e-01, 1.04878104e01],
+            [9.52815588e-01, 1.83929502e-01, 1.09015172e01],
+            [6.85134024e-01, 2.56932032e-01, 1.06599932e01],
+            [7.49282874e-01, 6.99614619e-01, 1.04573794e01],
+            [8.06968804e-01, 8.99615103e-01, 1.06770292e01],
+            [8.10594977e-01, 9.37427828e-01, 1.04077535e01],
+            [3.52771587e-01, 4.62098593e-01, 1.02567372e01],
+            [5.65591895e-01, 2.76154469e-01, 1.05387184e01],
+            [2.46784605e-01, 5.66301118e-01, 1.00484832e01],
+            [4.54504276e-01, 3.50320293e-01, 1.09152037e01],
+            [1.34071712e-01, 3.18619591e-01, 1.09602583e01],
+            [7.06928981e-01, 1.30956872e-01, 1.01472973e01],
+            [9.24252364e-02, 3.09994386e-01, 1.04355552e01],
+            [4.70425188e-01, 7.59610285e-01, 1.03136298e01],
+            [7.04080112e-01, 4.16336685e-01, 1.03876008e01],
+            [8.44199888e-01, 4.84203700e-01, 1.06195388e01],
+            [6.75770202e-02, 6.31321589e-01, 1.06495791e01],
+            [9.48223738e-01, 8.77564164e-01, 1.09798880e01],
+            [1.21580775e-01, 8.75070086e-01, 1.08523342e01],
+            [4.15901288e-01, 7.58294704e-01, 1.09128418e01],
+            [3.42156748e-01, 5.05791032e-01, 1.07678098e01],
+            [4.64032116e-01, 7.28064777e-01, 1.09940092e01],
+            [7.72357996e-01, 7.78746013e-01, 1.07879828e01],
+            [2.02837991e-01, 5.09599429e-01, 1.04062704e01],
+            [1.88330581e-01, 3.84815757e-02, 1.01780565e01],
+            [2.57727724e-01, 1.27152743e-01, 1.09787027e01],
+            [2.11735849e-01, 3.98791360e-02, 1.00743078e01],
+            [6.59218472e-01, 3.79855821e-01, 1.09638287e01],
+            [3.64295183e-01, 1.31074260e-01, 1.08378312e01],
+            [8.79182622e-01, 4.45474832e-01, 1.09849294e01],
+            [7.26668838e-01, 9.74937759e-01, 1.05272224e01],
+            [4.05964529e-01, 1.45939524e-01, 1.09852591e01],
+            [2.10202133e-01, 9.20279331e-01, 1.06021266e01],
+            [7.05832473e-01, 9.51319508e-01, 1.09945602e01],
+            [7.78805359e-01, 6.72775055e-01, 1.03208115e01],
+            [5.44243955e-01, 5.63471403e-01, 1.09625371e01],
+            [8.45600648e-01, 9.05625429e-01, 1.06477723e01],
+            [9.34692923e-01, 9.70997998e-01, 1.05067462e01],
+            [9.57848052e-01, 4.33603497e-01, 1.04114712e01],
+            [8.09856480e-01, 5.51234361e-01, 1.07861471e01],
+            [3.52087564e-01, 4.35030132e-01, 1.02227394e01],
+            [4.26459999e-01, 4.04590274e-02, 1.00624838e01],
+            [6.40711056e-01, 7.64628524e-02, 1.06025149e01],
+            [4.50498913e-01, 6.60774849e-01, 1.03881413e01],
+            [3.61705605e-01, 1.01651959e-01, 1.08800255e01],
+            [4.07986797e-01, 9.62831662e-01, 1.09469213e01],
+        ]
+    )
 
     r0 = 2
     h0 = 1e-4
     i0 = 1
-    pol = (0, 0, i0 / h0 * 4 * np.pi / 10 * 1e-6)
-    src1 = mpj.magnet.Cylinder(polarization=pol, dimension=(r0, h0))
+    src1 = mpj.magnet.Cylinder(
+        polarization=(0, 0, i0 / h0 * 4 * np.pi / 10 * 1e-6), dimension=(r0, h0)
+    )
     src2 = mpj.current.Circle(current=i0, diameter=r0)
 
-    h1 = np.asarray(src1.getH(pos_obs))
-    h2 = np.asarray(src2.getH(pos_obs))
+    h1 = src1.getH(pos_obs)
+    h2 = src2.getH(pos_obs)
 
-    np.testing.assert_allclose(h1, h2, rtol=1e-5, atol=1e-8)
-
-
-def test_polyline_vs_circle() -> None:
-    ts = np.linspace(0, 2 * np.pi, 2000)
-    verts = np.array([(np.cos(t), np.sin(t), 0.0) for t in ts])
-
-    src_line = mpj.current.Polyline(current=1, vertices=verts)
-    src_loop = mpj.current.Circle(current=1, diameter=2)
-
-    pos = np.array([(x, y, z) for x in (-3, 0, 3) for y in (-3, 0, 3) for z in (-3, 0, 3)])
-
-    b_line = np.asarray(src_line.getB(pos))
-    b_loop = np.asarray(src_loop.getB(pos))
-
-    np.testing.assert_allclose(b_line, b_loop, rtol=1e-5, atol=1e-8)
+    np.testing.assert_allclose(h1, h2)
 
 
-def test_polyline_vs_infinite_line() -> None:
+def test_Polyline_vs_Circle():
+    """show that line produces the same as circular"""
+
+    ts = np.linspace(0, 2 * np.pi, 10000)
+    verts = np.array([(np.cos(t), np.sin(t), 0) for t in ts])
+    ps = verts[:-1]
+    pe = verts[1:]
+
+    ts = np.linspace(-3, 3, 2)
+    po = np.array([(x, y, z) for x in ts for y in ts for z in ts])
+
+    bls = []
+    for p in po:
+        bl = polyline_field(
+            "B", observers=p, currents=1, segments_start=ps, segments_end=pe
+        )
+        bls += [np.sum(bl, axis=0)]
+    bls = np.array(bls)
+
+    src = mpj.current.Circle(current=1, diameter=2)
+    bcs = src.getB(po)
+
+    np.testing.assert_allclose(bls, bcs, rtol=1e-5, atol=1e-8)
+
+
+def test_Polyline_vs_Infinite():
+    """compare line current result vs analytical solution to infinite Polyline"""
+
     pos_obs = np.array([(1.0, 2, 3), (-3, 2, -1), (2, -1, -4)])
 
     def binf(i0, pos):
         x, y, _ = pos
         r = np.sqrt(x**2 + y**2)
-        e_phi = np.array([-y, x, 0.0])
+        e_phi = np.array([-y, x, 0])
         e_phi = e_phi / np.linalg.norm(e_phi)
         return i0 * MU0 / 2 / np.pi / r * e_phi
 
-    ps = (0, 0, -1_000_000)
-    pe = (0, 0, 1_000_000)
-    src = mpj.current.Polyline(current=1, vertices=[ps, pe])
+    ps = (0, 0, -1000000)
+    pe = (0, 0, 1000000)
+    bls, binfs = [], []
+    for p in pos_obs:
+        bls += [
+            polyline_field(
+                "B", observers=p, currents=1, segments_start=ps, segments_end=pe
+            )
+        ]
+        binfs += [binf(1, p)]
+    bls = np.array(bls)
+    binfs = np.array(binfs)
 
-    b_line = np.asarray(src.getB(pos_obs))
-    b_inf = np.array([binf(1, p) for p in pos_obs])
+    np.testing.assert_allclose(bls, binfs)
 
-    np.testing.assert_allclose(b_line, b_inf, rtol=1e-5, atol=1e-8)
+
+def test_TriangleStrip_VS_Cuboid_VS_TriangleSheet():
+    """Test if TriangleStrip current gives same field as Cuboid magnet using the current replacement picture."""
+    obs = [(0, 0, 0), (0.1, 0.2, 0.3), (-1, -2, 0.1), (0.5, 0.1, 0.2)]
+
+    p1 = (-1, -1, -1)
+    p2 = (-1, -1, 1)
+    p3 = (1, -1, -1)
+    p4 = (1, -1, 1)
+    p5 = (1, 1, -1)
+    p6 = (1, 1, 1)
+    p7 = (-1, 1, -1)
+    p8 = (-1, 1, 1)
+
+    ribbon = mpj.current.TriangleStrip(
+        vertices=[p1, p2, p3, p4, p5, p6, p7, p8, p1, p2],
+        current=2,
+    )
+    ribbon.position = np.linspace((-0.1, -0.1, -0.1), (0.1, 0.2, 0.3), 10)
+    h1 = ribbon.getH(obs)
+
+    cube = mpj.magnet.Cuboid(
+        dimension=(2, 2, 2),
+        polarization=(0, 0, 1),
+    )
+    cube.position = np.linspace((-0.1, -0.1, -0.1), (0.1, 0.2, 0.3), 10)
+    h2 = cube.getB(obs)
+
+    sheet = mpj.current.TriangleSheet(
+        vertices=[p1, p2, p3, p4, p5, p6, p7, p8],
+        faces=[
+            (0, 1, 2),
+            (1, 2, 3),
+            (2, 3, 4),
+            (3, 4, 5),
+            (4, 5, 6),
+            (5, 6, 7),
+            (6, 7, 0),
+            (7, 0, 1),
+        ],
+        current_densities=[(1, 0, 0)] * 2
+        + [(0, 1, 0)] * 2
+        + [(-1, 0, 0)] * 2
+        + [(0, -1, 0)] * 2,
+    )
+    sheet.position = np.linspace((-0.1, -0.1, -0.1), (0.1, 0.2, 0.3), 10)
+    h3 = sheet.getH(obs)
+
+    err = np.linalg.norm(h1 - h2, axis=1) / np.linalg.norm(h1 + h2, axis=1)
+    assert np.all(err < 1e-12), f"Error in B-field comparison: {err}"
+
+    err = np.linalg.norm(h1 - h3, axis=1) / np.linalg.norm(h1 + h3, axis=1)
+    assert np.all(err < 1e-12), f"Error in B-field comparison: {err}"
+
+
+def test_TriangleStrip_VS_Polyline():
+    """Test if TriangleStrip gives same field as Polyline"""
+    h = 0.001
+
+    ribbon = mpj.current.TriangleStrip(
+        vertices=[[0, 0, 0], [0, h, 0], [1, 0, 0], [1, h, 0]],
+        current=10.1,
+    )
+    line = mpj.current.Polyline(
+        vertices=[[0, h / 2, 0], [1, h / 2, 0]],
+        current=10.1,
+    )
+
+    obse = [(0.1, 0.2, 0.3), (-1, -2, 0.1), (0.5, 0.1, 0.2)]
+    b1 = ribbon.getB(obse)
+    b2 = line.getB(obse)
+
+    err = np.linalg.norm(b1 - b2, axis=1) / np.linalg.norm(b1 + b2, axis=1)
+    assert np.all(err < 1e-6), f"Error in B-field comparison: {err}"
+
+
+def test_line_sheet_strip():
+    """Compare Line, Polyline, TriangleSheet, TriangleStrip."""
+
+    obss = [
+        (0.1, 0.2, 0.3),
+        (0.5, -0.1, -0.2),
+        (0.6, 0.2, 0),
+        (0.1, 0.2, 0),
+        (0.1, 0.2, 0.1),
+        (0.1, 0.2, 0.2),
+    ]
+    rotvecs = (
+        np.array([(1, 2, 3), (5, -1, -2), (6, 2, 0), (1, 2, 0), (1, 2, 1), (1, 2, 2)])
+        * 1e-2
+    )
+
+    pl = mpj.current.Polyline(
+        current=1,
+        vertices=((0, 0, 0), (1, 0, 0)),
+    ).rotate_from_rotvec(rotvecs)
+    b0 = pl.getH(obss)
+
+    h = 1e-3
+    cds = [(1 / h, 0, 0)] * 2
+    verts = ((0, -h / 2, 0), (0, h / 2, 0), (1, -h / 2, 0), (1, h / 2, 0))
+    facs = (
+        (0, 1, 2),
+        (1, 2, 3),
+    )
+
+    ts1 = mpj.current.TriangleSheet(
+        current_densities=cds,
+        vertices=verts,
+        faces=facs,
+    ).rotate_from_rotvec(rotvecs)
+    b1 = ts1.getH(obss)
+
+    ts2 = mpj.current.TriangleStrip(
+        current=1,
+        vertices=verts,
+    ).rotate_from_rotvec(rotvecs)
+    b2 = ts2.getH(obss)
+
+    err = np.linalg.norm(b0 - b1, axis=2) / np.linalg.norm(b0 + b1, axis=2)
+    assert np.sum(err) / len(err) < 1e-5
+
+    err = np.linalg.norm(b0 - b2, axis=2) / np.linalg.norm(b0 + b2, axis=2)
+    assert np.sum(err) / len(err) < 1e-5
+
+    err = np.linalg.norm(b1 - b2, axis=2) / np.linalg.norm(b1 + b2, axis=2)
+    assert np.sum(err) / len(err) < 1e-10

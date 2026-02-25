@@ -3,66 +3,55 @@ import numpy as np
 import magpylib_jax as mpj
 
 
-def _rotz(theta: float) -> np.ndarray:
-    c = np.cos(theta)
-    s = np.sin(theta)
-    return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+def test_path_old_new_move():
+    """test path move and compare to old style computation"""
+    n = 100
+    s_pos = (0, 0, 0)
 
-
-def test_path_move_equivalence() -> None:
-    n = 50
-    s_pos = (0.0, 0.0, 0.0)
-
-    positions = np.array([(x, 0.0, 3.0) for x in np.linspace(-5.0, 5.0, n)])
-    src = mpj.magnet.Cylinder(
-        polarization=(0, 0, 1),
-        dimension=(3, 3),
-        position=positions,
+    pm1 = mpj.magnet.Cylinder(
+        polarization=(0, 0, 1), dimension=(3, 3), position=(-5, 0, 3)
     )
-    b1 = src.getB(s_pos)
+    pm1.move([(x, 0, 0) for x in np.linspace(0, 10, 100)], start=-1)
+    b1 = pm1.getB(s_pos)
 
-    b2 = []
-    for pos in positions:
-        b2.append(
-            mpj.getB(
-                "cylinder",
-                s_pos,
-                position=pos,
-                dimension=(3, 3),
-                polarization=(0, 0, 1),
-            )
-        )
-    b2 = np.array(b2)
+    pm2 = mpj.magnet.Cylinder(
+        polarization=(0, 0, 1), dimension=(3, 3), position=(0, 0, 3)
+    )
+    ts = np.linspace(-5, 5, n)
+    possis = np.array([(t, 0, 0) for t in ts])
+    b2 = pm2.getB(possis[::-1])
 
     np.testing.assert_allclose(b1, b2, err_msg="path move problem")
 
 
-def test_path_rotate_equivalence() -> None:
-    n = 25
-    s_pos = (0.0, 0.0, 0.0)
-    angles = np.linspace(0.0, np.deg2rad(60.0), n)
-    orientations = np.stack([_rotz(a) for a in angles], axis=0)
+def test_path_old_new_rotate():
+    """test path rotate compare to old style computation"""
+    n = 111
+    s_pos = (0, 0, 0)
+    ax = (1, 0, 0)
+    anch = (0, 0, 10)
 
-    src = mpj.magnet.Cuboid(
-        polarization=(0, 0, 1),
-        dimension=(1, 2, 3),
-        position=(0, 0, 3),
-        orientation=orientations,
+    pm1 = mpj.magnet.Cuboid(
+        polarization=(0, 0, 1), dimension=(1, 2, 3), position=(0, 0, 3)
     )
-    b1 = src.getB(s_pos)
+    pm1.rotate_from_angax(-30, ax, anch)
+    pm1.rotate_from_angax(np.linspace(0, 60, n), "x", anch, start=-1)
+    b1 = pm1.getB(s_pos)
 
+    pm2 = mpj.magnet.Cuboid(
+        polarization=(0, 0, 1), dimension=(1, 2, 3), position=(0, 0, 3)
+    )
+    pm2.rotate_from_angax(-30, ax, anch)
     b2 = []
-    for rot in orientations:
-        b2.append(
-            mpj.getB(
-                "cuboid",
-                s_pos,
-                position=(0, 0, 3),
-                orientation=rot,
-                dimension=(1, 2, 3),
-                polarization=(0, 0, 1),
-            )
-        )
+    for _ in range(n):
+        b2 += [pm2.getB(s_pos)]
+        pm2.rotate_from_angax(60 / (n - 1), ax, anch)
     b2 = np.array(b2)
 
-    np.testing.assert_allclose(b1, b2, rtol=1e-5, atol=1e-8, err_msg="path rotate problem")
+    np.testing.assert_allclose(
+        b1,
+        b2,
+        rtol=1e-5,
+        atol=1e-8,
+        err_msg="path rotate problem",
+    )
