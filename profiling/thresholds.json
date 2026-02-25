@@ -60,13 +60,13 @@
     "circle": 2000000,
     "cuboid": 2000000,
     "cylinder": 2000000,
-    "cylindersegment": 2000000,
+    "cylindersegment": 150000,
     "sphere": 2000000,
     "polyline": 2000000,
-    "triangle": 2000000,
-    "trianglesheet": 2000000,
-    "trianglestrip": 2000000,
-    "triangularmesh": 2000000,
-    "tetrahedron": 2000000
+    "triangle": 40000,
+    "trianglesheet": 50000,
+    "trianglestrip": 60000,
+    "triangularmesh": 110000,
+    "tetrahedron": 90000
   }
 }

@@ -213,23 +213,34 @@ def triangle_bfield(
     n = obs.shape[0]
 
     tri = jnp.asarray(vertices, dtype=jnp.float64)
-    if tri.ndim == 2:
-        tri = jnp.broadcast_to(tri[None, :, :], (n, 3, 3))
-    else:
-        tri = jnp.broadcast_to(tri, (n, 3, 3))
-
     pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), n)
 
-    nvec = _triangle_norm_vector(tri)
-    sigma = jnp.einsum("ij,ij->i", nvec, pol)
-
-    R = tri - obs[:, None, :]
+    if tri.ndim == 2:
+        tri_const = tri
+        nvec_const = _triangle_norm_vector(tri_const[None, :, :])[0]
+        sigma = jnp.sum(pol * nvec_const, axis=1)
+        R = tri_const[None, :, :] - obs[:, None, :]
+        L = jnp.stack(
+            (
+                tri_const[1] - tri_const[0],
+                tri_const[2] - tri_const[1],
+                tri_const[0] - tri_const[2],
+            ),
+            axis=0,
+        )
+        l2 = jnp.sum(L * L, axis=-1)
+        l1 = jnp.sqrt(l2)
+        nvec = jnp.broadcast_to(nvec_const[None, :], (n, 3))
+    else:
+        tri = jnp.broadcast_to(tri, (n, 3, 3))
+        nvec = _triangle_norm_vector(tri)
+        sigma = jnp.sum(nvec * pol, axis=1)
+        R = tri - obs[:, None, :]
+        L = tri[:, (1, 2, 0)] - tri[:, (0, 1, 2)]
+        l2 = jnp.sum(L * L, axis=-1)
+        l1 = jnp.sqrt(l2)
     r2 = jnp.sum(R * R, axis=-1)
     r = jnp.sqrt(r2)
-
-    L = tri[:, (1, 2, 0)] - tri[:, (0, 1, 2)]
-    l2 = jnp.sum(L * L, axis=-1)
-    l1 = jnp.sqrt(l2)
 
     b = jnp.sum(R * L, axis=-1)
     bl = b / l1
@@ -299,6 +310,18 @@ def _points_inside_tetra(points: jnp.ndarray, vertices: jnp.ndarray) -> jnp.ndar
     )
 
 
+def _points_inside_tetra_single(points: jnp.ndarray, vertices: jnp.ndarray) -> jnp.ndarray:
+    mat = (vertices[1:] - vertices[0]).T
+    inv = jnp.linalg.inv(mat)
+    delta = points - vertices[0]
+    newp = jnp.matmul(delta, inv.T)
+    return (
+        jnp.all(newp >= 0.0, axis=1)
+        & jnp.all(newp <= 1.0, axis=1)
+        & (jnp.sum(newp, axis=1) <= 1.0)
+    )
+
+
 def tetrahedron_bfield(
     observers: ArrayLike,
     vertices: ArrayLike,
@@ -309,16 +332,29 @@ def tetrahedron_bfield(
     n = obs.shape[0]
 
     tet = jnp.asarray(vertices, dtype=jnp.float64)
-    if tet.ndim == 2:
-        tet = jnp.broadcast_to(tet[None, :, :], (n, 4, 3))
-    else:
-        tet = jnp.broadcast_to(tet, (n, 4, 3))
-
     pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), n)
-    tet = _check_tetra_chirality(tet)
+    if tet.ndim == 2 or (tet.ndim == 3 and tet.shape[0] == 1):
+        tet_const = tet if tet.ndim == 2 else tet[0]
+        tet_const = _check_tetra_chirality(tet_const[None, :, :])[0]
+        faces = tet_const[_TETRA_FACES]
+        b_faces = jax.vmap(lambda tri: triangle_bfield(obs, tri, pol))(faces)
+        b = jnp.sum(b_faces, axis=0)
 
+        if in_out == "inside":
+            inside = jnp.ones((n,), dtype=bool)
+        elif in_out == "outside":
+            inside = jnp.zeros((n,), dtype=bool)
+        else:
+            inside = _points_inside_tetra_single(obs, tet_const)
+        return b + jnp.where(inside[:, None], pol, 0.0)
+
+    tet = jnp.broadcast_to(tet, (n, 4, 3))
+    tet = _check_tetra_chirality(tet)
     faces = tet[:, _TETRA_FACES, :]
-    b = jnp.sum(jax.vmap(lambda tri: triangle_bfield(obs, tri, pol))(faces.swapaxes(0, 1)), axis=0)
+    b = jnp.sum(
+        jax.vmap(lambda tri: triangle_bfield(obs, tri, pol))(faces.swapaxes(0, 1)),
+        axis=0,
+    )
 
     if in_out == "inside":
         inside = jnp.ones((n,), dtype=bool)
@@ -326,7 +362,6 @@ def tetrahedron_bfield(
         inside = jnp.zeros((n,), dtype=bool)
     else:
         inside = _points_inside_tetra(obs, tet)
-
     return b + jnp.where(inside[:, None], pol, 0.0)
 
 
@@ -351,20 +386,25 @@ def tetrahedron_jfield(
     n = obs.shape[0]
 
     tet = jnp.asarray(vertices, dtype=jnp.float64)
-    if tet.ndim == 2:
-        tet = jnp.broadcast_to(tet[None, :, :], (n, 4, 3))
-    else:
-        tet = jnp.broadcast_to(tet, (n, 4, 3))
-
     pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), n)
+    if tet.ndim == 2 or (tet.ndim == 3 and tet.shape[0] == 1):
+        tet_const = tet if tet.ndim == 2 else tet[0]
+        tet_const = _check_tetra_chirality(tet_const[None, :, :])[0]
+        if in_out == "inside":
+            inside = jnp.ones((n,), dtype=bool)
+        elif in_out == "outside":
+            inside = jnp.zeros((n,), dtype=bool)
+        else:
+            inside = _points_inside_tetra_single(obs, tet_const)
+        return jnp.where(inside[:, None], pol, 0.0)
 
+    tet = jnp.broadcast_to(tet, (n, 4, 3))
     if in_out == "inside":
         inside = jnp.ones((n,), dtype=bool)
     elif in_out == "outside":
         inside = jnp.zeros((n,), dtype=bool)
     else:
         inside = _points_inside_tetra(obs, tet)
-
     return jnp.where(inside[:, None], pol, 0.0)
 
 

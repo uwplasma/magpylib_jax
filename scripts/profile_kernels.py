@@ -9,6 +9,7 @@ import logging
 import os
 import resource
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import jax
@@ -18,7 +19,17 @@ import numpy as np
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
 jax.config.update("jax_enable_x64", True)
 logging.getLogger("jax._src.xla_bridge").setLevel(logging.ERROR)
-import magpylib_jax as mpj  # noqa: E402
+
+
+_JIT_CACHE: dict[tuple[str, int], Callable] = {}
+
+
+def _jit_for_profile(name: str, fn: Callable, n_obs: int) -> Callable:
+    """Cache JIT-compiled entrypoints by name and observer count."""
+    key = (name, n_obs)
+    if key not in _JIT_CACHE:
+        _JIT_CACHE[key] = jax.jit(fn)
+    return _JIT_CACHE[key]
 
 
 def _median_runtime(fn, repeats: int) -> float:
@@ -63,7 +74,7 @@ def _profile_entry(
     repeats: int,
     out_dir: Path,
 ) -> dict[str, float | str]:
-    jit_new = jax.jit(new_fn)
+    jit_new = _jit_for_profile(name, new_fn, int(observers.shape[0]))
 
     compile_s = _compile_time(jit_new, observers)
     runtime_s = _median_runtime(lambda: jit_new(observers), repeats)
@@ -111,6 +122,8 @@ def _profile_entry(
 
 
 def _profiles(observers: np.ndarray) -> dict[str, tuple]:
+    import magpylib_jax as mpj
+
     tri_vertices = [(-0.2, -0.1, 0.0), (0.9, 0.3, 0.2), (0.1, 0.8, -0.2)]
     tetra_vertices = [(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)]
     strip_vertices = [[0, 0, 0], [0, 1, 0], [1, 0, 0], [1, 1, 0], [2, 0, 0]]
