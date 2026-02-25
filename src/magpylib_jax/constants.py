@@ -1,3 +1,4 @@
 """Physical constants used by magpylib_jax."""
 
-MU0 = 4e-7 * 3.141592653589793
+# Match scipy.constants.mu_0 used by upstream Magpylib.
+MU0 = 1.25663706127e-6

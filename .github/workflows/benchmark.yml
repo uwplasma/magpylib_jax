@@ -16,4 +16,10 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e '.[test]'
       - name: Run benchmark
-        run: python scripts/benchmark_vs_magpylib.py
+        run: |
+          python scripts/benchmark_vs_magpylib.py \
+            --n-observers 12000 \
+            --repeats 5 \
+            --output benchmarks/latest.json
+      - name: Validate thresholds
+        run: python scripts/check_benchmark_thresholds.py benchmarks/latest.json benchmarks/thresholds.json

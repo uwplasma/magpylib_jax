@@ -61,10 +61,26 @@ def cart_to_cyl(observers: jnp.ndarray) -> tuple[jnp.ndarray, jnp.ndarray, jnp.n
     return r, phi, z
 
 
-def cyl_field_to_cart(phi: jnp.ndarray, hr: jnp.ndarray, hz: jnp.ndarray) -> jnp.ndarray:
-    """Convert cylindrical field components (Hr, 0, Hz) to Cartesian field vectors."""
+def cyl_field_to_cart(
+    phi: jnp.ndarray,
+    hr: jnp.ndarray,
+    hphi_or_hz: jnp.ndarray,
+    hz: jnp.ndarray | None = None,
+) -> jnp.ndarray:
+    """Convert cylindrical field components to Cartesian field vectors.
+
+    Backward-compatible call forms:
+    - ``cyl_field_to_cart(phi, hr, hz)`` assumes ``Hphi=0``
+    - ``cyl_field_to_cart(phi, hr, hphi, hz)`` uses full cylindrical vector
+    """
+    if hz is None:
+        hphi = jnp.zeros_like(hr)
+        hz_arr = hphi_or_hz
+    else:
+        hphi = hphi_or_hz
+        hz_arr = hz
     cos_phi = jnp.cos(phi)
     sin_phi = jnp.sin(phi)
-    hx = hr * cos_phi
-    hy = hr * sin_phi
-    return jnp.stack((hx, hy, hz), axis=-1)
+    hx = hr * cos_phi - hphi * sin_phi
+    hy = hr * sin_phi + hphi * cos_phi
+    return jnp.stack((hx, hy, hz_arr), axis=-1)

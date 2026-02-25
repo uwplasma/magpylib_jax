@@ -16,11 +16,11 @@ Deliver a fully differentiable, JAX-native replacement for Magpylib with matched
 | --- | --- | --- | --- |
 | Dipole source (`misc.Dipole`) | Implemented | Yes | Yes |
 | Circle current source (`current.Circle`) | Implemented | Yes | Yes |
-| Cuboid magnet | Planned | Planned | Planned |
-| Cylinder magnet | Planned | Planned | Planned |
+| Cuboid magnet (`magnet.Cuboid`) | Implemented | Yes | Yes |
+| Cylinder magnet (`magnet.Cylinder`) | Implemented | Yes | Yes |
 | Sphere magnet | Planned | Planned | Planned |
 | Triangle/Polyline/TriangularMesh/Tetrahedron | Planned | Planned | Planned |
-| Collection/Sensor/path interfaces | Planned | Planned | Planned |
+| Collection/Sensor/path interfaces | Partial (Collection/Sensor) | Partial | Partial |
 
 ## Phases
 
@@ -46,7 +46,6 @@ Deliver a fully differentiable, JAX-native replacement for Magpylib with matched
 
 ## Execution status
 
-- Phase 1 started: dipole and circle kernels implemented.
-- Phase 2 started: functional/object API scaffolding implemented.
-- Phase 3 started: parity + differentiability tests for implemented sources added.
-
+- Phase 1 advanced: dipole, circle, cuboid, and cylinder kernels implemented.
+- Phase 2 advanced: functional/object API + compatibility objects implemented.
+- Phase 3 advanced: parity + differentiability tests extended to new sources.

@@ -9,7 +9,10 @@ This repository is bootstrapped and includes:
 - Differentiable JAX kernels for:
   - Dipole field (`misc.Dipole`, `core.dipole_hfield`)
   - Circular current loop field (`current.Circle`, `core.current_circle_hfield`)
+  - Cuboid magnet field (`magnet.Cuboid`)
+  - Cylinder magnet field (`magnet.Cylinder`)
 - Functional API (`getH`, `getB`) and object API (source classes)
+- Compatibility layer (`Collection`, `Sensor`, object/list dispatch in `getB/getH/getJ/getM`)
 - Parity tests against upstream `magpylib` for implemented features
 - Differentiability tests (`grad`, `jacrev`)
 - Benchmark script scaffold for performance and parity checks

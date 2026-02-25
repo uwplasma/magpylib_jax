@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import jax.numpy as jnp
 
 from magpylib_jax._types import ArrayLike
-from magpylib_jax.functional import getB, getH
+from magpylib_jax.functional import getB, getH, getJ, getM
 
 
 @dataclass(frozen=True)
@@ -29,6 +29,24 @@ class Dipole:
 
     def getB(self, observers: ArrayLike) -> jnp.ndarray:
         return getB(
+            "dipole",
+            observers,
+            moment=self.moment,
+            position=self.position,
+            orientation=self.orientation,
+        )
+
+    def getJ(self, observers: ArrayLike) -> jnp.ndarray:
+        return getJ(
+            "dipole",
+            observers,
+            moment=self.moment,
+            position=self.position,
+            orientation=self.orientation,
+        )
+
+    def getM(self, observers: ArrayLike) -> jnp.ndarray:
+        return getM(
             "dipole",
             observers,
             moment=self.moment,

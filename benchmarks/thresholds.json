@@ -1,0 +1,14 @@
+{
+  "max_abs_error_T": {
+    "dipole": 1e-10,
+    "circle": 5e-10,
+    "cuboid": 5e-8,
+    "cylinder": 5e-7
+  },
+  "max_runtime_slowdown_vs_magpylib": {
+    "dipole": 10.0,
+    "circle": 15.0,
+    "cuboid": 20.0,
+    "cylinder": 30.0
+  }
+}

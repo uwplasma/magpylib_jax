@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import jax.numpy as jnp
 
 from magpylib_jax._types import ArrayLike
-from magpylib_jax.functional import getB, getH
+from magpylib_jax.functional import getB, getH, getJ, getM
 
 
 @dataclass(frozen=True)
@@ -31,6 +31,26 @@ class Circle:
 
     def getB(self, observers: ArrayLike) -> jnp.ndarray:
         return getB(
+            "circle",
+            observers,
+            current=self.current,
+            diameter=self.diameter,
+            position=self.position,
+            orientation=self.orientation,
+        )
+
+    def getJ(self, observers: ArrayLike) -> jnp.ndarray:
+        return getJ(
+            "circle",
+            observers,
+            current=self.current,
+            diameter=self.diameter,
+            position=self.position,
+            orientation=self.orientation,
+        )
+
+    def getM(self, observers: ArrayLike) -> jnp.ndarray:
+        return getM(
             "circle",
             observers,
             current=self.current,
