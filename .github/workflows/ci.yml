@@ -95,6 +95,12 @@ jobs:
             --repeats 1 \
             --output profiling/latest_ci.json \
             --output-dir profiling/ci_artifacts
+      - name: Run end-to-end getB JIT profiling
+        run: |
+          python scripts/profile_getB_jit.py \
+            --repeats 1 \
+            --output profiling/getB_jit_ci.json \
+            --output-dir profiling/getB_jit_ci_artifacts
       - name: Validate profiling thresholds
         run: |
           python scripts/check_profiling_thresholds.py \
@@ -116,3 +122,10 @@ jobs:
         with:
           name: profiling-ci-summary
           path: profiling/latest_ci_summary.json
+      - name: Upload getB JIT profiling artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: profiling-getB-jit-ci
+          path: |
+            profiling/getB_jit_ci.json
+            profiling/getB_jit_ci_artifacts
