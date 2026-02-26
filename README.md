@@ -31,6 +31,7 @@ Differentiable magnetic field modeling in JAX with Magpylib-compatible APIs, par
 - Shape/squeeze behavior parity checks vs Magpylib
 - Upstream-file mirrored object tests (`test_obj_*` categories)
 - Fixed-observer-count JIT entrypoints for hotspot kernels (triangle*, tetrahedron, mesh)
+- JIT-safe `getB/getH/getJ/getM` path with parity checks against legacy behavior
 
 ## Quickstart
 
@@ -65,6 +66,14 @@ def bz(r2):
 
 print(jax.grad(bz)(1.2))
 ```
+
+## JIT-safe `getB`
+
+`magpylib_jax.getB/getH/getJ/getM` now run through a JIT-safe core by default. This keeps the API identical to Magpylib while enabling end-to-end differentiation and compilation.
+
+Notes:
+- When `pixel_agg` is a string, supported reducers are `mean`, `sum`, `min`, `max`. Other reducers fall back to the legacy path.
+- `output="dataframe"` is still supported, but runs outside JIT (matches Magpylib semantics).
 
 ## Differentiable fitting (mini loop)
 

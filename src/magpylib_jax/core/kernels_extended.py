@@ -213,6 +213,29 @@ def current_polyline_bfield(
     return MU0 * current_polyline_hfield(observers, segments_start, segments_end, currents)
 
 
+def current_polyline_bfield_masked(
+    observers: ArrayLike,
+    segments_start: ArrayLike,
+    segments_end: ArrayLike,
+    currents: ArrayLike,
+    segment_mask: ArrayLike,
+) -> jnp.ndarray:
+    """B-field of current segments with segment masking."""
+    obs = ensure_observers(observers)
+    p1 = jnp.asarray(segments_start, dtype=jnp.float64)
+    p2 = jnp.asarray(segments_end, dtype=jnp.float64)
+    cur = jnp.asarray(currents, dtype=jnp.float64)
+    if cur.ndim == 0:
+        cur = jnp.broadcast_to(cur, (p1.shape[0],))
+    else:
+        cur = jnp.broadcast_to(cur.reshape((-1,)), (p1.shape[0],))
+
+    mask = jnp.asarray(segment_mask, dtype=jnp.float64).reshape((-1,))
+    h_segments = jax.vmap(lambda a, b, c: _current_segment_hfield(obs, a, b, c))(p1, p2, cur)
+    h_segments = h_segments * mask[:, None, None]
+    return MU0 * jnp.sum(h_segments, axis=0)
+
+
 def _current_polyline_bfield_segments_impl(
     observers: jnp.ndarray,
     segments_start: jnp.ndarray,
@@ -775,6 +798,67 @@ def _lines_end_in_trimesh_jax(lines: jnp.ndarray, faces: jnp.ndarray) -> jnp.nda
     return inside1 | inside2
 
 
+_MASK_FACE_SENTINEL = jnp.array(
+    ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)), dtype=jnp.float64
+)
+
+
+def _lines_end_in_trimesh_jax_masked(
+    lines: jnp.ndarray,
+    faces: jnp.ndarray,
+    face_mask: jnp.ndarray,
+) -> jnp.ndarray:
+    mask = jnp.asarray(face_mask, dtype=bool)
+    faces_safe = jnp.where(mask[:, None, None], faces, _MASK_FACE_SENTINEL)
+
+    normals = jnp.cross(faces_safe[:, 0] - faces_safe[:, 2], faces_safe[:, 1] - faces_safe[:, 2])
+    normals = jnp.broadcast_to(normals, (lines.shape[0],) + normals.shape)
+
+    l0 = lines[:, 0][:, None, :]
+    l1 = lines[:, 1][:, None, :]
+
+    ref_pts = jnp.broadcast_to(faces_safe[:, 2], (lines.shape[0], faces_safe.shape[0], 3))
+    eps = 1e-16
+    coincide = _v_norm2_jax(l1 - ref_pts) < eps
+    ref_pts2 = jnp.broadcast_to(faces_safe[:, 1], ref_pts.shape)
+    ref_pts = jnp.where(coincide[..., None], ref_pts2, ref_pts)
+
+    proj0 = _v_norm_proj_jax(l0 - ref_pts, normals)
+    proj1 = _v_norm_proj_jax(l1 - ref_pts, normals)
+
+    eps = 1e-7
+    plane_touch = jnp.abs(proj1) < eps
+    plane_cross = jnp.sign(proj0) != jnp.sign(proj1)
+
+    faces0 = faces_safe[:, 0][None, :, :]
+    faces1 = faces_safe[:, 1][None, :, :]
+    faces2 = faces_safe[:, 2][None, :, :]
+    a = faces0 - l0
+    b = faces1 - l0
+    c = faces2 - l0
+    d = l1 - l0
+
+    area1 = _v_dot_cross3d_jax(a, b, d)
+    area2 = _v_dot_cross3d_jax(b, c, d)
+    area3 = _v_dot_cross3d_jax(c, a, d)
+
+    eps = 1e-12
+    pass_through_boundary = (jnp.abs(area1) < eps) | (jnp.abs(area2) < eps) | (jnp.abs(area3) < eps)
+    area1 = jnp.sign(area1)
+    area2 = jnp.sign(area2)
+    area3 = jnp.sign(area3)
+    pass_through_inside = (area1 == area2) & (area2 == area3)
+    pass_through = pass_through_boundary | pass_through_inside
+
+    mask_lines = mask[None, :]
+    result_cross = pass_through & plane_cross & mask_lines
+    result_touch = pass_through & plane_touch & mask_lines
+
+    inside1 = (jnp.sum(result_cross, axis=1) % 2) != 0
+    inside2 = jnp.any(result_touch, axis=1)
+    return inside1 | inside2
+
+
 def _mask_inside_trimesh_jax(points: jnp.ndarray, faces: jnp.ndarray) -> jnp.ndarray:
     vertices = faces.reshape((-1, 3))
     xmin, ymin, zmin = jnp.min(vertices, axis=0)
@@ -794,12 +878,60 @@ def _mask_inside_trimesh_jax(points: jnp.ndarray, faces: jnp.ndarray) -> jnp.nda
     return mask_box & mask_inside2
 
 
+def _mask_inside_trimesh_jax_masked(
+    points: jnp.ndarray,
+    faces: jnp.ndarray,
+    face_mask: jnp.ndarray,
+) -> jnp.ndarray:
+    mask = jnp.asarray(face_mask, dtype=bool)
+    any_face = jnp.any(mask)
+
+    def _compute() -> jnp.ndarray:
+        verts = faces.reshape((-1, 3))
+        vert_mask = jnp.repeat(mask, 3)
+        big = 1.0e30
+        verts_min = jnp.where(vert_mask[:, None], verts, big)
+        verts_max = jnp.where(vert_mask[:, None], verts, -big)
+        xmin, ymin, zmin = jnp.min(verts_min, axis=0)
+        xmax, ymax, zmax = jnp.max(verts_max, axis=0)
+        eps = 1e-12
+        mx = (points[:, 0] < xmax + eps) & (points[:, 0] > xmin - eps)
+        my = (points[:, 1] < ymax + eps) & (points[:, 1] > ymin - eps)
+        mz = (points[:, 2] < zmax + eps) & (points[:, 2] > zmin - eps)
+        mask_box = mx & my & mz
+
+        start_point_outside = jnp.array(
+            [xmin, ymin, zmin], dtype=jnp.float64
+        ) - jnp.array([12.0012345, 5.9923456, 6.9932109], dtype=jnp.float64)
+        start_pts = jnp.broadcast_to(start_point_outside, points.shape)
+        lines = jnp.stack((start_pts, points), axis=1)
+        mask_inside2 = _lines_end_in_trimesh_jax_masked(lines, faces, mask)
+        return mask_box & mask_inside2
+
+    def _empty() -> jnp.ndarray:
+        return jnp.zeros((points.shape[0],), dtype=bool)
+
+    return jax.lax.cond(any_face, _compute, _empty)
+
+
 def _inside_mask_mesh(observers: jnp.ndarray, mesh: jnp.ndarray) -> jnp.ndarray:
     if mesh.ndim == 3:
         return _mask_inside_trimesh_jax(observers, mesh)
     return jax.vmap(lambda obs, face: _mask_inside_trimesh_jax(obs[None, :], face)[0])(
         observers, mesh
     )
+
+
+def _inside_mask_mesh_masked(
+    observers: jnp.ndarray,
+    mesh: jnp.ndarray,
+    face_mask: jnp.ndarray,
+) -> jnp.ndarray:
+    if mesh.ndim == 3:
+        return _mask_inside_trimesh_jax_masked(observers, mesh, face_mask)
+    return jax.vmap(
+        lambda obs, face, mask: _mask_inside_trimesh_jax_masked(obs[None, :], face, mask)[0]
+    )(observers, mesh, face_mask)
 
 
 def _broadcast_mesh(mesh: jnp.ndarray, n: int) -> jnp.ndarray:
@@ -929,6 +1061,60 @@ def _magnet_trimesh_bfield_precomp_impl(
         inside = jnp.ones((obs.shape[0],), dtype=bool)
     else:
         inside = _inside_mask_mesh(obs, mesh_arr)
+    return b + jnp.where(inside[:, None], pol, 0.0)
+
+
+def magnet_trimesh_bfield_precomp_masked(
+    observers: ArrayLike,
+    mesh: ArrayLike,
+    polarizations: ArrayLike,
+    nvec: ArrayLike,
+    L: ArrayLike,
+    l1: ArrayLike,
+    l2: ArrayLike,
+    face_mask: ArrayLike,
+    in_out_flag: int,
+) -> jnp.ndarray:
+    """B-field of triangular mesh using precomputed geometry with face masking."""
+    obs = ensure_observers(observers)
+    mesh_arr = jnp.asarray(mesh, dtype=jnp.float64)
+    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), obs.shape[0])
+    nvec_arr = jnp.asarray(nvec, dtype=jnp.float64)
+    L_arr = jnp.asarray(L, dtype=jnp.float64)
+    l1_arr = jnp.asarray(l1, dtype=jnp.float64)
+    l2_arr = jnp.asarray(l2, dtype=jnp.float64)
+    mask = jnp.asarray(face_mask, dtype=bool).reshape((-1,))
+    n_faces = mesh_arr.shape[0]
+
+    def _accumulate_faces() -> jnp.ndarray:
+        def body(i: int, acc: jnp.ndarray) -> jnp.ndarray:
+            term = _triangle_bfield_const_precomp(
+                obs, mesh_arr[i], pol, nvec_arr[i], L_arr[i], l1_arr[i], l2_arr[i]
+            )
+            term = jnp.where(mask[i], term, 0.0)
+            return acc + term
+
+        init = jnp.zeros((obs.shape[0], 3), dtype=jnp.float64)
+        return jax.lax.fori_loop(0, n_faces, body, init)
+
+    if n_faces <= 64:
+        b_faces = jax.vmap(
+            _triangle_bfield_const_precomp,
+            in_axes=(None, 0, None, 0, 0, 0, 0),
+        )(obs, mesh_arr, pol, nvec_arr, L_arr, l1_arr, l2_arr)
+        b_faces = jnp.where(mask[:, None, None], b_faces, 0.0)
+        b = jnp.sum(b_faces, axis=0)
+    else:
+        b = _accumulate_faces()
+
+    inside = jax.lax.switch(
+        in_out_flag,
+        (
+            lambda: _inside_mask_mesh_masked(obs, mesh_arr, mask),
+            lambda: jnp.ones((obs.shape[0],), dtype=bool),
+            lambda: jnp.zeros((obs.shape[0],), dtype=bool),
+        ),
+    )
     return b + jnp.where(inside[:, None], pol, 0.0)
 
 
@@ -1717,6 +1903,24 @@ def current_trisheet_bfield(
     current_densities: ArrayLike,
 ) -> jnp.ndarray:
     return MU0 * current_trisheet_hfield(observers, vertices, faces, current_densities)
+
+
+def current_trisheet_bfield_masked(
+    observers: ArrayLike,
+    triangles: ArrayLike,
+    current_densities: ArrayLike,
+    face_mask: ArrayLike,
+) -> jnp.ndarray:
+    """B-field of triangle sheet with face masking."""
+    obs = ensure_observers(observers)
+    tris = jnp.asarray(triangles, dtype=jnp.float64)
+    cds = jnp.asarray(current_densities, dtype=jnp.float64)
+    mask = jnp.asarray(face_mask, dtype=jnp.float64).reshape((-1,))
+    h_faces = jax.vmap(lambda tri, cd: _current_triangle_sheet_hfield_obs(obs, tri, cd))(
+        tris, cds
+    )
+    h_faces = h_faces * mask[:, None, None]
+    return MU0 * jnp.sum(h_faces, axis=0)
 
 
 def current_trisheet_bfield_jit(

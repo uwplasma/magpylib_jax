@@ -9,6 +9,7 @@ from math import prod
 from typing import Any
 
 import numpy as np
+import jax
 import jax.numpy as jnp
 
 from magpylib_jax._types import ArrayLike
@@ -19,6 +20,7 @@ from magpylib_jax.core.geometry import (
     to_local_coordinates,
 )
 from magpylib_jax.core.base import BaseSource, MagpylibBadUserInput, MagpylibMissingInput
+from magpylib_jax.constants import MU0
 from magpylib_jax.core.kernels import (
     current_circle_bfield,
     current_circle_hfield,
@@ -35,11 +37,14 @@ from magpylib_jax.core.kernels import (
 )
 from magpylib_jax.core.kernels_extended import (
     current_polyline_bfield,
+    current_polyline_bfield_masked,
     current_polyline_hfield,
     current_trisheet_bfield,
+    current_trisheet_bfield_masked,
     current_trisheet_hfield,
     current_tristrip_bfield,
     current_tristrip_hfield,
+    magnet_trimesh_bfield_precomp_masked,
     magnet_cylinder_segment_bfield,
     magnet_cylinder_segment_hfield,
     magnet_cylinder_segment_jfield,
@@ -60,6 +65,11 @@ from magpylib_jax.core.kernels_extended import (
     triangle_hfield,
     triangle_jfield,
     triangle_mfield,
+    _in_out_flag,
+    _inside_mask_mesh_masked,
+    _strip_current_densities,
+    _strip_triangles,
+    precompute_trimesh_geometry,
 )
 
 _ALIASES = {
@@ -81,6 +91,23 @@ _ALIASES = {
     "triangular_mesh": "triangularmesh",
     "tetrahedron": "tetrahedron",
 }
+
+_SOURCE_TYPE_ORDER = (
+    "dipole",
+    "circle",
+    "cuboid",
+    "cylinder",
+    "cylindersegment",
+    "sphere",
+    "triangle",
+    "polyline",
+    "trianglesheet",
+    "trianglestrip",
+    "triangularmesh",
+    "tetrahedron",
+)
+_SOURCE_TYPE_IDS = {name: idx for idx, name in enumerate(_SOURCE_TYPE_ORDER)}
+_SUPPORTED_PIXEL_AGGS = {"mean", "sum", "min", "max"}
 
 
 def _check_getbh_output_type(output: str) -> str:
@@ -118,6 +145,44 @@ def _check_pixel_agg(pixel_agg: str | None):
             f"instead received {pixel_agg!r}."
         )
     return getattr(jnp, pixel_agg)
+
+
+def _is_array_like(obj: object) -> bool:
+    if isinstance(obj, (np.ndarray, jnp.ndarray, jax.Array)):
+        return True
+    if isinstance(obj, jax.core.Tracer):
+        return True
+    return hasattr(obj, "shape") and hasattr(obj, "dtype")
+
+
+def _has_tracer(obj: object) -> bool:
+    if isinstance(obj, jax.core.Tracer):
+        return True
+    if isinstance(obj, (list, tuple)):
+        return any(_has_tracer(item) for item in obj)
+    if isinstance(obj, dict):
+        return any(_has_tracer(val) for val in obj.values())
+    return False
+
+
+def _pad_path(arr: ArrayLike, target_len: int) -> jnp.ndarray:
+    arr_jnp = jnp.asarray(arr, dtype=jnp.float64)
+    if arr_jnp.shape[0] == target_len:
+        return arr_jnp
+    if arr_jnp.shape[0] == 1:
+        return jnp.broadcast_to(arr_jnp, (target_len,) + arr_jnp.shape[1:])
+    pad_len = target_len - arr_jnp.shape[0]
+    pad = jnp.broadcast_to(arr_jnp[-1:], (pad_len,) + arr_jnp.shape[1:])
+    return jnp.concatenate((arr_jnp, pad), axis=0)
+
+
+def _pad_axis0(arr: ArrayLike, target_len: int, pad_value: float = 0.0) -> jnp.ndarray:
+    arr_jnp = jnp.asarray(arr, dtype=jnp.float64)
+    if arr_jnp.shape[0] == target_len:
+        return arr_jnp
+    pad_shape = (target_len - arr_jnp.shape[0],) + arr_jnp.shape[1:]
+    pad = jnp.full(pad_shape, pad_value, dtype=arr_jnp.dtype)
+    return jnp.concatenate((arr_jnp, pad), axis=0)
 
 
 def _source_label(obj: object) -> str:
@@ -283,6 +348,866 @@ def _apply_squeeze(
         arr = field.reshape((n_sources, path_len, 1, *pix, 3))
     return arr
 
+
+def _build_source_specs(
+    source: str | object,
+    *,
+    position: ArrayLike,
+    orientation: ArrayLike | None,
+    in_out: str,
+    kwargs: dict[str, ArrayLike],
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    if isinstance(source, str):
+        src_type = _normalize_source_type(source)
+        pos_path, rot_path = broadcast_pose(position=position, orientation=orientation)
+        src_specs = [
+            {
+                "type": src_type,
+                "pos": jnp.asarray(pos_path, dtype=jnp.float64),
+                "rot": jnp.asarray(rot_path, dtype=jnp.float64),
+                "kwargs": {**kwargs, "in_out": in_out},
+                "label": src_type,
+            }
+        ]
+        group_specs = [{"label": src_type, "indices": [0]}]
+        return src_specs, group_specs
+
+    groups = _format_source_groups(source)
+    src_specs = []
+    group_specs = []
+    for group in groups:
+        idxs: list[int] = []
+        for src in group["sources"]:  # type: ignore[index]
+            if hasattr(src, "_require_inputs"):
+                src._require_inputs()
+            stype, skw = _source_kwargs_from_object(src, in_out=in_out)
+            idxs.append(len(src_specs))
+            src_specs.append(
+                {
+                    "type": stype,
+                    "pos": jnp.asarray(src._position, dtype=jnp.float64),
+                    "rot": jnp.asarray(src._orientation.as_matrix(), dtype=jnp.float64),
+                    "kwargs": skw,
+                    "label": _source_label(src),
+                }
+            )
+        group_specs.append({"label": group["label"], "indices": idxs})
+    return src_specs, group_specs
+
+
+def _prepare_sources_jit(
+    source: str | object,
+    *,
+    position: ArrayLike,
+    orientation: ArrayLike | None,
+    in_out: str,
+    kwargs: dict[str, ArrayLike],
+) -> tuple[dict[str, jnp.ndarray], dict[str, object]]:
+    src_specs, group_specs = _build_source_specs(
+        source, position=position, orientation=orientation, in_out=in_out, kwargs=kwargs
+    )
+    if not src_specs:
+        raise MagpylibBadUserInput("No sources provided.")
+
+    in_out_flag = _in_out_flag(in_out)
+    max_segments = 1
+    max_sheet_faces = 1
+    max_mesh_faces = 1
+    src_data: list[dict[str, object]] = []
+
+    for spec in src_specs:
+        stype = spec["type"]
+        skw = spec["kwargs"]  # type: ignore[assignment]
+        data: dict[str, object] = {
+            "type": stype,
+            "pos": spec["pos"],
+            "rot": spec["rot"],
+            "label": spec["label"],
+        }
+
+        if stype == "dipole":
+            if skw.get("moment") is None:
+                raise MagpylibMissingInput("Input moment of Dipole must be set.")
+            data["moment"] = jnp.asarray(skw["moment"], dtype=jnp.float64)
+        elif stype == "circle":
+            if skw.get("diameter") is None or skw.get("current") is None:
+                raise MagpylibMissingInput("Input diameter of Circle must be set.")
+            data["diameter"] = jnp.asarray(skw["diameter"], dtype=jnp.float64)
+            data["current"] = jnp.asarray(skw["current"], dtype=jnp.float64)
+        elif stype == "cuboid":
+            if skw.get("dimension") is None or skw.get("polarization") is None:
+                raise MagpylibMissingInput("Input dimension of Cuboid must be set.")
+            data["cuboid_dim"] = jnp.asarray(skw["dimension"], dtype=jnp.float64)
+            data["polarization"] = jnp.asarray(skw["polarization"], dtype=jnp.float64)
+        elif stype == "cylinder":
+            if skw.get("dimension") is None or skw.get("polarization") is None:
+                raise MagpylibMissingInput("Input dimension of Cylinder must be set.")
+            data["cylinder_dim"] = jnp.asarray(skw["dimension"], dtype=jnp.float64)
+            data["polarization"] = jnp.asarray(skw["polarization"], dtype=jnp.float64)
+        elif stype == "cylindersegment":
+            if skw.get("dimension") is None or skw.get("polarization") is None:
+                raise MagpylibMissingInput("Input dimension of CylinderSegment must be set.")
+            data["cseg_dim"] = jnp.asarray(skw["dimension"], dtype=jnp.float64)
+            data["polarization"] = jnp.asarray(skw["polarization"], dtype=jnp.float64)
+        elif stype == "sphere":
+            if skw.get("diameter") is None or skw.get("polarization") is None:
+                raise MagpylibMissingInput("Input diameter of Sphere must be set.")
+            data["diameter"] = jnp.asarray(skw["diameter"], dtype=jnp.float64)
+            data["polarization"] = jnp.asarray(skw["polarization"], dtype=jnp.float64)
+        elif stype == "triangle":
+            if skw.get("vertices") is None or skw.get("polarization") is None:
+                raise MagpylibMissingInput("Input vertices of Triangle must be set.")
+            data["triangle_vertices"] = jnp.asarray(skw["vertices"], dtype=jnp.float64)
+            data["polarization"] = jnp.asarray(skw["polarization"], dtype=jnp.float64)
+        elif stype == "polyline":
+            if skw.get("segment_start") is None or skw.get("segment_end") is None or skw.get("current") is None:
+                raise MagpylibMissingInput("Input vertices of Polyline must be set.")
+            seg_start = jnp.asarray(skw["segment_start"], dtype=jnp.float64)
+            seg_end = jnp.asarray(skw["segment_end"], dtype=jnp.float64)
+            if seg_start.ndim == 1:
+                seg_start = seg_start[None, :]
+                seg_end = seg_end[None, :]
+            data["segment_start"] = seg_start
+            data["segment_end"] = seg_end
+            data["current"] = jnp.asarray(skw["current"], dtype=jnp.float64)
+            max_segments = max(max_segments, int(seg_start.shape[0]))
+        elif stype == "trianglesheet":
+            if skw.get("vertices") is None or skw.get("faces") is None or skw.get("current_densities") is None:
+                raise MagpylibMissingInput("Input vertices of TriangleSheet must be set.")
+            verts = jnp.asarray(skw["vertices"], dtype=jnp.float64)
+            faces = jnp.asarray(skw["faces"], dtype=jnp.int32)
+            cds = jnp.asarray(skw["current_densities"], dtype=jnp.float64)
+            tris = verts[faces]
+            data["sheet_tris"] = tris
+            data["sheet_cd"] = cds
+            max_sheet_faces = max(max_sheet_faces, int(tris.shape[0]))
+        elif stype == "trianglestrip":
+            if skw.get("vertices") is None or skw.get("current") is None:
+                raise MagpylibMissingInput("Input vertices of TriangleStrip must be set.")
+            verts = jnp.asarray(skw["vertices"], dtype=jnp.float64)
+            curr = jnp.asarray(skw["current"], dtype=jnp.float64)
+            tris = _strip_triangles(verts)
+            cds = _strip_current_densities(verts, curr)
+            data["sheet_tris"] = tris
+            data["sheet_cd"] = cds
+            data["current"] = curr
+            max_sheet_faces = max(max_sheet_faces, int(tris.shape[0]))
+        elif stype == "triangularmesh":
+            if skw.get("mesh") is None or skw.get("polarization") is None:
+                raise MagpylibMissingInput("Input vertices of TriangularMesh must be set.")
+            mesh_arr, nvec, L, l1, l2 = precompute_trimesh_geometry(skw["mesh"])
+            data["mesh"] = mesh_arr
+            data["mesh_nvec"] = nvec
+            data["mesh_L"] = L
+            data["mesh_l1"] = l1
+            data["mesh_l2"] = l2
+            data["polarization"] = jnp.asarray(skw["polarization"], dtype=jnp.float64)
+            max_mesh_faces = max(max_mesh_faces, int(mesh_arr.shape[0]))
+        elif stype == "tetrahedron":
+            if skw.get("vertices") is None or skw.get("polarization") is None:
+                raise MagpylibMissingInput("Input vertices of Tetrahedron must be set.")
+            data["tetra_vertices"] = jnp.asarray(skw["vertices"], dtype=jnp.float64)
+            data["polarization"] = jnp.asarray(skw["polarization"], dtype=jnp.float64)
+        else:
+            raise MagpylibBadUserInput(f"Unsupported source type {stype!r}.")
+
+        src_data.append(data)
+
+    type_ids = jnp.asarray(
+        [_SOURCE_TYPE_IDS[data["type"]] for data in src_data], dtype=jnp.int32  # type: ignore[index]
+    )
+    group_index = np.empty((len(src_data),), dtype=np.int32)
+    for gid, group in enumerate(group_specs):
+        for idx in group["indices"]:  # type: ignore[index]
+            group_index[idx] = gid
+    group_index = jnp.asarray(group_index, dtype=jnp.int32)
+
+    moment = []
+    diameter = []
+    cuboid_dim = []
+    cylinder_dim = []
+    cseg_dim = []
+    polarization = []
+    triangle_vertices = []
+    tetra_vertices = []
+    current = []
+    poly_seg_start = []
+    poly_seg_end = []
+    poly_seg_mask = []
+    sheet_tris = []
+    sheet_cd = []
+    sheet_mask = []
+    mesh_faces = []
+    mesh_mask = []
+    mesh_nvec = []
+    mesh_L = []
+    mesh_l1 = []
+    mesh_l2 = []
+    pos_list = []
+    rot_list = []
+
+    for data in src_data:
+        stype = data["type"]
+        pos_list.append(data["pos"])
+        rot_list.append(data["rot"])
+
+        moment.append(jnp.asarray(data.get("moment", jnp.zeros(3)), dtype=jnp.float64))
+        diameter.append(jnp.asarray(data.get("diameter", 0.0), dtype=jnp.float64))
+        cuboid_dim.append(jnp.asarray(data.get("cuboid_dim", jnp.zeros(3)), dtype=jnp.float64))
+        cylinder_dim.append(jnp.asarray(data.get("cylinder_dim", jnp.zeros(2)), dtype=jnp.float64))
+        cseg_dim.append(jnp.asarray(data.get("cseg_dim", jnp.zeros(5)), dtype=jnp.float64))
+        polarization.append(jnp.asarray(data.get("polarization", jnp.zeros(3)), dtype=jnp.float64))
+        triangle_vertices.append(
+            jnp.asarray(data.get("triangle_vertices", jnp.zeros((3, 3))), dtype=jnp.float64)
+        )
+        tetra_vertices.append(
+            jnp.asarray(data.get("tetra_vertices", jnp.zeros((4, 3))), dtype=jnp.float64)
+        )
+        current.append(jnp.asarray(data.get("current", 0.0), dtype=jnp.float64))
+
+        if stype == "polyline":
+            seg_start = data["segment_start"]
+            seg_end = data["segment_end"]
+            seg_count = int(seg_start.shape[0])
+            seg_mask = jnp.concatenate(
+                (jnp.ones((seg_count,), dtype=jnp.float64),
+                 jnp.zeros((max_segments - seg_count,), dtype=jnp.float64)),
+                axis=0,
+            )
+            poly_seg_start.append(_pad_axis0(seg_start, max_segments))
+            poly_seg_end.append(_pad_axis0(seg_end, max_segments))
+            poly_seg_mask.append(seg_mask)
+        else:
+            poly_seg_start.append(jnp.zeros((max_segments, 3), dtype=jnp.float64))
+            poly_seg_end.append(jnp.zeros((max_segments, 3), dtype=jnp.float64))
+            poly_seg_mask.append(jnp.zeros((max_segments,), dtype=jnp.float64))
+
+        if stype in ("trianglesheet", "trianglestrip"):
+            tris = data["sheet_tris"]
+            cds = data["sheet_cd"]
+            face_count = int(tris.shape[0])
+            mask = jnp.concatenate(
+                (jnp.ones((face_count,), dtype=jnp.float64),
+                 jnp.zeros((max_sheet_faces - face_count,), dtype=jnp.float64)),
+                axis=0,
+            )
+            sheet_tris.append(_pad_axis0(tris, max_sheet_faces))
+            sheet_cd.append(_pad_axis0(cds, max_sheet_faces))
+            sheet_mask.append(mask)
+        else:
+            sheet_tris.append(jnp.zeros((max_sheet_faces, 3, 3), dtype=jnp.float64))
+            sheet_cd.append(jnp.zeros((max_sheet_faces, 3), dtype=jnp.float64))
+            sheet_mask.append(jnp.zeros((max_sheet_faces,), dtype=jnp.float64))
+
+        if stype == "triangularmesh":
+            mesh_arr = data["mesh"]
+            nvec = data["mesh_nvec"]
+            L = data["mesh_L"]
+            l1 = data["mesh_l1"]
+            l2 = data["mesh_l2"]
+            face_count = int(mesh_arr.shape[0])
+            mask = jnp.concatenate(
+                (jnp.ones((face_count,), dtype=jnp.float64),
+                 jnp.zeros((max_mesh_faces - face_count,), dtype=jnp.float64)),
+                axis=0,
+            )
+            mesh_faces.append(_pad_axis0(mesh_arr, max_mesh_faces))
+            mesh_nvec.append(_pad_axis0(nvec, max_mesh_faces))
+            mesh_L.append(_pad_axis0(L, max_mesh_faces))
+            mesh_l1.append(_pad_axis0(l1, max_mesh_faces))
+            mesh_l2.append(_pad_axis0(l2, max_mesh_faces))
+            mesh_mask.append(mask)
+        else:
+            mesh_faces.append(jnp.zeros((max_mesh_faces, 3, 3), dtype=jnp.float64))
+            mesh_nvec.append(jnp.zeros((max_mesh_faces, 3), dtype=jnp.float64))
+            mesh_L.append(jnp.zeros((max_mesh_faces, 3, 3), dtype=jnp.float64))
+            mesh_l1.append(jnp.zeros((max_mesh_faces, 3), dtype=jnp.float64))
+            mesh_l2.append(jnp.zeros((max_mesh_faces, 3), dtype=jnp.float64))
+            mesh_mask.append(jnp.zeros((max_mesh_faces,), dtype=jnp.float64))
+
+    src_arrays = {
+        "type_id": type_ids,
+        "pos_list": pos_list,
+        "rot_list": rot_list,
+        "moment": jnp.stack(moment, axis=0),
+        "diameter": jnp.stack(diameter, axis=0),
+        "cuboid_dim": jnp.stack(cuboid_dim, axis=0),
+        "cylinder_dim": jnp.stack(cylinder_dim, axis=0),
+        "cseg_dim": jnp.stack(cseg_dim, axis=0),
+        "polarization": jnp.stack(polarization, axis=0),
+        "triangle_vertices": jnp.stack(triangle_vertices, axis=0),
+        "tetra_vertices": jnp.stack(tetra_vertices, axis=0),
+        "current": jnp.stack(current, axis=0),
+        "poly_seg_start": jnp.stack(poly_seg_start, axis=0),
+        "poly_seg_end": jnp.stack(poly_seg_end, axis=0),
+        "poly_seg_mask": jnp.stack(poly_seg_mask, axis=0),
+        "sheet_tris": jnp.stack(sheet_tris, axis=0),
+        "sheet_cd": jnp.stack(sheet_cd, axis=0),
+        "sheet_mask": jnp.stack(sheet_mask, axis=0),
+        "mesh_faces": jnp.stack(mesh_faces, axis=0),
+        "mesh_mask": jnp.stack(mesh_mask, axis=0),
+        "mesh_nvec": jnp.stack(mesh_nvec, axis=0),
+        "mesh_L": jnp.stack(mesh_L, axis=0),
+        "mesh_l1": jnp.stack(mesh_l1, axis=0),
+        "mesh_l2": jnp.stack(mesh_l2, axis=0),
+        "group_index": group_index,
+        "in_out_flag": jnp.full((len(src_data),), in_out_flag, dtype=jnp.int32),
+    }
+
+    meta = {
+        "group_labels": [group["label"] for group in group_specs],
+        "n_groups": len(group_specs),
+    }
+    return src_arrays, meta
+
+
+def _prepare_sensors_jit(
+    observers: object,
+    *,
+    pixel_agg: str | None,
+) -> tuple[dict[str, jnp.ndarray], dict[str, object]]:
+    if observers is None:
+        raise MagpylibBadUserInput("No observers provided.")
+
+    if _is_array_like(observers) and not isinstance(observers, (list, tuple)) and not getattr(
+        observers, "_is_sensor", False
+    ) and not getattr(observers, "_is_collection", False):
+        pix_arr = jnp.asarray(observers, dtype=jnp.float64)
+        if pix_arr.shape[-1] != 3:
+            raise MagpylibBadUserInput("Bad observers provided.")
+        if pix_arr.shape == (3,):
+            pix_arr = pix_arr[None, :]
+            pix_shape = (1, 3)
+        else:
+            pix_shape = tuple(pix_arr.shape)
+        pix_flat = pix_arr.reshape((-1, 3))
+        sensors = [
+            {
+                "pix_flat": pix_flat,
+                "pix_shape": pix_shape,
+                "pos": jnp.zeros((1, 3), dtype=jnp.float64),
+                "rot": jnp.eye(3, dtype=jnp.float64)[None, :, :],
+                "handedness": "right",
+                "label": "Sensor",
+            }
+        ]
+        pix_shapes = [pix_shape]
+    else:
+        sensors_list, pix_shapes = _format_observers(observers, pixel_agg)
+        sensors = []
+        for sens in sensors_list:
+            pix = sens.pixel
+            if pix is None:
+                pix_arr = jnp.zeros((1, 3), dtype=jnp.float64)
+                pix_shape = (1, 3)
+            else:
+                pix_arr = jnp.asarray(pix, dtype=jnp.float64)
+                if pix_arr.shape == (3,):
+                    pix_arr = pix_arr[None, :]
+                pix_shape = tuple(pix_arr.shape)
+            pix_flat = pix_arr.reshape((-1, 3))
+            label = (
+                getattr(sens.style, "label", None)
+                if getattr(sens, "style", None) is not None
+                else None
+            )
+            label = label or getattr(sens, "style_label", None) or "Sensor"
+            sensors.append(
+                {
+                    "pix_flat": pix_flat,
+                    "pix_shape": pix_shape,
+                    "pos": jnp.asarray(sens._position, dtype=jnp.float64),
+                    "rot": jnp.asarray(sens._orientation.as_matrix(), dtype=jnp.float64),
+                    "handedness": sens.handedness,
+                    "label": label,
+                }
+            )
+
+    pix_nums = [int(np.prod(ps[:-1])) for ps in pix_shapes]
+    max_pix = max(pix_nums) if pix_nums else 1
+    pix_all_same = len(set(pix_shapes)) == 1
+    if pixel_agg is None and not pix_all_same:
+        msg = (
+            "Input observers must have similar shapes when pixel_agg is None; "
+            f"instead received shapes {pix_shapes}."
+        )
+        raise MagpylibBadUserInput(msg)
+
+    pix_flat_list = []
+    pix_mask_list = []
+    pos_list = []
+    rot_list = []
+    handedness_list = []
+    labels = []
+    for sens in sensors:
+        pix_flat = sens["pix_flat"]
+        pix_count = pix_flat.shape[0]
+        pad_len = max_pix - int(pix_count)
+        if pad_len > 0:
+            pix_flat = _pad_axis0(pix_flat, max_pix)
+        mask = jnp.concatenate(
+            (jnp.ones((pix_count,), dtype=jnp.float64),
+             jnp.zeros((pad_len,), dtype=jnp.float64)),
+            axis=0,
+        )
+        pix_flat_list.append(pix_flat)
+        pix_mask_list.append(mask)
+        pos_list.append(sens["pos"])
+        rot_list.append(sens["rot"])
+        handedness_list.append(sens["handedness"])
+        labels.append(sens["label"])
+
+    hand_vec = [
+        jnp.array([-1.0, 1.0, 1.0], dtype=jnp.float64)
+        if h == "left"
+        else jnp.array([1.0, 1.0, 1.0], dtype=jnp.float64)
+        for h in handedness_list
+    ]
+
+    sens_arrays = {
+        "pix_flat": jnp.stack(pix_flat_list, axis=0),
+        "pix_mask": jnp.stack(pix_mask_list, axis=0),
+        "pos_list": pos_list,
+        "rot_list": rot_list,
+        "handedness": jnp.stack(hand_vec, axis=0),
+    }
+    meta = {
+        "pix_shapes": pix_shapes,
+        "pix_nums": pix_nums,
+        "pix_all_same": pix_all_same,
+        "pix_inds": np.cumsum([0, *pix_nums]),
+        "sensor_labels": labels,
+    }
+    return sens_arrays, meta
+
+
+def _segment_sum(data: jnp.ndarray, segment_ids: jnp.ndarray, num_segments: int) -> jnp.ndarray:
+    try:
+        return jax.lax.segment_sum(data, segment_ids, num_segments)
+    except AttributeError:  # pragma: no cover
+        return jax.ops.segment_sum(data, segment_ids, num_segments)
+
+
+def _compute_field_jit_core(
+    src: dict[str, jnp.ndarray],
+    sens: dict[str, jnp.ndarray],
+    *,
+    field: str,
+    in_out: str,
+    n_groups: int,
+) -> jnp.ndarray:
+    type_id = src["type_id"]
+    n_sources = type_id.shape[0]
+    pos = src["pos"]
+    rot = src["rot"]
+    group_index = src["group_index"]
+
+    pix_flat = sens["pix_flat"]
+    pix_mask = sens["pix_mask"]
+    sens_pos = sens["pos"]
+    sens_rot = sens["rot"]
+    hand_vec = sens["handedness"]
+
+    n_sensors = pix_flat.shape[0]
+    max_pix = pix_flat.shape[1]
+    n_path = pos.shape[1]
+
+    def _mesh_inside(obs_local: jnp.ndarray, mesh_faces: jnp.ndarray, mesh_mask: jnp.ndarray, flag: jnp.ndarray) -> jnp.ndarray:
+        return jax.lax.switch(
+            flag,
+            (
+                lambda: _inside_mask_mesh_masked(obs_local, mesh_faces, mesh_mask),
+                lambda: jnp.ones((obs_local.shape[0],), dtype=bool),
+                lambda: jnp.zeros((obs_local.shape[0],), dtype=bool),
+            ),
+        )
+
+    def per_source(
+        stype: jnp.ndarray,
+        pos_t: jnp.ndarray,
+        rot_t: jnp.ndarray,
+        moment: jnp.ndarray,
+        diameter: jnp.ndarray,
+        cub_dim: jnp.ndarray,
+        cyl_dim: jnp.ndarray,
+        cseg_dim: jnp.ndarray,
+        pol: jnp.ndarray,
+        tri_vertices: jnp.ndarray,
+        tet_vertices: jnp.ndarray,
+        current: jnp.ndarray,
+        seg_start: jnp.ndarray,
+        seg_end: jnp.ndarray,
+        seg_mask: jnp.ndarray,
+        sheet_tris: jnp.ndarray,
+        sheet_cd: jnp.ndarray,
+        sheet_mask: jnp.ndarray,
+        mesh_faces: jnp.ndarray,
+        mesh_mask: jnp.ndarray,
+        mesh_nvec: jnp.ndarray,
+        mesh_L: jnp.ndarray,
+        mesh_l1: jnp.ndarray,
+        mesh_l2: jnp.ndarray,
+        in_out_flag: jnp.ndarray,
+        obs_flat: jnp.ndarray,
+        rot_s: jnp.ndarray,
+    ) -> jnp.ndarray:
+        obs_local = (obs_flat - pos_t) @ rot_t
+
+        def _dipole(_):
+            if field == "B":
+                return dipole_bfield(obs_local, moment)
+            if field == "H":
+                return dipole_hfield(obs_local, moment)
+            return jnp.zeros_like(obs_local, dtype=jnp.float64)
+
+        def _circle(_):
+            if field == "B":
+                return current_circle_bfield(obs_local, diameter, current)
+            if field == "H":
+                return current_circle_hfield(obs_local, diameter, current)
+            return jnp.zeros_like(obs_local, dtype=jnp.float64)
+
+        def _cuboid(_):
+            if field == "B":
+                return magnet_cuboid_bfield(obs_local, cub_dim, pol)
+            if field == "H":
+                return magnet_cuboid_hfield(obs_local, cub_dim, pol)
+            if field == "J":
+                return magnet_cuboid_jfield(obs_local, cub_dim, pol)
+            return magnet_cuboid_mfield(obs_local, cub_dim, pol)
+
+        def _cylinder(_):
+            if field == "B":
+                return magnet_cylinder_bfield(obs_local, cyl_dim, pol)
+            if field == "H":
+                return magnet_cylinder_hfield(obs_local, cyl_dim, pol)
+            if field == "J":
+                return magnet_cylinder_jfield(obs_local, cyl_dim, pol)
+            return magnet_cylinder_mfield(obs_local, cyl_dim, pol)
+
+        def _cylindersegment(_):
+            if field == "B":
+                return magnet_cylinder_segment_bfield(obs_local, cseg_dim, pol, in_out=in_out)
+            if field == "H":
+                return magnet_cylinder_segment_hfield(obs_local, cseg_dim, pol, in_out=in_out)
+            if field == "J":
+                return magnet_cylinder_segment_jfield(obs_local, cseg_dim, pol, in_out=in_out)
+            return magnet_cylinder_segment_mfield(obs_local, cseg_dim, pol, in_out=in_out)
+
+        def _sphere(_):
+            if field == "B":
+                return magnet_sphere_bfield(obs_local, diameter, pol)
+            if field == "H":
+                return magnet_sphere_hfield(obs_local, diameter, pol)
+            if field == "J":
+                return magnet_sphere_jfield(obs_local, diameter, pol)
+            return magnet_sphere_mfield(obs_local, diameter, pol)
+
+        def _triangle(_):
+            if field == "B":
+                return triangle_bfield(obs_local, tri_vertices, pol)
+            if field == "H":
+                return triangle_hfield(obs_local, tri_vertices, pol)
+            if field == "J":
+                return triangle_jfield(obs_local, tri_vertices, pol)
+            return triangle_mfield(obs_local, tri_vertices, pol)
+
+        def _polyline(_):
+            if field == "B":
+                return current_polyline_bfield_masked(
+                    obs_local, seg_start, seg_end, current, seg_mask
+                )
+            if field == "H":
+                return current_polyline_bfield_masked(
+                    obs_local, seg_start, seg_end, current, seg_mask
+                ) / MU0
+            return jnp.zeros_like(obs_local, dtype=jnp.float64)
+
+        def _trianglesheet(_):
+            if field == "B":
+                return current_trisheet_bfield_masked(obs_local, sheet_tris, sheet_cd, sheet_mask)
+            if field == "H":
+                return current_trisheet_bfield_masked(obs_local, sheet_tris, sheet_cd, sheet_mask) / MU0
+            return jnp.zeros_like(obs_local, dtype=jnp.float64)
+
+        def _trianglestrip(_):
+            if field == "B":
+                return current_trisheet_bfield_masked(obs_local, sheet_tris, sheet_cd, sheet_mask)
+            if field == "H":
+                return current_trisheet_bfield_masked(obs_local, sheet_tris, sheet_cd, sheet_mask) / MU0
+            return jnp.zeros_like(obs_local, dtype=jnp.float64)
+
+        def _triangularmesh(_):
+            if field == "B":
+                return magnet_trimesh_bfield_precomp_masked(
+                    obs_local,
+                    mesh_faces,
+                    pol,
+                    mesh_nvec,
+                    mesh_L,
+                    mesh_l1,
+                    mesh_l2,
+                    mesh_mask,
+                    in_out_flag,
+                )
+            if field == "H":
+                b = magnet_trimesh_bfield_precomp_masked(
+                    obs_local,
+                    mesh_faces,
+                    pol,
+                    mesh_nvec,
+                    mesh_L,
+                    mesh_l1,
+                    mesh_l2,
+                    mesh_mask,
+                    in_out_flag,
+                )
+                jfield = jnp.where(
+                    _mesh_inside(obs_local, mesh_faces, mesh_mask, in_out_flag)[:, None],
+                    pol,
+                    0.0,
+                )
+                return (b - jfield) / MU0
+            if field == "J":
+                inside = _mesh_inside(obs_local, mesh_faces, mesh_mask, in_out_flag)
+                return jnp.where(inside[:, None], pol, 0.0)
+            inside = _mesh_inside(obs_local, mesh_faces, mesh_mask, in_out_flag)
+            return jnp.where(inside[:, None], pol, 0.0) / MU0
+
+        def _tetrahedron(_):
+            if field == "B":
+                return tetrahedron_bfield(obs_local, tet_vertices, pol, in_out=in_out)
+            if field == "H":
+                return tetrahedron_hfield(obs_local, tet_vertices, pol, in_out=in_out)
+            if field == "J":
+                return tetrahedron_jfield(obs_local, tet_vertices, pol, in_out=in_out)
+            return tetrahedron_mfield(obs_local, tet_vertices, pol, in_out=in_out)
+
+        branches = (
+            _dipole,
+            _circle,
+            _cuboid,
+            _cylinder,
+            _cylindersegment,
+            _sphere,
+            _triangle,
+            _polyline,
+            _trianglesheet,
+            _trianglestrip,
+            _triangularmesh,
+            _tetrahedron,
+        )
+        field_local = jax.lax.switch(stype, branches, operand=None)
+        field_global = field_local @ rot_t.T
+        field_global = field_global.reshape((n_sensors, max_pix, 3))
+        field_sens = jnp.einsum("spc,sdc->spd", field_global, rot_s)
+        field_sens = field_sens * hand_vec[:, None, :]
+        return field_sens
+
+    def step(_, t):
+        pos_s = sens_pos[:, t, :]
+        rot_s = sens_rot[:, t, :, :]
+        pix_rot = jnp.einsum("spc,sdc->spd", pix_flat, rot_s)
+        obs = pix_rot + pos_s[:, None, :]
+        obs_flat = obs.reshape((n_sensors * max_pix, 3))
+
+        fields = jax.vmap(
+            per_source,
+            in_axes=(
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                None,
+                None,
+            ),
+        )(
+            type_id,
+            pos[:, t],
+            rot[:, t],
+            src["moment"],
+            src["diameter"],
+            src["cuboid_dim"],
+            src["cylinder_dim"],
+            src["cseg_dim"],
+            src["polarization"],
+            src["triangle_vertices"],
+            src["tetra_vertices"],
+            src["current"],
+            src["poly_seg_start"],
+            src["poly_seg_end"],
+            src["poly_seg_mask"],
+            src["sheet_tris"],
+            src["sheet_cd"],
+            src["sheet_mask"],
+            src["mesh_faces"],
+            src["mesh_mask"],
+            src["mesh_nvec"],
+            src["mesh_L"],
+            src["mesh_l1"],
+            src["mesh_l2"],
+            src["in_out_flag"],
+            obs_flat,
+            rot_s,
+        )
+        fields = jnp.where(pix_mask[None, :, :, None] > 0, fields, 0.0)
+        group_fields = _segment_sum(fields, group_index, n_groups)
+        return None, group_fields
+
+    _, b_path = jax.lax.scan(step, None, jnp.arange(n_path))
+    return jnp.transpose(b_path, (1, 0, 2, 3, 4))
+
+
+def _apply_pixel_agg_masked(
+    field: jnp.ndarray,
+    pix_mask: jnp.ndarray,
+    *,
+    pixel_agg: str,
+) -> jnp.ndarray:
+    mask = pix_mask[None, None, :, :, None]
+    count = jnp.sum(mask, axis=3)
+    if pixel_agg == "sum":
+        masked = jnp.where(mask.astype(bool), field, 0.0)
+        return jnp.sum(masked, axis=3)
+    if pixel_agg == "mean":
+        denom = jnp.where(count > 0, count, 1.0)
+        masked = jnp.where(mask.astype(bool), field, 0.0)
+        return jnp.sum(masked, axis=3) / denom
+    if pixel_agg == "min":
+        large = jnp.finfo(field.dtype).max
+        masked = jnp.where(mask.astype(bool), field, large)
+        out = jnp.min(masked, axis=3)
+        return jnp.where(count > 0, out, 0.0)
+    if pixel_agg == "max":
+        small = jnp.finfo(field.dtype).min
+        masked = jnp.where(mask.astype(bool), field, small)
+        out = jnp.max(masked, axis=3)
+        return jnp.where(count > 0, out, 0.0)
+    raise ValueError(f"Unsupported pixel_agg {pixel_agg!r}.")
+
+
+def _compute_field_jit(
+    source: str | object,
+    observers: object,
+    field: str,
+    *,
+    position: ArrayLike = (0.0, 0.0, 0.0),
+    orientation: ArrayLike | None = None,
+    squeeze: bool = True,
+    sumup: bool = False,
+    pixel_agg: str | None = None,
+    output: str = "ndarray",
+    in_out: str = "auto",
+    **kwargs: ArrayLike,
+) -> jnp.ndarray:
+    output = _check_getbh_output_type(output)
+    pixel_agg_func = _check_pixel_agg(pixel_agg)
+    if callable(pixel_agg_func) and pixel_agg not in _SUPPORTED_PIXEL_AGGS:
+        raise ValueError("Unsupported pixel_agg for jit path.")
+
+    src_arrays, src_meta = _prepare_sources_jit(
+        source,
+        position=position,
+        orientation=orientation,
+        in_out=in_out,
+        kwargs=kwargs,
+    )
+    sens_arrays, sens_meta = _prepare_sensors_jit(observers, pixel_agg=pixel_agg)
+
+    max_path_len = max(
+        [int(pos.shape[0]) for pos in src_arrays["pos_list"]]
+        + [int(pos.shape[0]) for pos in sens_arrays["pos_list"]]
+    )
+    src_pos = jnp.stack([_pad_path(pos, max_path_len) for pos in src_arrays["pos_list"]], axis=0)
+    src_rot = jnp.stack([_pad_path(rot, max_path_len) for rot in src_arrays["rot_list"]], axis=0)
+    sens_pos = jnp.stack([_pad_path(pos, max_path_len) for pos in sens_arrays["pos_list"]], axis=0)
+    sens_rot = jnp.stack([_pad_path(rot, max_path_len) for rot in sens_arrays["rot_list"]], axis=0)
+
+    src_arrays_core = {
+        key: val for key, val in src_arrays.items() if not key.endswith("_list")
+    }
+    sens_arrays_core = {
+        key: val for key, val in sens_arrays.items() if not key.endswith("_list")
+    }
+    src_arrays_core["pos"] = src_pos
+    src_arrays_core["rot"] = src_rot
+    sens_arrays_core["pos"] = sens_pos
+    sens_arrays_core["rot"] = sens_rot
+
+    n_groups = int(src_meta["n_groups"])
+    B = _compute_field_jit_core(
+        src_arrays_core, sens_arrays_core, field=field, in_out=in_out, n_groups=n_groups
+    )
+
+    pix_shapes = sens_meta["pix_shapes"]
+    pix_all_same = sens_meta["pix_all_same"]
+    if pixel_agg is not None:
+        if pixel_agg not in _SUPPORTED_PIXEL_AGGS:
+            return _compute_field_legacy(
+                source,
+                observers,
+                field,
+                position=position,
+                orientation=orientation,
+                squeeze=squeeze,
+                sumup=sumup,
+                pixel_agg=pixel_agg,
+                output=output,
+                in_out=in_out,
+                **kwargs,
+            )
+        B = _apply_pixel_agg_masked(B, sens_arrays_core["pix_mask"], pixel_agg=pixel_agg)
+    else:
+        if pix_all_same:
+            pix_shape = pix_shapes[0]
+            B = B.reshape((B.shape[0], B.shape[1], B.shape[2], *pix_shape[:-1], 3))
+
+    if sumup:
+        B = jnp.sum(B, axis=0, keepdims=True)
+
+    if output == "dataframe":
+        import pandas as pd  # type: ignore
+
+        group_labels = src_meta["group_labels"]
+        if sumup and len(group_labels) > 1:
+            src_ids = [f"sumup ({len(group_labels)})"]
+        else:
+            src_ids = group_labels
+        sens_ids = sens_meta["sensor_labels"]
+        num_pixels = int(np.prod(pix_shapes[0][:-1])) if pixel_agg is None else 1
+        df_field = pd.DataFrame(
+            data=product(src_ids, range(B.shape[1]), sens_ids, range(num_pixels)),
+            columns=["source", "path", "sensor", "pixel"],
+        )
+        df_field[[field + k for k in "xyz"]] = np.asarray(B).reshape(-1, 3)
+        return df_field
+
+    if squeeze:
+        B = jnp.squeeze(B)
+    elif pixel_agg is not None:
+        B = jnp.expand_dims(B, axis=-2)
+    return B
 
 def _evaluate_core_field(
     source_type: str,
@@ -528,7 +1453,7 @@ def _source_kwargs_from_object(source: object, *, in_out: str) -> tuple[str, dic
     raise MagpylibBadUserInput(f"Unsupported source type {stype!r}.")
 
 
-def _compute_field(
+def _compute_field_legacy(
     source: str | object,
     observers: object,
     field: str,
@@ -706,6 +1631,64 @@ def _compute_field(
     elif pixel_agg is not None:
         B = jnp.expand_dims(B, axis=-2)
     return B
+
+
+def _compute_field(
+    source: str | object,
+    observers: object,
+    field: str,
+    *,
+    position: ArrayLike = (0.0, 0.0, 0.0),
+    orientation: ArrayLike | None = None,
+    squeeze: bool = True,
+    sumup: bool = False,
+    pixel_agg: str | None = None,
+    output: str = "ndarray",
+    in_out: str = "auto",
+    **kwargs: ArrayLike,
+) -> jnp.ndarray:
+    if pixel_agg is not None and not isinstance(pixel_agg, str):
+        return _compute_field_legacy(
+            source,
+            observers,
+            field,
+            position=position,
+            orientation=orientation,
+            squeeze=squeeze,
+            sumup=sumup,
+            pixel_agg=pixel_agg,
+            output=output,
+            in_out=in_out,
+            **kwargs,
+        )
+    if isinstance(pixel_agg, str) and pixel_agg not in _SUPPORTED_PIXEL_AGGS:
+        return _compute_field_legacy(
+            source,
+            observers,
+            field,
+            position=position,
+            orientation=orientation,
+            squeeze=squeeze,
+            sumup=sumup,
+            pixel_agg=pixel_agg,
+            output=output,
+            in_out=in_out,
+            **kwargs,
+        )
+
+    return _compute_field_jit(
+        source,
+        observers,
+        field,
+        position=position,
+        orientation=orientation,
+        squeeze=squeeze,
+        sumup=sumup,
+        pixel_agg=pixel_agg,
+        output=output,
+        in_out=in_out,
+        **kwargs,
+    )
 
 
 def _get_field_from_type(

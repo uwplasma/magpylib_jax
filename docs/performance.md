@@ -37,6 +37,16 @@ These wrappers cache compilation per `(kernel, observer_count)` and provide a st
 HLO/compile/runtime/memory budgets. They are used by the profiling scripts and can also be used
 directly in performance-critical pipelines with fixed observer grids.
 
+## JIT-safe getB path
+
+The high-level `getB/getH/getJ/getM` API runs through a JIT-safe core by default. This allows
+end-to-end compilation and differentiation across source parameters and observer grids while
+preserving Magpylib-compatible shapes and squeeze behavior.
+
+Profiling remains focused on kernel entrypoints for stable, comparable HLO baselines. The JIT-safe
+`getB` path is validated via parity tests against the legacy implementation and is suitable for
+application-level JIT usage.
+
 Artifacts produced per source family:
 - JAX trace (`jax.profiler.trace`)
 - HLO dump (`compiler_ir(..., dialect="hlo")`)
