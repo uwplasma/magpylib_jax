@@ -23,6 +23,7 @@ _IN_OUT_FLAGS = {"auto": 0, "inside": 1, "outside": 2}
 
 _JIT_KERNEL_CACHE: dict[tuple[str, int, int], object] = {}
 _JIT_SIMPLE_CACHE: dict[tuple[str, int], object] = {}
+_JIT_MESH_CACHE: dict[tuple[str, int, int, int], object] = {}
 
 
 def _broadcast_vec3(arr: jnp.ndarray, n: int) -> jnp.ndarray:
@@ -281,6 +282,13 @@ def _jit_kernel_simple(name: str, fn, n_obs: int):
     if key not in _JIT_SIMPLE_CACHE:
         _JIT_SIMPLE_CACHE[key] = jax.jit(fn)
     return _JIT_SIMPLE_CACHE[key]
+
+
+def _jit_kernel_mesh(name: str, fn, n_obs: int, n_faces: int, in_out_flag: int):
+    key = (name, int(n_obs), int(n_faces), int(in_out_flag))
+    if key not in _JIT_MESH_CACHE:
+        _JIT_MESH_CACHE[key] = jax.jit(fn, static_argnames=("in_out_flag", "n_faces"))
+    return _JIT_MESH_CACHE[key]
 
 
 def _triangle_bfield_const_impl(
@@ -822,6 +830,17 @@ def _magnet_trimesh_bfield_const_impl(
     return b + jnp.where(inside[:, None], pol, 0.0)
 
 
+def _magnet_trimesh_bfield_faces_impl(
+    obs: jnp.ndarray,
+    mesh_arr: jnp.ndarray,
+    pol: jnp.ndarray,
+    *,
+    in_out_flag: int,
+    n_faces: int,
+) -> jnp.ndarray:
+    return _magnet_trimesh_bfield_const_impl(obs, mesh_arr, pol, in_out_flag=in_out_flag)
+
+
 def magnet_trimesh_bfield_jit(
     observers: ArrayLike,
     mesh: ArrayLike,
@@ -832,6 +851,10 @@ def magnet_trimesh_bfield_jit(
     obs = ensure_observers(observers)
     mesh_arr = jnp.asarray(mesh, dtype=jnp.float64)
     pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), obs.shape[0])
+    if mesh_arr.ndim == 3:
+        return magnet_trimesh_bfield_jit_faces(
+            obs, mesh_arr, pol, in_out=in_out
+        )
     flag = _in_out_flag(in_out)
     jit_fn = _jit_kernel(
         "triangularmesh_bfield",
@@ -840,6 +863,30 @@ def magnet_trimesh_bfield_jit(
         flag,
     )
     return jit_fn(obs, mesh_arr, pol, in_out_flag=flag)
+
+
+def magnet_trimesh_bfield_jit_faces(
+    observers: ArrayLike,
+    mesh: ArrayLike,
+    polarizations: ArrayLike,
+    in_out: str = "auto",
+) -> jnp.ndarray:
+    """JIT-specialized triangular mesh B-field for fixed observer + face counts."""
+    obs = ensure_observers(observers)
+    mesh_arr = jnp.asarray(mesh, dtype=jnp.float64)
+    if mesh_arr.ndim != 3:
+        raise ValueError("TriangularMesh JIT expects mesh with shape (n_faces,3,3).")
+    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), obs.shape[0])
+    flag = _in_out_flag(in_out)
+    n_faces = int(mesh_arr.shape[0])
+    jit_fn = _jit_kernel_mesh(
+        "triangularmesh_bfield_faces",
+        _magnet_trimesh_bfield_faces_impl,
+        obs.shape[0],
+        n_faces,
+        flag,
+    )
+    return jit_fn(obs, mesh_arr, pol, in_out_flag=flag, n_faces=n_faces)
 
 
 def magnet_trimesh_hfield(
@@ -1028,7 +1075,20 @@ def magnet_cylinder_segment_bfield_jit(
     obs = ensure_observers(observers)
     dim = _ensure_dim5(dimensions, obs.shape[0])
     mesh = _build_cylinder_segment_mesh(dim)
-    return magnet_trimesh_bfield_jit(obs, mesh, polarizations, in_out=in_out)
+    return magnet_trimesh_bfield_jit_faces(obs, mesh, polarizations, in_out=in_out)
+
+
+def magnet_cylinder_segment_bfield_jit_faces(
+    observers: ArrayLike,
+    dimensions: ArrayLike,
+    polarizations: ArrayLike,
+    in_out: str = "auto",
+) -> jnp.ndarray:
+    """JIT-specialized cylinder-segment B-field for fixed observer + face counts."""
+    obs = ensure_observers(observers)
+    dim = _ensure_dim5(dimensions, obs.shape[0])
+    mesh = _build_cylinder_segment_mesh(dim)
+    return magnet_trimesh_bfield_jit_faces(obs, mesh, polarizations, in_out=in_out)
 
 
 def magnet_cylinder_segment_hfield(
@@ -1429,21 +1489,11 @@ def _elementar_current_sheet_hfield(
     return jnp.stack((hx_scaled, hy_scaled, hz_scaled), axis=1)
 
 
-def current_triangle_sheet_hfield(
-    observers: ArrayLike,
-    vertices: ArrayLike,
-    current_densities: ArrayLike,
+def _current_triangle_sheet_hfield_obs(
+    obs: jnp.ndarray,
+    tri: jnp.ndarray,
+    cd: jnp.ndarray,
 ) -> jnp.ndarray:
-    obs = ensure_observers(observers)
-    tri = jnp.asarray(vertices, dtype=jnp.float64)
-    if tri.shape != (3, 3):
-        raise ValueError(f"Triangle sheet vertices must have shape (3,3), got {tri.shape}.")
-    cd = jnp.asarray(current_densities, dtype=jnp.float64)
-    if cd.shape != (3,):
-        raise ValueError(
-            f"Triangle sheet current density must have shape (3,), got {cd.shape}."
-        )
-
     coords, translation, rotation = _triangle_coordinate_transform(tri)
     obs_loc = (obs - translation[None, :]) @ rotation.T
     cd_loc = (rotation @ cd)[:2]
@@ -1459,6 +1509,24 @@ def current_triangle_sheet_hfield(
     h_local = _elementar_current_sheet_hfield(obs_loc, coords, cd_loc)
     h_local = jnp.where(degenerate, 0.0, h_local)
     return h_local @ rotation
+
+
+def current_triangle_sheet_hfield(
+    observers: ArrayLike,
+    vertices: ArrayLike,
+    current_densities: ArrayLike,
+) -> jnp.ndarray:
+    obs = ensure_observers(observers)
+    tri = jnp.asarray(vertices, dtype=jnp.float64)
+    if tri.shape != (3, 3):
+        raise ValueError(f"Triangle sheet vertices must have shape (3,3), got {tri.shape}.")
+    cd = jnp.asarray(current_densities, dtype=jnp.float64)
+    if cd.shape != (3,):
+        raise ValueError(
+            f"Triangle sheet current density must have shape (3,), got {cd.shape}."
+        )
+
+    return _current_triangle_sheet_hfield_obs(obs, tri, cd)
 
 
 def current_trisheet_hfield(
@@ -1481,7 +1549,9 @@ def current_trisheet_hfield(
     if cds.shape[0] != tris.shape[0]:
         raise ValueError("TriangleSheet current_densities and faces length mismatch.")
 
-    h_faces = jax.vmap(lambda tri, cd: current_triangle_sheet_hfield(obs, tri, cd))(tris, cds)
+    h_faces = jax.vmap(lambda tri, cd: _current_triangle_sheet_hfield_obs(obs, tri, cd))(
+        tris, cds
+    )
     return jnp.sum(h_faces, axis=0)
 
 
@@ -1541,7 +1611,9 @@ def current_tristrip_hfield(
     cur = jnp.asarray(current, dtype=jnp.float64).reshape(())
     tris = _strip_triangles(verts)
     cds = _strip_current_densities(verts, cur)
-    h_faces = jax.vmap(lambda tri, cd: current_triangle_sheet_hfield(obs, tri, cd))(tris, cds)
+    h_faces = jax.vmap(lambda tri, cd: _current_triangle_sheet_hfield_obs(obs, tri, cd))(
+        tris, cds
+    )
     return jnp.sum(h_faces, axis=0)
 
 

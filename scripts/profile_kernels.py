@@ -140,6 +140,8 @@ def _profiles(observers: np.ndarray) -> dict[str, tuple]:
     from magpylib_jax.core.kernels_extended import (
         current_trisheet_bfield_jit,
         current_tristrip_bfield_jit,
+        magnet_cylinder_segment_bfield_jit_faces,
+        magnet_trimesh_bfield_jit_faces,
         tetrahedron_bfield_jit,
         triangle_bfield_jit,
     )
@@ -227,6 +229,7 @@ def _profiles(observers: np.ndarray) -> dict[str, tuple]:
                 faces=mesh_faces,
                 polarization=(0.1, -0.2, 0.3),
                 reorient_faces=False,
+                check_open=False,
             ),
         ),
         "tetrahedron": (
@@ -278,6 +281,33 @@ def _profiles(observers: np.ndarray) -> dict[str, tuple]:
                 ).getB(obs),
                 lambda obs: tetrahedron_bfield_jit(
                     obs, np.array(tetra_vertices, dtype=float), np.array((0.1, -0.2, 0.3))
+                ),
+            ),
+            "triangularmesh_jit": (
+                lambda obs: magpy.magnet.TriangularMesh(
+                    vertices=mesh_vertices,
+                    faces=mesh_faces,
+                    polarization=(0.1, -0.2, 0.3),
+                    reorient_faces=False,
+                    check_open=False,
+                ).getB(obs),
+                lambda obs: magnet_trimesh_bfield_jit_faces(
+                    obs,
+                    np.array(mesh_vertices, dtype=float)[np.array(mesh_faces, dtype=int)],
+                    np.array((0.1, -0.2, 0.3), dtype=float),
+                    in_out="auto",
+                ),
+            ),
+            "cylindersegment_jit": (
+                lambda obs: magpy.magnet.CylinderSegment(
+                    polarization=(0.1, -0.2, 0.3),
+                    dimension=(0.4, 1.2, 1.1, -30.0, 110.0),
+                ).getB(obs),
+                lambda obs: magnet_cylinder_segment_bfield_jit_faces(
+                    obs,
+                    np.array((0.4, 1.2, 1.1, -30.0, 110.0), dtype=float),
+                    np.array((0.1, -0.2, 0.3), dtype=float),
+                    in_out="auto",
                 ),
             ),
         }

@@ -5,6 +5,7 @@
     "cuboid": 25.0,
     "cylinder": 30.0,
     "cylindersegment": 40.0,
+    "cylindersegment_jit": 1.5,
     "sphere": 20.0,
     "polyline": 25.0,
     "triangle": 30.0,
@@ -14,6 +15,7 @@
     "trianglestrip": 40.0,
     "trianglestrip_jit": 1.0,
     "triangularmesh": 35.0,
+    "triangularmesh_jit": 1.0,
     "tetrahedron": 35.0,
     "tetrahedron_jit": 0.6
   },
@@ -32,8 +34,10 @@
     "trianglestrip": 6.0,
     "trianglestrip_jit": 0.02,
     "triangularmesh": 0.2,
+    "triangularmesh_jit": 0.01,
     "tetrahedron": 4.0,
-    "tetrahedron_jit": 0.01
+    "tetrahedron_jit": 0.01,
+    "cylindersegment_jit": 0.2
   },
   "max_abs_parity_error_T": {
     "dipole": 1e-10,
@@ -50,8 +54,10 @@
     "trianglestrip": 5e-6,
     "trianglestrip_jit": 5e-6,
     "triangularmesh": 0.2,
+    "triangularmesh_jit": 0.2,
     "tetrahedron": 1e-5,
-    "tetrahedron_jit": 1e-5
+    "tetrahedron_jit": 1e-5,
+    "cylindersegment_jit": 3e-3
   },
   "peak_memory_bytes": {
     "dipole": 3500000000,
@@ -68,8 +74,10 @@
     "trianglestrip": 3500000000,
     "trianglestrip_jit": 2800000000,
     "triangularmesh": 2500000000,
+    "triangularmesh_jit": 2800000000,
     "tetrahedron": 3500000000,
-    "tetrahedron_jit": 2800000000
+    "tetrahedron_jit": 2800000000,
+    "cylindersegment_jit": 2800000000
   },
   "hlo_size_bytes": {
     "dipole": 2000000,
@@ -86,7 +94,9 @@
     "trianglestrip": 60000,
     "trianglestrip_jit": 210000,
     "triangularmesh": 110000,
+    "triangularmesh_jit": 70000,
     "tetrahedron": 90000,
-    "tetrahedron_jit": 60000
+    "tetrahedron_jit": 60000,
+    "cylindersegment_jit": 90000
   }
 }

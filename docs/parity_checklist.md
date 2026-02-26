@@ -14,6 +14,7 @@ For the canonical mapping, see [`PARITY_MATRIX.md`](../PARITY_MATRIX.md).
 | `tests/test_obj_CylinderSegment.py` | `tests/upstream_mirror/test_obj_CylinderSegment.py` | Implemented |
 | `tests/test_obj_TriangleStrip_Sheet.py` | `tests/upstream_mirror/test_obj_TriangleStrip_Sheet.py` | Implemented |
 | `tests/test_obj_TriangularMesh.py` | `tests/upstream_mirror/test_obj_TriangularMesh.py` | Implemented |
+| `tests/test_BHMJ_level.py` (mesh/sheet/strip portions) | `tests/upstream_mirror/test_BHMJ_level.py` | Implemented |
 | `tests/test_obj_Sensor.py` | `tests/upstream_mirror/test_obj_Sensor.py` | Implemented |
 | `tests/test_path.py` | `tests/upstream_mirror/test_path.py` | Implemented |
 | `tests/test_physics_consistency.py` | `tests/upstream_mirror/test_physics_consistency.py` | Implemented |

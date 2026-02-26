@@ -22,7 +22,9 @@ Scripts:
 
 Kernel-level JIT entrypoints (fixed observer count):
 - `magpylib_jax.core.kernels_extended.magnet_trimesh_bfield_jit`
+- `magpylib_jax.core.kernels_extended.magnet_trimesh_bfield_jit_faces`
 - `magpylib_jax.core.kernels_extended.magnet_cylinder_segment_bfield_jit`
+- `magpylib_jax.core.kernels_extended.magnet_cylinder_segment_bfield_jit_faces`
 - `magpylib_jax.core.kernels_extended.triangle_bfield_jit`
 - `magpylib_jax.core.kernels_extended.current_trisheet_bfield_jit`
 - `magpylib_jax.core.kernels_extended.current_tristrip_bfield_jit`

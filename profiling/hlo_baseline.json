@@ -2,5 +2,7 @@
   "triangle_jit": "584d9890eb6ef6403b8d49513728063a59d6ace43b49b75ff3c941e6097795c9",
   "trianglesheet_jit": "f4d19dae9a288621a7175e8e2c72d65de93ca7720f8c557ab42c41fbbe5d9155",
   "trianglestrip_jit": "693fd39eca07f06a8a595c66704deab23477bdce6d2ae9434e9f8c12b4b77cdd",
-  "tetrahedron_jit": "d318d2b97f4953f54f75fb8a17637fca65c7089374cfe8831339d9cdc8376479"
+  "tetrahedron_jit": "d318d2b97f4953f54f75fb8a17637fca65c7089374cfe8831339d9cdc8376479",
+  "triangularmesh_jit": "73610ec60cf705d6a2c9ec462e0c3627bfa87734a3a563be42d6cfd584743eaa",
+  "cylindersegment_jit": "afb9e456fb4c96c9b09cac35e433ac38ccd7b1fe66c3b39abd237835639c1da0"
 }
