@@ -1,7 +1,7 @@
 # Parity Checklist
 
 This checklist tracks upstream Magpylib tests and their mirrored or equivalent coverage in `magpylib_jax`.
-For the canonical mapping, see [`PARITY_MATRIX.md`](../PARITY_MATRIX.md).
+For the canonical mapping, see `PARITY_MATRIX.md` in the repository root.
 
 ## Upstream file coverage
 

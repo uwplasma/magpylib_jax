@@ -1,0 +1,14 @@
+{
+  "compile_time_s": {
+    "getB_jit": 8.0
+  },
+  "steady_state_runtime_s": {
+    "getB_jit": 0.05
+  },
+  "peak_memory_bytes": {
+    "getB_jit": 3000000000
+  },
+  "hlo_size_bytes": {
+    "getB_jit": 1500000
+  }
+}

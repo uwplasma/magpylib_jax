@@ -101,6 +101,16 @@ jobs:
             --repeats 1 \
             --output profiling/getB_jit_ci.json \
             --output-dir profiling/getB_jit_ci_artifacts
+      - name: Validate getB JIT profiling thresholds
+        run: |
+          python scripts/check_profiling_thresholds.py \
+            profiling/getB_jit_ci.json \
+            profiling/thresholds_getB_jit.json
+      - name: Validate getB JIT HLO baseline
+        run: |
+          python scripts/check_hlo_diffs.py \
+            profiling/getB_jit_ci.json \
+            profiling/hlo_baseline_getB_jit.json
       - name: Validate profiling thresholds
         run: |
           python scripts/check_profiling_thresholds.py \

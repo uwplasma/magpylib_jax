@@ -21,7 +21,7 @@ def test_collection_and_sensor_additive_behavior() -> None:
 
     # exercise additive API coverage
     col2 = mpj.Collection()
-    col2.add(src1).add(src2)
+    col2.add(src1, override_parent=True).add(src2, override_parent=True)
     _ = list(iter(col2))
     col3 = col + col2
     np.testing.assert_allclose(np.asarray(col3.getH(observers)).shape, (2, 3))

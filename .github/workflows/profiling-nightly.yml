@@ -30,6 +30,16 @@ jobs:
             --repeats 3 \
             --output profiling/getB_jit_nightly.json \
             --output-dir profiling/getB_jit_nightly_artifacts
+      - name: Check getB JIT thresholds
+        run: |
+          python scripts/check_profiling_thresholds.py \
+            profiling/getB_jit_nightly.json \
+            profiling/thresholds_getB_jit.json
+      - name: Check getB JIT HLO baseline
+        run: |
+          python scripts/check_hlo_diffs.py \
+            profiling/getB_jit_nightly.json \
+            profiling/hlo_baseline_getB_jit.json
       - name: Check nightly thresholds
         run: |
           python scripts/check_profiling_thresholds.py \
