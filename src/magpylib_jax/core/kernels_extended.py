@@ -1088,7 +1088,7 @@ def _grid_to_triangles(grid: jnp.ndarray, *, flip: bool = False) -> jnp.ndarray:
 def _build_cylinder_segment_mesh(
     dimension: jnp.ndarray,
     *,
-    n_phi: int = 64,
+    n_phi: int = 96,
     n_r: int = 1,
     n_z: int = 1,
 ) -> jnp.ndarray:
@@ -1176,7 +1176,7 @@ def _build_cylinder_segment_mesh(
 def precompute_cylinder_segment_geometry(
     dimension: ArrayLike,
     *,
-    n_phi: int = 64,
+    n_phi: int = 96,
     n_r: int = 1,
     n_z: int = 1,
 ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
