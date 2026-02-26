@@ -297,7 +297,8 @@ def _triangle_geom_terms(
     n = jnp.cross(a, b)
     n_norm = _safe_norm(n, axis=-1, keepdims=True)
     nvec = n / n_norm
-    L = tri[..., (1, 2, 0), :] - tri[..., (0, 1, 2), :]
+    # Use roll to avoid advanced-indexing inconsistencies under JIT tracing.
+    L = jnp.roll(tri, shift=-1, axis=-2) - tri
     l2 = jnp.sum(L * L, axis=-1)
     l1 = jnp.sqrt(l2)
     return nvec, L, l1, l2

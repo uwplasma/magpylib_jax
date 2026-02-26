@@ -1,10 +1,10 @@
 {
-  "triangle_jit": "584d9890eb6ef6403b8d49513728063a59d6ace43b49b75ff3c941e6097795c9",
+  "triangle_jit": "974e17a05e7d15ebeb32351e221e6f863cd3ff5331c3e498228ade5381a73803",
   "circle_jit": "95d0eab5834a0754c4a68d96d4c8823af31de11d3089ee7c7d2165d19b41f8bc",
   "polyline_jit": "d9ea8b8b2ec9826ea39b318f57a22d3e6f40fa1453830359757584defb78de00",
   "trianglesheet_jit": "f4d19dae9a288621a7175e8e2c72d65de93ca7720f8c557ab42c41fbbe5d9155",
   "trianglestrip_jit": "693fd39eca07f06a8a595c66704deab23477bdce6d2ae9434e9f8c12b4b77cdd",
-  "tetrahedron_jit": "d318d2b97f4953f54f75fb8a17637fca65c7089374cfe8831339d9cdc8376479",
+  "tetrahedron_jit": "5289d7ebfde5912136d217557d4a2543fa0ab7506db5be04474460913c93d3b0",
   "triangularmesh_jit": "bab6870416c03eed3e666ec0ffe13d8ff2c12c4bc2d4ed73b283d94a9fdee73e",
   "cylindersegment_jit": "20434eb91151896f5d355af9e0df5574335ed3450c89ebe4a23ac367405b7eaf"
 }
