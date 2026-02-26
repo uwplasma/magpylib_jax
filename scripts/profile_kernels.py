@@ -138,10 +138,13 @@ def _profile_entry(
 def _profiles(observers: np.ndarray) -> dict[str, tuple]:
     import magpylib_jax as mpj
     from magpylib_jax.core.kernels_extended import (
+        current_circle_bfield_jit,
         current_trisheet_bfield_jit,
         current_tristrip_bfield_jit,
-        magnet_cylinder_segment_bfield_jit_faces,
-        magnet_trimesh_bfield_jit_faces,
+        current_polyline_bfield_jit,
+        magnet_trimesh_bfield_jit_faces_precomp,
+        precompute_cylinder_segment_geometry,
+        precompute_trimesh_geometry,
         tetrahedron_bfield_jit,
         triangle_bfield_jit,
     )
@@ -154,6 +157,19 @@ def _profiles(observers: np.ndarray) -> dict[str, tuple]:
     sheet_cds = [[0.7, 0.1, 0.0], [0.7, 0.1, 0.0]]
     mesh_vertices = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]]
     mesh_faces = [[0, 2, 1], [0, 1, 3], [1, 2, 3], [0, 3, 2]]
+    polyline_vertices = [
+        (-0.5, -0.1, 0.3),
+        (0.2, 0.4, 0.7),
+        (0.9, 0.6, -0.2),
+        (1.2, -0.3, 0.1),
+    ]
+
+    mesh_tris = np.array(mesh_vertices, dtype=float)[np.array(mesh_faces, dtype=int)]
+    mesh_arr, mesh_nvec, mesh_L, mesh_l1, mesh_l2 = precompute_trimesh_geometry(mesh_tris)
+    cyl_dim = np.array((0.4, 1.2, 1.1, -30.0, 110.0), dtype=float)
+    cyl_mesh, cyl_nvec, cyl_L, cyl_l1, cyl_l2 = precompute_cylinder_segment_geometry(cyl_dim)
+    polyline_start = np.array(polyline_vertices[:-1], dtype=float)
+    polyline_end = np.array(polyline_vertices[1:], dtype=float)
 
     refs_news = {
         "dipole": (
@@ -189,11 +205,11 @@ def _profiles(observers: np.ndarray) -> dict[str, tuple]:
         "polyline": (
             magpy.current.Polyline(
                 current=1.7,
-                vertices=[(-0.5, -0.1, 0.3), (0.2, 0.4, 0.7), (0.9, 0.6, -0.2), (1.2, -0.3, 0.1)],
+                vertices=polyline_vertices,
             ),
             mpj.current.Polyline(
                 current=1.7,
-                vertices=[(-0.5, -0.1, 0.3), (0.2, 0.4, 0.7), (0.9, 0.6, -0.2), (1.2, -0.3, 0.1)],
+                vertices=polyline_vertices,
             ),
         ),
         "triangle": (
@@ -256,6 +272,21 @@ def _profiles(observers: np.ndarray) -> dict[str, tuple]:
                     obs, tri_vertices, np.array((0.2, -0.1, 0.3))
                 ),
             ),
+            "circle_jit": (
+                lambda obs: magpy.current.Circle(current=2.0, diameter=1.2).getB(obs),
+                lambda obs: current_circle_bfield_jit(
+                    obs, np.array(1.2, dtype=float), np.array(2.0, dtype=float)
+                ),
+            ),
+            "polyline_jit": (
+                lambda obs: magpy.current.Polyline(
+                    current=1.7,
+                    vertices=polyline_vertices,
+                ).getB(obs),
+                lambda obs: current_polyline_bfield_jit(
+                    obs, polyline_start, polyline_end, np.array(1.7, dtype=float)
+                ),
+            ),
             "trianglesheet_jit": (
                 lambda obs: magpy.current.TriangleSheet(
                     vertices=sheet_vertices, faces=sheet_faces, current_densities=sheet_cds
@@ -291,10 +322,14 @@ def _profiles(observers: np.ndarray) -> dict[str, tuple]:
                     reorient_faces=False,
                     check_open=False,
                 ).getB(obs),
-                lambda obs: magnet_trimesh_bfield_jit_faces(
+                lambda obs: magnet_trimesh_bfield_jit_faces_precomp(
                     obs,
-                    np.array(mesh_vertices, dtype=float)[np.array(mesh_faces, dtype=int)],
+                    mesh_arr,
                     np.array((0.1, -0.2, 0.3), dtype=float),
+                    mesh_nvec,
+                    mesh_L,
+                    mesh_l1,
+                    mesh_l2,
                     in_out="auto",
                 ),
             ),
@@ -303,10 +338,14 @@ def _profiles(observers: np.ndarray) -> dict[str, tuple]:
                     polarization=(0.1, -0.2, 0.3),
                     dimension=(0.4, 1.2, 1.1, -30.0, 110.0),
                 ).getB(obs),
-                lambda obs: magnet_cylinder_segment_bfield_jit_faces(
+                lambda obs: magnet_trimesh_bfield_jit_faces_precomp(
                     obs,
-                    np.array((0.4, 1.2, 1.1, -30.0, 110.0), dtype=float),
+                    cyl_mesh,
                     np.array((0.1, -0.2, 0.3), dtype=float),
+                    cyl_nvec,
+                    cyl_L,
+                    cyl_l1,
+                    cyl_l2,
                     in_out="auto",
                 ),
             ),

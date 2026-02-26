@@ -24,6 +24,7 @@ _IN_OUT_FLAGS = {"auto": 0, "inside": 1, "outside": 2}
 _JIT_KERNEL_CACHE: dict[tuple[str, int, int], object] = {}
 _JIT_SIMPLE_CACHE: dict[tuple[str, int], object] = {}
 _JIT_MESH_CACHE: dict[tuple[str, int, int, int], object] = {}
+_JIT_SEGMENT_CACHE: dict[tuple[str, int, int], object] = {}
 
 
 def _broadcast_vec3(arr: jnp.ndarray, n: int) -> jnp.ndarray:
@@ -212,6 +213,50 @@ def current_polyline_bfield(
     return MU0 * current_polyline_hfield(observers, segments_start, segments_end, currents)
 
 
+def _current_polyline_bfield_segments_impl(
+    observers: jnp.ndarray,
+    segments_start: jnp.ndarray,
+    segments_end: jnp.ndarray,
+    currents: jnp.ndarray,
+    *,
+    n_segments: int,
+) -> jnp.ndarray:
+    return current_polyline_bfield(observers, segments_start, segments_end, currents)
+
+
+def current_polyline_bfield_jit(
+    observers: ArrayLike,
+    segments_start: ArrayLike,
+    segments_end: ArrayLike,
+    currents: ArrayLike,
+) -> jnp.ndarray:
+    """JIT-specialized polyline B-field for fixed observer + segment counts."""
+    obs = ensure_observers(observers)
+    seg_start = jnp.asarray(segments_start, dtype=jnp.float64)
+    seg_end = jnp.asarray(segments_end, dtype=jnp.float64)
+    if seg_start.ndim == 1:
+        n_segments = 1
+    else:
+        n_segments = int(seg_start.shape[0])
+    jit_fn = _jit_kernel_segments("polyline_bfield", _current_polyline_bfield_segments_impl, obs.shape[0], n_segments)
+    return jit_fn(obs, seg_start, seg_end, jnp.asarray(currents, dtype=jnp.float64), n_segments=n_segments)
+
+
+def current_circle_bfield_jit(
+    observers: ArrayLike,
+    diameter: ArrayLike,
+    current: ArrayLike,
+) -> jnp.ndarray:
+    """JIT-specialized circle B-field for fixed observer counts."""
+    from magpylib_jax.core.kernels import current_circle_bfield
+
+    obs = ensure_observers(observers)
+    dia = jnp.asarray(diameter, dtype=jnp.float64)
+    cur = jnp.asarray(current, dtype=jnp.float64)
+    jit_fn = _jit_kernel_simple("circle_bfield", current_circle_bfield, obs.shape[0])
+    return jit_fn(obs, dia, cur)
+
+
 def _triangle_norm_vector(vertices: jnp.ndarray) -> jnp.ndarray:
     a = vertices[:, 1] - vertices[:, 0]
     b = vertices[:, 2] - vertices[:, 0]
@@ -289,6 +334,13 @@ def _jit_kernel_mesh(name: str, fn, n_obs: int, n_faces: int, in_out_flag: int):
     if key not in _JIT_MESH_CACHE:
         _JIT_MESH_CACHE[key] = jax.jit(fn, static_argnames=("in_out_flag", "n_faces"))
     return _JIT_MESH_CACHE[key]
+
+
+def _jit_kernel_segments(name: str, fn, n_obs: int, n_segments: int):
+    key = (name, int(n_obs), int(n_segments))
+    if key not in _JIT_SEGMENT_CACHE:
+        _JIT_SEGMENT_CACHE[key] = jax.jit(fn, static_argnames=("n_segments",))
+    return _JIT_SEGMENT_CACHE[key]
 
 
 def _triangle_bfield_const_impl(
@@ -830,6 +882,56 @@ def _magnet_trimesh_bfield_const_impl(
     return b + jnp.where(inside[:, None], pol, 0.0)
 
 
+def precompute_trimesh_geometry(
+    mesh: ArrayLike,
+) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    """Precompute triangle mesh geometry terms for reuse."""
+    mesh_arr = jnp.asarray(mesh, dtype=jnp.float64)
+    if mesh_arr.ndim != 3 or mesh_arr.shape[1:] != (3, 3):
+        raise ValueError("Mesh must have shape (n_faces,3,3).")
+    nvec, L, l1, l2 = _triangle_geom_terms(mesh_arr)
+    return mesh_arr, nvec, L, l1, l2
+
+
+def _magnet_trimesh_bfield_precomp_impl(
+    obs: jnp.ndarray,
+    mesh_arr: jnp.ndarray,
+    pol: jnp.ndarray,
+    nvec: jnp.ndarray,
+    L: jnp.ndarray,
+    l1: jnp.ndarray,
+    l2: jnp.ndarray,
+    *,
+    in_out_flag: int,
+    n_faces: int,
+) -> jnp.ndarray:
+    def _accumulate_faces() -> jnp.ndarray:
+        def body(i: int, acc: jnp.ndarray) -> jnp.ndarray:
+            return acc + _triangle_bfield_const_precomp(
+                obs, mesh_arr[i], pol, nvec[i], L[i], l1[i], l2[i]
+            )
+
+        init = jnp.zeros((obs.shape[0], 3), dtype=jnp.float64)
+        return jax.lax.fori_loop(0, n_faces, body, init)
+
+    if n_faces <= 64:
+        b_faces = jax.vmap(
+            _triangle_bfield_const_precomp,
+            in_axes=(None, 0, None, 0, 0, 0, 0),
+        )(obs, mesh_arr, pol, nvec, L, l1, l2)
+        b = jnp.sum(b_faces, axis=0)
+    else:
+        b = _accumulate_faces()
+
+    if in_out_flag == _IN_OUT_FLAGS["outside"]:
+        inside = jnp.zeros((obs.shape[0],), dtype=bool)
+    elif in_out_flag == _IN_OUT_FLAGS["inside"]:
+        inside = jnp.ones((obs.shape[0],), dtype=bool)
+    else:
+        inside = _inside_mask_mesh(obs, mesh_arr)
+    return b + jnp.where(inside[:, None], pol, 0.0)
+
+
 def _magnet_trimesh_bfield_faces_impl(
     obs: jnp.ndarray,
     mesh_arr: jnp.ndarray,
@@ -887,6 +989,44 @@ def magnet_trimesh_bfield_jit_faces(
         flag,
     )
     return jit_fn(obs, mesh_arr, pol, in_out_flag=flag, n_faces=n_faces)
+
+
+def magnet_trimesh_bfield_jit_faces_precomp(
+    observers: ArrayLike,
+    mesh: ArrayLike,
+    polarizations: ArrayLike,
+    nvec: ArrayLike,
+    L: ArrayLike,
+    l1: ArrayLike,
+    l2: ArrayLike,
+    in_out: str = "auto",
+) -> jnp.ndarray:
+    """JIT-specialized triangular mesh B-field using precomputed geometry."""
+    obs = ensure_observers(observers)
+    mesh_arr = jnp.asarray(mesh, dtype=jnp.float64)
+    if mesh_arr.ndim != 3:
+        raise ValueError("TriangularMesh JIT expects mesh with shape (n_faces,3,3).")
+    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), obs.shape[0])
+    n_faces = int(mesh_arr.shape[0])
+    flag = _in_out_flag(in_out)
+    jit_fn = _jit_kernel_mesh(
+        "triangularmesh_bfield_precomp",
+        _magnet_trimesh_bfield_precomp_impl,
+        obs.shape[0],
+        n_faces,
+        flag,
+    )
+    return jit_fn(
+        obs,
+        mesh_arr,
+        pol,
+        jnp.asarray(nvec, dtype=jnp.float64),
+        jnp.asarray(L, dtype=jnp.float64),
+        jnp.asarray(l1, dtype=jnp.float64),
+        jnp.asarray(l2, dtype=jnp.float64),
+        in_out_flag=flag,
+        n_faces=n_faces,
+    )
 
 
 def magnet_trimesh_hfield(
@@ -1033,6 +1173,20 @@ def _build_cylinder_segment_mesh(
     return jnp.concatenate(parts, axis=0)
 
 
+def precompute_cylinder_segment_geometry(
+    dimension: ArrayLike,
+    *,
+    n_phi: int = 64,
+    n_r: int = 1,
+    n_z: int = 1,
+) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    """Precompute cylinder segment mesh + geometry terms."""
+    dim = jnp.asarray(dimension, dtype=jnp.float64)
+    mesh = _build_cylinder_segment_mesh(dim, n_phi=n_phi, n_r=n_r, n_z=n_z)
+    mesh_arr, nvec, L, l1, l2 = precompute_trimesh_geometry(mesh)
+    return mesh_arr, nvec, L, l1, l2
+
+
 def _ensure_dim5(dimensions: ArrayLike, n: int) -> jnp.ndarray:
     dim = jnp.asarray(dimensions, dtype=jnp.float64)
     if dim.ndim == 1:
@@ -1072,10 +1226,9 @@ def magnet_cylinder_segment_bfield_jit(
     in_out: str = "auto",
 ) -> jnp.ndarray:
     """JIT-specialized cylinder-segment B-field for fixed observer counts."""
-    obs = ensure_observers(observers)
-    dim = _ensure_dim5(dimensions, obs.shape[0])
-    mesh = _build_cylinder_segment_mesh(dim)
-    return magnet_trimesh_bfield_jit_faces(obs, mesh, polarizations, in_out=in_out)
+    return magnet_cylinder_segment_bfield_jit_faces(
+        observers, dimensions, polarizations, in_out=in_out
+    )
 
 
 def magnet_cylinder_segment_bfield_jit_faces(
@@ -1087,8 +1240,10 @@ def magnet_cylinder_segment_bfield_jit_faces(
     """JIT-specialized cylinder-segment B-field for fixed observer + face counts."""
     obs = ensure_observers(observers)
     dim = _ensure_dim5(dimensions, obs.shape[0])
-    mesh = _build_cylinder_segment_mesh(dim)
-    return magnet_trimesh_bfield_jit_faces(obs, mesh, polarizations, in_out=in_out)
+    mesh, nvec, L, l1, l2 = precompute_cylinder_segment_geometry(dim)
+    return magnet_trimesh_bfield_jit_faces_precomp(
+        obs, mesh, polarizations, nvec, L, l1, l2, in_out=in_out
+    )
 
 
 def magnet_cylinder_segment_hfield(

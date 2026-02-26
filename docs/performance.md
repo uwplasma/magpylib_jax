@@ -21,8 +21,11 @@ Scripts:
 - `scripts/check_hlo_diffs.py`
 
 Kernel-level JIT entrypoints (fixed observer count):
+- `magpylib_jax.core.kernels_extended.current_circle_bfield_jit`
+- `magpylib_jax.core.kernels_extended.current_polyline_bfield_jit`
 - `magpylib_jax.core.kernels_extended.magnet_trimesh_bfield_jit`
 - `magpylib_jax.core.kernels_extended.magnet_trimesh_bfield_jit_faces`
+- `magpylib_jax.core.kernels_extended.magnet_trimesh_bfield_jit_faces_precomp`
 - `magpylib_jax.core.kernels_extended.magnet_cylinder_segment_bfield_jit`
 - `magpylib_jax.core.kernels_extended.magnet_cylinder_segment_bfield_jit_faces`
 - `magpylib_jax.core.kernels_extended.triangle_bfield_jit`
