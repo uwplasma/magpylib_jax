@@ -495,7 +495,10 @@ def _prepare_sources_jit(
         elif stype == "triangularmesh":
             if skw.get("mesh") is None or skw.get("polarization") is None:
                 raise MagpylibMissingInput("Input vertices of TriangularMesh must be set.")
-            mesh_arr, nvec, L, l1, l2 = precompute_trimesh_geometry(skw["mesh"])
+            mesh_raw = jnp.asarray(skw["mesh"], dtype=jnp.float64)
+            if mesh_raw.ndim == 4:
+                raise ValueError("TriangularMesh mesh input must have shape (n_faces,3,3).")
+            mesh_arr, nvec, L, l1, l2 = precompute_trimesh_geometry(mesh_raw)
             data["mesh"] = mesh_arr
             data["mesh_nvec"] = nvec
             data["mesh_L"] = L
@@ -1647,6 +1650,26 @@ def _compute_field(
     in_out: str = "auto",
     **kwargs: ArrayLike,
 ) -> jnp.ndarray:
+    if isinstance(source, str):
+        src_type = _normalize_source_type(source)
+        if src_type == "triangularmesh":
+            mesh = kwargs.get("mesh")
+            if mesh is not None:
+                mesh_arr = jnp.asarray(mesh)
+                if mesh_arr.ndim == 4:
+                    return _compute_field_legacy(
+                        source,
+                        observers,
+                        field,
+                        position=position,
+                        orientation=orientation,
+                        squeeze=squeeze,
+                        sumup=sumup,
+                        pixel_agg=pixel_agg,
+                        output=output,
+                        in_out=in_out,
+                        **kwargs,
+                    )
     if pixel_agg is not None and not isinstance(pixel_agg, str):
         return _compute_field_legacy(
             source,

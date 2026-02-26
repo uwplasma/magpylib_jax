@@ -19,6 +19,7 @@ Scripts:
 - `scripts/profile_kernels.py`
 - `scripts/check_profiling_thresholds.py`
 - `scripts/check_hlo_diffs.py`
+- `scripts/profile_getB_jit.py` (end-to-end JIT-safe `getB`)
 
 Kernel-level JIT entrypoints (fixed observer count):
 - `magpylib_jax.core.kernels_extended.current_circle_bfield_jit`
