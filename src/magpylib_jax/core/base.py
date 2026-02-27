@@ -7,8 +7,10 @@ import re
 from copy import deepcopy
 from typing import Any
 
-import numpy as np
-from scipy.spatial.transform import Rotation as R
+import jax
+import jax.numpy as jnp
+
+from jax.scipy.spatial.transform import Rotation as R
 
 from magpylib_jax.constants import MU0
 from magpylib_jax.core.style import BaseStyle
@@ -21,8 +23,8 @@ class MagpylibBadUserInput(ValueError):
     """Raised when invalid or unsupported user inputs are provided."""
 
 
-def _as_array(x: Any) -> np.ndarray:
-    return np.array(x, dtype=float)
+def _as_array(x: Any) -> jax.Array:
+    return jnp.array(x, dtype=jnp.float64)
 
 
 def check_format_input_vector(
@@ -34,7 +36,7 @@ def check_format_input_vector(
     sig_type: str | None = None,
     reshape: tuple[int, ...] | None = None,
     allow_None: bool = False,
-) -> np.ndarray | None:
+) -> jax.Array | None:
     if value is None:
         if allow_None:
             return None
@@ -64,13 +66,15 @@ def check_format_input_vector(
                 f"Input {sig_name} must be {sig_type}; got array with shape {arr.shape}."
             )
     if reshape is not None:
-        arr = np.reshape(arr, reshape)
+        arr = jnp.reshape(arr, reshape)
     return arr
 
 
 def check_format_input_orientation(orientation: Any | None, *, init_format: bool = False):
     if orientation is None:
-        quat = np.array([[0.0, 0.0, 0.0, 1.0]])
+        quat = jnp.array([[0.0, 0.0, 0.0, 1.0]])
+        #if not init_format:
+        #    raise "This branch requires a jax version of scipy"
         rot = R.from_quat(quat)
         return quat if init_format else (rot, rot.as_quat())
 
@@ -100,12 +104,12 @@ def check_format_input_orientation(orientation: Any | None, *, init_format: bool
     )
 
 
-def check_format_input_anchor(anchor: Any | None) -> np.ndarray | None:
+def check_format_input_anchor(anchor: Any | None) -> jax.Array | None:
     if anchor is None:
         return None
     if isinstance(anchor, numbers.Number):
         if anchor == 0:
-            return np.array([0.0, 0.0, 0.0])
+            return jnp.array([0.0, 0.0, 0.0])
         raise MagpylibBadUserInput(
             "Input anchor must be None, 0, or array-like with shape (3,) or (n,3)."
         )
@@ -117,7 +121,7 @@ def check_format_input_anchor(anchor: Any | None) -> np.ndarray | None:
     )
 
 
-def check_format_input_angle(angle: Any) -> np.ndarray:
+def check_format_input_angle(angle: Any) -> jax.Array:
     if isinstance(angle, numbers.Number):
         return float(angle)
     arr = _as_array(angle)
@@ -128,15 +132,15 @@ def check_format_input_angle(angle: Any) -> np.ndarray:
     return arr
 
 
-def check_format_input_axis(axis: Any) -> np.ndarray:
+def check_format_input_axis(axis: Any) -> jax.Array:
     if isinstance(axis, str):
         axis = axis.lower()
         if axis == "x":
-            return np.array([1.0, 0.0, 0.0])
+            return jnp.array([1.0, 0.0, 0.0])
         if axis == "y":
-            return np.array([0.0, 1.0, 0.0])
+            return jnp.array([0.0, 1.0, 0.0])
         if axis == "z":
-            return np.array([0.0, 0.0, 1.0])
+            return jnp.array([0.0, 0.0, 1.0])
         raise MagpylibBadUserInput(f"Unsupported axis {axis!r}.")
     vec = check_format_input_vector(
         axis,
@@ -144,7 +148,7 @@ def check_format_input_axis(axis: Any) -> np.ndarray:
         dims=(1,),
         sig_type="array-like with shape (3,) or one of {'x', 'y', 'z'}",
     )
-    if vec is not None and np.all(np.asarray(vec) == 0):
+    if vec is not None and jnp.all(jnp.asarray(vec) == 0):
         raise MagpylibBadUserInput(
             "Input axis must be a non-zero vector; instead received (0, 0, 0)."
         )
@@ -160,34 +164,34 @@ def check_start_type(start: int | str) -> None:
 
 
 def check_degree_type(degrees: Any) -> None:
-    if isinstance(degrees, (bool, np.bool_)):
+    if isinstance(degrees, (bool, jnp.bool_)):
         return
     raise MagpylibBadUserInput("degrees must be a boolean.")
 
 
-def _pad_slice_path(path1: np.ndarray, path2: np.ndarray) -> np.ndarray:
+def _pad_slice_path(path1: jnp.ndarray, path2: jnp.ndarray) -> jax.Array:
     delta_path = len(path1) - len(path2)
     if delta_path > 0:
-        return np.pad(path2, ((0, delta_path), (0, 0)), "edge")
+        return jnp.pad(path2, ((0, delta_path), (0, 0)), "edge")
     if delta_path < 0:
         return path2[-delta_path:]
     return path2
 
 
-def _multi_anchor_behavior(anchor: np.ndarray, inrotQ: np.ndarray, rotation: R):
+def _multi_anchor_behavior(anchor: jax.Array, inrotQ: jax.Array, rotation: R):
     len_inrotQ = 0 if inrotQ.ndim == 1 else inrotQ.shape[0]
     len_anchor = 0 if anchor.ndim == 1 else anchor.shape[0]
 
     if len_inrotQ > len_anchor:
         if len_anchor == 0:
-            anchor = np.reshape(anchor, (1, 3))
+            anchor = jnp.reshape(anchor, (1, 3))
             len_anchor = 1
-        anchor = np.pad(anchor, ((0, len_inrotQ - len_anchor), (0, 0)), "edge")
+        anchor = jnp.pad(anchor, ((0, len_inrotQ - len_anchor), (0, 0)), "edge")
     elif len_inrotQ < len_anchor:
         if len_inrotQ == 0:
-            inrotQ = np.reshape(inrotQ, (1, 4))
+            inrotQ = jnp.reshape(inrotQ, (1, 4))
             len_inrotQ = 1
-        inrotQ = np.pad(inrotQ, ((0, len_anchor - len_inrotQ), (0, 0)), "edge")
+        inrotQ = jnp.pad(inrotQ, ((0, len_anchor - len_inrotQ), (0, 0)), "edge")
         rotation = R.from_quat(inrotQ)
     return anchor, inrotQ, rotation
 
@@ -213,7 +217,7 @@ def _path_padding_param(scalar_input: bool, lenop: int, lenip: int, start: int |
     return [], int(start)
 
 
-def _path_padding(inpath: np.ndarray, start: int | str, target_object):
+def _path_padding(inpath: jax.Array, start: int | str, target_object):
     scalar_input = inpath.ndim == 1
 
     ppath = target_object._position
@@ -223,8 +227,8 @@ def _path_padding(inpath: np.ndarray, start: int | str, target_object):
 
     padding, start = _path_padding_param(scalar_input, len(ppath), lenip, start)
     if padding:
-        ppath = np.pad(ppath, (padding, (0, 0)), "edge")
-        opath = np.pad(opath, (padding, (0, 0)), "edge")
+        ppath = jnp.pad(ppath, (padding, (0, 0)), "edge")
+        opath = jnp.pad(opath, (padding, (0, 0)), "edge")
 
     end = len(ppath) if scalar_input else start + lenip
     return ppath, opath, start, end, bool(padding)
@@ -257,7 +261,7 @@ def _apply_rotation(target_object, rotation: R, anchor=None, start: int | str = 
         len_anchor = end - newstart
         padding, start = _path_padding_param(inrotQ.ndim == 1, parent_path.shape[0], len_anchor, start)
         if padding:
-            parent_path = np.pad(parent_path, (padding, (0, 0)), "edge")
+            parent_path = jnp.pad(parent_path, (padding, (0, 0)), "edge")
         anchor = parent_path[start : start + len_anchor]
 
     if anchor is not None:
@@ -343,7 +347,7 @@ class BaseDisplayRepr:
             if key == "position":
                 val = getattr(self, "_position", None)
                 if hasattr(val, "shape"):
-                    arr = np.asarray(val)
+                    arr = jnp.asarray(val)
                     if arr.shape[0] != 1:
                         lines.append(f"  • path length: {arr.shape[0]}")
                         k = f"{k} (last)"
@@ -358,9 +362,9 @@ class BaseDisplayRepr:
             elif key == "pixel":
                 val = getattr(self, "pixel", None)
                 if hasattr(val, "shape"):
-                    px_shape = np.asarray(val).shape[:-1]
-                    val_str = f"{int(np.prod(px_shape))}"
-                    if np.asarray(val).ndim > 2:
+                    px_shape = jnp.asarray(val).shape[:-1]
+                    val_str = f"{int(jnp.prod(px_shape))}"
+                    if jnp.asarray(val).ndim > 2:
                         val_str += f" ({'x'.join(str(p) for p in px_shape)})"
                     val = val_str
             elif key == "status_disconnected_data":
@@ -370,7 +374,7 @@ class BaseDisplayRepr:
             elif key == "magnetization":
                 mag = getattr(self, "magnetization", None)
                 if mag is None and getattr(self, "polarization", None) is not None:
-                    mag = np.asarray(getattr(self, "polarization"), dtype=float) / MU0
+                    mag = jnp.asarray(getattr(self, "polarization"), dtype=float) / MU0
                 val = mag
             elif key == "dipole_moment":
                 if hasattr(self, "dipole_moment"):
@@ -378,9 +382,9 @@ class BaseDisplayRepr:
                 else:
                     mag = getattr(self, "magnetization", None)
                     if mag is None and getattr(self, "polarization", None) is not None:
-                        mag = np.asarray(getattr(self, "polarization"), dtype=float) / MU0
+                        mag = jnp.asarray(getattr(self, "polarization"), dtype=float) / MU0
                     if mag is not None:
-                        val = np.asarray(mag, dtype=float) * float(
+                        val = jnp.asarray(mag, dtype=float) * float(
                             getattr(self, "volume", 0.0)
                         )
                     else:
@@ -388,9 +392,9 @@ class BaseDisplayRepr:
             else:
                 val = getattr(self, key)
 
-            if isinstance(val, (list, tuple, np.ndarray)) or hasattr(val, "shape"):
-                arr = np.asarray(val, dtype=float)
-                if np.prod(arr.shape) > 4:
+            if isinstance(val, (list, tuple, jax.Array)) or hasattr(val, "shape"):
+                arr = jnp.asarray(val, dtype=float)
+                if jnp.prod(arr.shape) > 4:
                     val = f"shape{arr.shape}"
                 else:
                     val = f"{arr}"
@@ -442,13 +446,13 @@ class BaseTransform:
         check_degree_type(degrees)
 
         if degrees:
-            angle = angle / 180.0 * np.pi
+            angle = angle / 180.0 * jnp.pi
 
         if isinstance(angle, numbers.Number):
-            angle = np.ones(3) * angle
+            angle = jnp.ones(3) * angle
         else:
-            angle = np.tile(angle, (3, 1)).T
-        axis = axis / np.linalg.norm(axis) * angle
+            angle = jnp.tile(angle, (3, 1)).T
+        axis = axis / jnp.linalg.norm(axis) * angle
 
         rot = R.from_rotvec(axis)
         return self.rotate(rot, anchor, start)
@@ -538,18 +542,18 @@ class BaseGeo(BaseTransform, BaseDisplayRepr):
             sig_type="array-like with shape (3,) or (n, 3)",
             reshape=(-1, 3),
         )
-        oriQ = check_format_input_orientation(orientation, init_format=True)
+        self._oriQ = check_format_input_orientation(orientation, init_format=True)
 
         len_pos = pos.shape[0]
-        len_ori = oriQ.shape[0]
+        len_ori = self._oriQ.shape[0]
 
         if len_pos > len_ori:
-            oriQ = np.pad(oriQ, ((0, len_pos - len_ori), (0, 0)), "edge")
+            self._oriQ = jnp.pad(self._oriQ, ((0, len_pos - len_ori), (0, 0)), "edge")
         elif len_pos < len_ori:
-            pos = np.pad(pos, ((0, len_ori - len_pos), (0, 0)), "edge")
+            pos = jnp.pad(pos, ((0, len_ori - len_pos), (0, 0)), "edge")
 
         self._position = pos
-        self._orientation = R.from_quat(oriQ)
+        self._orientation = R.from_quat(self._oriQ)
 
     @property
     def parent(self):
@@ -586,7 +590,7 @@ class BaseGeo(BaseTransform, BaseDisplayRepr):
 
     @property
     def position(self):
-        return np.squeeze(self._position)
+        return jnp.squeeze(self._position)
 
     @position.setter
     def position(self, position):
@@ -599,8 +603,7 @@ class BaseGeo(BaseTransform, BaseDisplayRepr):
             sig_type="array-like with shape (3,) or (n, 3)",
             reshape=(-1, 3),
         )
-        oriQ = self._orientation.as_quat()
-        self._orientation = R.from_quat(_pad_slice_path(self._position, oriQ))
+        self._orientation = R.from_quat(_pad_slice_path(self._position, self._oriQ))
 
         for child in getattr(self, "children", []):
             old_pos = _pad_slice_path(self._position, old_pos)
@@ -616,14 +619,14 @@ class BaseGeo(BaseTransform, BaseDisplayRepr):
 
     @orientation.setter
     def orientation(self, orientation):
-        old_oriQ = self._orientation.as_quat()
-        oriQ = check_format_input_orientation(orientation, init_format=True)
-        self._orientation = R.from_quat(oriQ)
-        self._position = _pad_slice_path(oriQ, self._position)
+        old_oriQ = self._oriQ
+        self._oriQ = check_format_input_orientation(orientation, init_format=True)
+        self._orientation = R.from_quat(self._oriQ)
+        self._position = _pad_slice_path(self._oriQ, self._position)
 
         for child in getattr(self, "children", []):
             child.position = _pad_slice_path(self._position, child._position)
-            old_ori_pad = R.from_quat(np.squeeze(_pad_slice_path(oriQ, old_oriQ)))
+            old_ori_pad = R.from_quat(jnp.squeeze(_pad_slice_path(self._oriQ, old_oriQ)))
             child.rotate(self.orientation * old_ori_pad.inv(), anchor=self._position, start=0)
 
     def reset_path(self):
@@ -711,11 +714,11 @@ class BaseSource(BaseGeo):
     _is_source = True
 
     @property
-    def dipole_moment(self) -> np.ndarray:
+    def dipole_moment(self) -> jax.Array:
         pol = getattr(self, "polarization", None)
         mag = getattr(self, "magnetization", None)
         if mag is None and pol is not None:
-            mag = np.asarray(pol, dtype=float) / MU0
+            mag = jnp.asarray(pol, dtype=float) / MU0
         if mag is None:
-            return np.zeros(3, dtype=float)
-        return np.asarray(mag, dtype=float) * float(getattr(self, "volume", 0.0))
+            return jnp.zeros(3, dtype=float)
+        return jnp.asarray(mag, dtype=float) * float(getattr(self, "volume", 0.0))
