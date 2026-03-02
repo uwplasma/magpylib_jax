@@ -55,6 +55,7 @@ addopts = "-ra --strict-config --strict-markers --cov=src/magpylib_jax --cov-rep
 testpaths = ["tests"]
 markers = [
   "parity_gate: strict parity behavior profiles used as CI gates",
+  "slow: extended parity checks run outside the fast PR CI path",
 ]
 
 [tool.ruff]

@@ -5,11 +5,11 @@ from __future__ import annotations
 import numbers
 import re
 from copy import deepcopy
+from math import prod
 from typing import Any
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 from jax.scipy.spatial.transform import Rotation as R
 
 from magpylib_jax.constants import MU0
@@ -368,7 +368,7 @@ class BaseDisplayRepr:
                 val = getattr(self, "pixel", None)
                 if hasattr(val, "shape"):
                     px_shape = jnp.asarray(val).shape[:-1]
-                    val_str = f"{int(np.prod(px_shape))}"
+                    val_str = f"{int(prod(px_shape))}"
                     if jnp.asarray(val).ndim > 2:
                         val_str += f" ({'x'.join(str(p) for p in px_shape)})"
                     val = val_str
@@ -397,7 +397,7 @@ class BaseDisplayRepr:
 
             if isinstance(val, (list, tuple, jax.Array)) or hasattr(val, "shape"):
                 arr = jnp.asarray(val, dtype=float)
-                if int(np.prod(arr.shape)) > 4:
+                if int(prod(arr.shape)) > 4:
                     val = f"shape{arr.shape}"
                 else:
                     val = f"{arr}"

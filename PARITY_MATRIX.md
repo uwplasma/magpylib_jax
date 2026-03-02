@@ -41,6 +41,10 @@ This matrix tracks upstream test-file parity and corresponding local checks.
 | `tests/test_path.py` | `tests/upstream_mirror/test_path.py` | Implemented |
 | `tests/test_physics_consistency.py` | `tests/upstream_mirror/test_physics_consistency.py` | Implemented |
 
+`test_path.py` and `test_physics_consistency.py` include `slow` full-size mirrored variants and
+reduced CI-smoke equivalents in the same files. PR CI runs `-m "not slow"`; scheduled full validation
+runs all tests.
+
 ## API and behavior parity
 
 | Upstream area | Local tests | Status |

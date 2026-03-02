@@ -156,12 +156,12 @@ class Collection(BaseGeo):
             vol = float(getattr(obj, "volume", 0.0))
             if vol > 0:
                 vols.append(vol)
-                cents.append(np.asarray(getattr(obj, "centroid", obj.position), dtype=float))
+                cents.append(jnp.asarray(getattr(obj, "centroid", obj.position), dtype=jnp.float64))
         if not vols:
             return jnp.asarray(self.position, dtype=jnp.float64)
-        vols_arr = np.asarray(vols, dtype=float)
-        cents_arr = np.asarray(cents, dtype=float)
-        return jnp.asarray(np.sum(cents_arr * vols_arr[:, None], axis=0) / np.sum(vols_arr))
+        vols_arr = jnp.asarray(vols, dtype=jnp.float64)
+        cents_arr = jnp.stack(cents, axis=0)
+        return jnp.sum(cents_arr * vols_arr[:, None], axis=0) / jnp.sum(vols_arr)
 
     def reset_path(self) -> Collection:
         for child in self.children:

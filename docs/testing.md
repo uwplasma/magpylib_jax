@@ -13,9 +13,13 @@
 
 The test suite enforces at least **90% code coverage** in CI.
 
+Fast CI uses `-m "not slow"` for PR/push feedback. Extended upstream-mirror stress tests are marked
+`slow` and executed in scheduled full validation.
+
 ## Running locally
 
 ```bash
 pytest
 pytest -m parity_gate
+pytest -m slow
 ```

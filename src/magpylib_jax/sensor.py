@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import jax.numpy as jnp
-import numpy as np
 
 from magpylib_jax._types import ArrayLike
 from magpylib_jax.core.base import (
@@ -75,40 +74,37 @@ class Sensor(BaseGeo):
     def observers(self) -> jnp.ndarray:
         pix = self._pixel
         if pix is None:
-            pix = np.zeros((1, 3), dtype=float)
+            pix = jnp.zeros((1, 3), dtype=jnp.float64)
             pix_shape = (1, 3)
         else:
-            pix = np.asarray(pix, dtype=float)
+            pix = jnp.asarray(pix, dtype=jnp.float64)
             if pix.shape == (3,):
                 pix = pix[None, :]
             pix_shape = pix.shape
         pix_flat = pix.reshape((-1, 3))
 
-        pos_path = np.asarray(self._position, dtype=float)
-        rot_mats = self._orientation.as_matrix()
+        pos_path = jnp.asarray(self._position, dtype=jnp.float64)
+        rot_mats = jnp.asarray(self._orientation.as_matrix(), dtype=jnp.float64)
         obs_path = []
         for idx in range(pos_path.shape[0]):
             rot = rot_mats[min(idx, rot_mats.shape[0] - 1)]
             obs = pix_flat @ rot.T + pos_path[idx]
             obs_path.append(obs)
-        obs_path = np.stack(obs_path, axis=0)
+        obs_path = jnp.stack(obs_path, axis=0)
 
         if pos_path.shape[0] == 1:
-            return jnp.asarray(obs_path[0].reshape(pix_shape), dtype=jnp.float64)
-        return jnp.asarray(
-            obs_path.reshape((pos_path.shape[0],) + pix_shape[:-1] + (3,)),
-            dtype=jnp.float64,
-        )
+            return obs_path[0].reshape(pix_shape)
+        return obs_path.reshape((pos_path.shape[0],) + pix_shape[:-1] + (3,))
 
     @property
     def centroid(self) -> jnp.ndarray:
         if self._pixel is None:
             return jnp.asarray(self.position, dtype=jnp.float64)
-        pix_mean = np.mean(np.asarray(self._pixel, dtype=float).reshape(-1, 3), axis=0)
-        centroid = np.asarray(self._position, dtype=float) + pix_mean
+        pix_mean = jnp.mean(jnp.asarray(self._pixel, dtype=jnp.float64).reshape(-1, 3), axis=0)
+        centroid = jnp.asarray(self._position, dtype=jnp.float64) + pix_mean
         if centroid.shape[0] == 1:
             centroid = centroid[0]
-        return jnp.asarray(centroid, dtype=jnp.float64)
+        return centroid
 
     def getB(
         self,

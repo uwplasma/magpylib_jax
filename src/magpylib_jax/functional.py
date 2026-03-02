@@ -263,8 +263,8 @@ def _format_observers(observers: object, pixel_agg: str | None):
 
     pix_shapes = [
         (1, 3)
-        if (s.pixel is None or np.asarray(s.pixel).shape == (3,))
-        else np.asarray(s.pixel).shape
+        if (s.pixel is None or jnp.asarray(s.pixel).shape == (3,))
+        else tuple(jnp.asarray(s.pixel).shape)
         for s in sensors
     ]
     if pixel_agg is None and len(set(pix_shapes)) != 1:
@@ -530,7 +530,7 @@ def _prepare_sources_jit(
         [_SOURCE_TYPE_IDS[data["type"]] for data in src_data],
         dtype=jnp.int32,  # type: ignore[index]
     )
-    group_index = np.empty((len(src_data),), dtype=np.int32)
+    group_index = [0] * len(src_data)
     for gid, group in enumerate(group_specs):
         for idx in group["indices"]:  # type: ignore[index]
             group_index[idx] = gid
@@ -746,7 +746,7 @@ def _prepare_sensors_jit(
                 }
             )
 
-    pix_nums = [int(np.prod(ps[:-1])) for ps in pix_shapes]
+    pix_nums = [int(prod(ps[:-1])) for ps in pix_shapes]
     max_pix = max(pix_nums) if pix_nums else 1
     pix_all_same = len(set(pix_shapes)) == 1
     if pixel_agg is None and not pix_all_same:
@@ -793,11 +793,15 @@ def _prepare_sensors_jit(
         "rot_list": rot_list,
         "handedness": jnp.stack(hand_vec, axis=0),
     }
+    pix_inds = [0]
+    for pix_num in pix_nums:
+        pix_inds.append(pix_inds[-1] + int(pix_num))
+
     meta = {
         "pix_shapes": pix_shapes,
         "pix_nums": pix_nums,
         "pix_all_same": pix_all_same,
-        "pix_inds": np.cumsum([0, *pix_nums]),
+        "pix_inds": tuple(pix_inds),
         "sensor_labels": labels,
     }
     return sens_arrays, meta
@@ -1221,7 +1225,7 @@ def _compute_field_jit(
         else:
             src_ids = group_labels
         sens_ids = sens_meta["sensor_labels"]
-        num_pixels = int(np.prod(pix_shapes[0][:-1])) if pixel_agg is None else 1
+        num_pixels = int(prod(pix_shapes[0][:-1])) if pixel_agg is None else 1
         df_field = pd.DataFrame(
             data=product(src_ids, range(B.shape[1]), sens_ids, range(num_pixels)),
             columns=["source", "path", "sensor", "pixel"],
@@ -1542,8 +1546,10 @@ def _compute_field_legacy(
             )
 
     sensors, pix_shapes = _format_observers(observers, pixel_agg)
-    pix_nums = [int(np.prod(ps[:-1])) for ps in pix_shapes]
-    pix_inds = np.cumsum([0, *pix_nums])
+    pix_nums = [int(prod(ps[:-1])) for ps in pix_shapes]
+    pix_inds = [0]
+    for pix_num in pix_nums:
+        pix_inds.append(pix_inds[-1] + int(pix_num))
     pix_all_same = len(set(pix_shapes)) == 1
 
     # precompute sensor data
@@ -1649,7 +1655,7 @@ def _compute_field_legacy(
             getattr(sens.style, "label", None) or getattr(sens, "style_label", None) or "Sensor"
             for sens in sensors
         ]
-        num_pixels = int(np.prod(pix_shapes[0][:-1])) if pixel_agg is None else 1
+        num_pixels = int(prod(pix_shapes[0][:-1])) if pixel_agg is None else 1
         df_field = pd.DataFrame(
             data=product(src_ids, range(max_path_len), sens_ids, range(num_pixels)),
             columns=["source", "path", "sensor", "pixel"],

@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 import magpylib_jax as mpj
 
@@ -20,9 +21,7 @@ def test_path_old_new_move():
     np.testing.assert_allclose(b1, b2, err_msg="path move problem")
 
 
-def test_path_old_new_rotate():
-    """test path rotate compare to old style computation"""
-    n = 111
+def _assert_path_old_new_rotate(n: int) -> None:
     s_pos = (0, 0, 0)
     ax = (1, 0, 0)
     anch = (0, 0, 10)
@@ -47,3 +46,14 @@ def test_path_old_new_rotate():
         atol=1e-8,
         err_msg="path rotate problem",
     )
+
+
+def test_path_old_new_rotate():
+    """test path rotate compare to old style computation (reduced CI sample)."""
+    _assert_path_old_new_rotate(n=21)
+
+
+@pytest.mark.slow
+def test_path_old_new_rotate_full():
+    """Full upstream mirror coverage for path rotate parity."""
+    _assert_path_old_new_rotate(n=111)

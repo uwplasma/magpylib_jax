@@ -19,6 +19,10 @@ For the canonical mapping, see `PARITY_MATRIX.md` in the repository root.
 | `tests/test_path.py` | `tests/upstream_mirror/test_path.py` | Implemented |
 | `tests/test_physics_consistency.py` | `tests/upstream_mirror/test_physics_consistency.py` | Implemented |
 
+Notes:
+- Extremely heavy mirrored scenarios include a fast CI-smoke equivalent plus a `slow` full-size variant
+  in the same file. Fast CI runs `-m "not slow"`; scheduled full validation runs all tests.
+
 ## Parity gates
 
 - `tests/parity_gates/test_source_profiles.py` (core profile grid coverage)

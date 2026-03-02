@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from magpylib.func import polyline_field
 
 import magpylib_jax as mpj
@@ -37,6 +38,7 @@ def test_dipole_approximation():
     np.testing.assert_allclose(h1, h2, rtol=1e-5, atol=1e-8)
 
 
+@pytest.mark.slow
 def test_Circle_vs_Cylinder_field():
     """
     The H-field of a loop with radius r0 (m) and current i0 (A) is the same
@@ -158,6 +160,29 @@ def test_Circle_vs_Cylinder_field():
             [3.61705605e-01, 1.01651959e-01, 1.08800255e01],
             [4.07986797e-01, 9.62831662e-01, 1.09469213e01],
         ]
+    )
+
+    r0 = 2
+    h0 = 1e-4
+    i0 = 1
+    src1 = mpj.magnet.Cylinder(
+        polarization=(0, 0, i0 / h0 * 4 * np.pi / 10 * 1e-6), dimension=(r0, h0)
+    )
+    src2 = mpj.current.Circle(current=i0, diameter=r0)
+
+    h1 = src1.getH(pos_obs)
+    h2 = src2.getH(pos_obs)
+
+    np.testing.assert_allclose(h1, h2)
+
+
+def test_Circle_vs_Cylinder_field_smoke():
+    """Reduced observer-set CI smoke parity for Circle vs Cylinder equivalence."""
+    rng = np.random.default_rng(123)
+    pos_obs = rng.uniform(
+        low=np.array([0.0, 0.0, 10.0]),
+        high=np.array([1.0, 1.0, 11.0]),
+        size=(12, 3),
     )
 
     r0 = 2

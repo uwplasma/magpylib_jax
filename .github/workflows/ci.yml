@@ -25,11 +25,23 @@ jobs:
       - name: Mypy
         run: mypy
 
-  tests-shard-a:
+  tests-core:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: core-a
+            pytest_paths: tests/differentiability tests/jit tests/physics
+          - shard: core-b
+            pytest_paths: tests/parity
+          - shard: core-c
+            pytest_paths: tests/performance tests/test_compatibility.py tests/test_coverage_smoke.py tests/test_motion_shape_compat.py tests/test_trimesh_semantics.py
+          - shard: core-d
+            pytest_paths: tests/parity_gates
     env:
-      COVERAGE_FILE: .coverage.shard_a
+      COVERAGE_FILE: .coverage.${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -40,23 +52,37 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e '.[test]'
-      - name: Run test shard A
+      - name: Run core test shard
         run: >
           pytest -o addopts='-ra --strict-config --strict-markers
-          --cov=src/magpylib_jax --cov-append --cov-report='
-          tests/differentiability tests/jit tests/parity tests/parity_gates
-          tests/physics tests/performance
-      - name: Upload coverage shard A
+          --cov=src/magpylib_jax --cov-append --cov-report= --cov-fail-under=0'
+          -m 'not slow'
+          ${{ matrix.pytest_paths }}
+      - name: Upload core coverage shard
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-shard-a
-          path: .coverage.shard_a
+          name: coverage-${{ matrix.shard }}
+          path: .coverage.${{ matrix.shard }}
 
-  tests-shard-b:
+  tests-upstream:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: upstream-a
+            pytest_paths: tests/upstream_mirror/test_BHMJ_level.py tests/upstream_mirror/test_getBH_interfaces.py tests/upstream_mirror/test_obj_BaseGeo.py tests/upstream_mirror/test_obj_BaseGeo_v4motion.py
+          - shard: upstream-b
+            pytest_paths: tests/upstream_mirror/test_obj_Collection.py
+          - shard: upstream-c
+            pytest_paths: tests/upstream_mirror/test_obj_Sensor.py
+          - shard: upstream-d
+            pytest_paths: tests/upstream_mirror/test_obj_CylinderSegment.py tests/upstream_mirror/test_obj_TriangleStrip_Sheet.py tests/upstream_mirror/test_obj_TriangularMesh.py
+          - shard: upstream-e
+            pytest_paths: tests/upstream_mirror/test_path.py tests/upstream_mirror/test_physics_consistency.py
     env:
-      COVERAGE_FILE: .coverage.shard_b
+      COVERAGE_FILE: .coverage.${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -67,51 +93,24 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e '.[test]'
-      - name: Run test shard B
+      - name: Run upstream mirror shard
         run: >
           pytest -o addopts='-ra --strict-config --strict-markers
-          --cov=src/magpylib_jax --cov-append --cov-report='
-          tests/test_compatibility.py tests/test_coverage_smoke.py
-          tests/test_motion_shape_compat.py tests/test_trimesh_semantics.py
-      - name: Upload coverage shard B
+          --cov=src/magpylib_jax --cov-append --cov-report= --cov-fail-under=0'
+          -m 'not slow'
+          ${{ matrix.pytest_paths }}
+      - name: Upload upstream coverage shard
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-shard-b
-          path: .coverage.shard_b
-
-  tests-shard-c:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      COVERAGE_FILE: .coverage.shard_c
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e '.[test]'
-      - name: Run test shard C
-        run: >
-          pytest -o addopts='-ra --strict-config --strict-markers
-          --cov=src/magpylib_jax --cov-append --cov-report='
-          tests/upstream_mirror
-      - name: Upload coverage shard C
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-shard-c
-          path: .coverage.shard_c
+          name: coverage-${{ matrix.shard }}
+          path: .coverage.${{ matrix.shard }}
 
   coverage-combine:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs:
-      - tests-shard-a
-      - tests-shard-b
-      - tests-shard-c
+      - tests-core
+      - tests-upstream
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -122,24 +121,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install coverage[toml]
-      - name: Download coverage shard A
+      - name: Download coverage shards
         uses: actions/download-artifact@v4
         with:
-          name: coverage-shard-a
-          path: coverage/shard_a
-      - name: Download coverage shard B
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-shard-b
-          path: coverage/shard_b
-      - name: Download coverage shard C
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-shard-c
-          path: coverage/shard_c
+          pattern: coverage-*
+          path: coverage
+          merge-multiple: true
       - name: Combine and enforce coverage
         run: |
-          python -m coverage combine coverage/shard_a coverage/shard_b coverage/shard_c
+          python -m coverage combine coverage
           python -m coverage report --fail-under=90
 
   docs:

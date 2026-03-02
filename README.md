@@ -98,12 +98,14 @@ for _ in range(50):
 ## Validation + profiling gates
 
 CI enforces:
-- full test suite + strict parity gates,
+- fast sharded test suite (`-m 'not slow'`) + strict parity gates,
 - lint + type checks,
 - docs build,
 - coverage threshold (`>=90%`),
 - benchmark thresholds (runtime slowdown + parity error),
 - kernel profiling thresholds (compile/runtime/parity/memory) with HLO, trace, and memory snapshots.
+
+Nightly `full-validation.yml` runs the complete suite (including `slow` upstream-mirror parity tests).
 
 Key files:
 - [`PARITY_MATRIX.md`](PARITY_MATRIX.md)
