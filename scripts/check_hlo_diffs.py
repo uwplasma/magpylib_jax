@@ -17,7 +17,7 @@ def main() -> None:
     baseline = json.loads(args.baseline.read_text(encoding="utf-8"))
 
     errors: list[str] = []
-    for name, expected_hash in baseline.items():
+    for name, expected_value in baseline.items():
         if name not in profile:
             errors.append(f"{name}: missing from profiling report")
             continue
@@ -25,9 +25,14 @@ def main() -> None:
         if observed_hash == "unavailable":
             errors.append(f"{name}: HLO hash unavailable")
             continue
-        if observed_hash != expected_hash:
+        if isinstance(expected_value, list):
+            expected_hashes = [str(value) for value in expected_value]
+        else:
+            expected_hashes = [str(expected_value)]
+        if observed_hash not in expected_hashes:
             errors.append(
-                f"{name}: hlo_hash {observed_hash} does not match baseline {expected_hash}"
+                f"{name}: hlo_hash {observed_hash} does not match baseline "
+                f"{', '.join(expected_hashes)}"
             )
 
     if errors:

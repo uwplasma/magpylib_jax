@@ -8,7 +8,7 @@ on:
 jobs:
   lint-and-types:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -19,13 +19,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e '.[test]'
-          python -m pip install ruff
+          python -m pip install ruff mypy
       - name: Ruff
         run: ruff check src tests
+      - name: Mypy
+        run: mypy
 
-  test-fast:
+  tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -36,16 +38,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e '.[test]'
-      - name: Run fast validation tests
-        run: |
-          pytest --no-cov \
-            tests/jit/test_getB_jit.py \
-            tests/parity_gates \
-            tests/upstream_mirror/test_getBH_interfaces.py
+      - name: Run full test suite
+        run: pytest
 
   docs:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     env:
       JAX_ENABLE_X64: "1"
     steps:
@@ -61,9 +59,76 @@ jobs:
       - name: Build docs
         run: sphinx-build -W -b html docs docs/_build/html
 
+  benchmark-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[test]'
+      - name: Run benchmark
+        run: |
+          python scripts/benchmark_vs_magpylib.py \
+            --n-observers 600 \
+            --repeats 1 \
+            --output benchmarks/latest.json
+      - name: Validate thresholds
+        run: python scripts/check_benchmark_thresholds.py benchmarks/latest.json benchmarks/thresholds.json
+
+  profiling-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[test]'
+      - name: Run kernel profiling report
+        run: |
+          python scripts/profile_kernels.py \
+            --n-observers 400 \
+            --repeats 1 \
+            --output profiling/latest_ci.json \
+            --output-dir profiling/ci_artifacts
+      - name: Validate profiling thresholds
+        run: |
+          python scripts/check_profiling_thresholds.py \
+            profiling/latest_ci.json \
+            profiling/thresholds.json
+      - name: Validate HLO baseline
+        run: |
+          python scripts/check_hlo_diffs.py \
+            profiling/latest_ci.json \
+            profiling/hlo_baseline.json
+      - name: Summarize profiling deltas
+        run: |
+          python scripts/summarize_profiling.py \
+            profiling/latest_ci.json \
+            profiling/thresholds.json \
+            --output profiling/latest_ci_summary.json
+      - name: Upload profiling artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: profiling-ci-artifacts
+          path: |
+            profiling/latest_ci.json
+            profiling/latest_ci_summary.json
+            profiling/ci_artifacts
+
   profiling-getb-jit:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

@@ -9,6 +9,7 @@ from typing import Any
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 from jax.scipy.spatial.transform import Rotation as R
 
 from magpylib_jax.constants import MU0
@@ -72,18 +73,18 @@ def check_format_input_vector(
 
 def check_format_input_orientation(orientation: Any | None, *, init_format: bool = False):
     if orientation is None:
-        quat = jnp.array([[0.0, 0.0, 0.0, 1.0]])
-        # if not init_format:
-        #    raise "This branch requires a jax version of scipy"
+        quat = jnp.array([0.0, 0.0, 0.0, 1.0], dtype=jnp.float64)
         rot = R.from_quat(quat)
-        return quat if init_format else (rot, rot.as_quat())
+        if init_format:
+            return quat[None, :]
+        return rot, quat
 
     if hasattr(orientation, "as_quat"):
-        rot = orientation
-        quat = rot.as_quat()
-        if quat.ndim == 1:
-            quat = quat[None, :]
-        return quat if init_format else (rot, rot.as_quat())
+        quat = _as_array(orientation.as_quat())
+        if init_format:
+            return quat[None, :] if quat.ndim == 1 else quat
+        rot = R.from_quat(quat)
+        return rot, quat
 
     arr = _as_array(orientation)
     if arr.ndim == 2 and arr.shape == (3, 3):
@@ -367,7 +368,7 @@ class BaseDisplayRepr:
                 val = getattr(self, "pixel", None)
                 if hasattr(val, "shape"):
                     px_shape = jnp.asarray(val).shape[:-1]
-                    val_str = f"{int(jnp.prod(px_shape))}"
+                    val_str = f"{int(np.prod(px_shape))}"
                     if jnp.asarray(val).ndim > 2:
                         val_str += f" ({'x'.join(str(p) for p in px_shape)})"
                     val = val_str
@@ -396,7 +397,7 @@ class BaseDisplayRepr:
 
             if isinstance(val, (list, tuple, jax.Array)) or hasattr(val, "shape"):
                 arr = jnp.asarray(val, dtype=float)
-                if jnp.prod(arr.shape) > 4:
+                if int(np.prod(arr.shape)) > 4:
                     val = f"shape{arr.shape}"
                 else:
                     val = f"{arr}"

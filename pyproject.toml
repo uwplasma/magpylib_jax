@@ -73,6 +73,16 @@ check_untyped_defs = true
 warn_return_any = false
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = [
+  "magpylib_jax.collection",
+  "magpylib_jax.core.base",
+  "magpylib_jax.functional",
+  "magpylib_jax.misc.custom",
+  "magpylib_jax.sensor",
+]
+ignore_errors = true
+
 [tool.coverage.run]
 source = ["src/magpylib_jax"]
 

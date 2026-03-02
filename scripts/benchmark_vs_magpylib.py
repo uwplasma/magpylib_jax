@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 
 import jax
+import jax.numpy as jnp
 import magpylib as magpy
 import numpy as np
 
@@ -39,10 +40,13 @@ def _compile_time(fn) -> float:
 
 
 def _entry(name: str, ref_fn, new_fn, repeats: int, observers: np.ndarray) -> dict[str, float]:
-    compile_s = _compile_time(new_fn)
-    time_ref = _timeit(ref_fn, repeats)
-    time_new = _timeit(new_fn, repeats)
-    err = float(np.max(np.abs(np.asarray(new_fn()) - ref_fn())))
+    observers_jax = jnp.asarray(observers, dtype=jnp.float64)
+    new_jit = jax.jit(new_fn)
+
+    compile_s = _compile_time(lambda: new_jit(observers_jax))
+    time_ref = _timeit(lambda: ref_fn(observers), repeats)
+    time_new = _timeit(lambda: new_jit(observers_jax), repeats)
+    err = float(np.max(np.abs(np.asarray(new_jit(observers_jax)) - ref_fn(observers))))
 
     return {
         "name": name,
@@ -71,8 +75,8 @@ def main() -> None:
     dip_new = mpj.misc.Dipole(moment=(1.0, -0.3, 0.2))
     entries["dipole"] = _entry(
         "dipole",
-        lambda: dip_ref.getB(observers),
-        lambda: dip_new.getB(observers),
+        lambda obs: dip_ref.getB(obs),
+        lambda obs: dip_new.getB(obs),
         args.repeats,
         observers,
     )
@@ -81,8 +85,8 @@ def main() -> None:
     circ_new = mpj.current.Circle(current=2.0, diameter=1.2)
     entries["circle"] = _entry(
         "circle",
-        lambda: circ_ref.getB(observers),
-        lambda: circ_new.getB(observers),
+        lambda obs: circ_ref.getB(obs),
+        lambda obs: circ_new.getB(obs),
         args.repeats,
         observers,
     )
@@ -91,8 +95,8 @@ def main() -> None:
     cub_new = mpj.magnet.Cuboid(polarization=(0.15, -0.22, 0.3), dimension=(1.1, 0.7, 1.4))
     entries["cuboid"] = _entry(
         "cuboid",
-        lambda: cub_ref.getB(observers),
-        lambda: cub_new.getB(observers),
+        lambda obs: cub_ref.getB(obs),
+        lambda obs: cub_new.getB(obs),
         args.repeats,
         observers,
     )
@@ -101,8 +105,8 @@ def main() -> None:
     cyl_new = mpj.magnet.Cylinder(polarization=(0.11, -0.07, 0.13), dimension=(1.4, 1.2))
     entries["cylinder"] = _entry(
         "cylinder",
-        lambda: cyl_ref.getB(observers),
-        lambda: cyl_new.getB(observers),
+        lambda obs: cyl_ref.getB(obs),
+        lambda obs: cyl_new.getB(obs),
         args.repeats,
         observers,
     )
@@ -111,8 +115,8 @@ def main() -> None:
     sph_new = mpj.magnet.Sphere(polarization=(0.11, -0.07, 0.13), diameter=1.3)
     entries["sphere"] = _entry(
         "sphere",
-        lambda: sph_ref.getB(observers),
-        lambda: sph_new.getB(observers),
+        lambda obs: sph_ref.getB(obs),
+        lambda obs: sph_new.getB(obs),
         args.repeats,
         observers,
     )
@@ -122,8 +126,8 @@ def main() -> None:
     line_new = mpj.current.Polyline(current=1.7, vertices=line_vertices)
     entries["polyline"] = _entry(
         "polyline",
-        lambda: line_ref.getB(observers),
-        lambda: line_new.getB(observers),
+        lambda obs: line_ref.getB(obs),
+        lambda obs: line_new.getB(obs),
         args.repeats,
         observers,
     )
@@ -133,8 +137,8 @@ def main() -> None:
     tri_new = mpj.misc.Triangle(vertices=tri_vertices, polarization=(0.2, -0.1, 0.3))
     entries["triangle"] = _entry(
         "triangle",
-        lambda: tri_ref.getB(observers),
-        lambda: tri_new.getB(observers),
+        lambda obs: tri_ref.getB(obs),
+        lambda obs: tri_new.getB(obs),
         args.repeats,
         observers,
     )
@@ -144,8 +148,8 @@ def main() -> None:
     tet_new = mpj.magnet.Tetrahedron(vertices=tet_vertices, polarization=(0.1, -0.2, 0.3))
     entries["tetrahedron"] = _entry(
         "tetrahedron",
-        lambda: tet_ref.getB(observers),
-        lambda: tet_new.getB(observers),
+        lambda obs: tet_ref.getB(obs),
+        lambda obs: tet_new.getB(obs),
         args.repeats,
         observers,
     )
@@ -160,8 +164,8 @@ def main() -> None:
     )
     entries["cylindersegment"] = _entry(
         "cylindersegment",
-        lambda: cylseg_ref.getB(observers),
-        lambda: cylseg_new.getB(observers),
+        lambda obs: cylseg_ref.getB(obs),
+        lambda obs: cylseg_new.getB(obs),
         args.repeats,
         observers,
     )
@@ -181,8 +185,8 @@ def main() -> None:
     )
     entries["trianglesheet"] = _entry(
         "trianglesheet",
-        lambda: sheet_ref.getB(observers),
-        lambda: sheet_new.getB(observers),
+        lambda obs: sheet_ref.getB(obs),
+        lambda obs: sheet_new.getB(obs),
         args.repeats,
         observers,
     )
@@ -192,8 +196,8 @@ def main() -> None:
     strip_new = mpj.current.TriangleStrip(vertices=strip_vertices, current=1.4)
     entries["trianglestrip"] = _entry(
         "trianglestrip",
-        lambda: strip_ref.getB(observers),
-        lambda: strip_new.getB(observers),
+        lambda obs: strip_ref.getB(obs),
+        lambda obs: strip_new.getB(obs),
         args.repeats,
         observers,
     )
@@ -215,8 +219,8 @@ def main() -> None:
     )
     entries["triangularmesh"] = _entry(
         "triangularmesh",
-        lambda: mesh_ref.getB(observers),
-        lambda: mesh_new.getB(observers),
+        lambda obs: mesh_ref.getB(obs),
+        lambda obs: mesh_new.getB(obs),
         args.repeats,
         observers,
     )
