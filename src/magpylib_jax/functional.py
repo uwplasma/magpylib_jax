@@ -1113,6 +1113,12 @@ def _compute_field_jit_core(
     return jnp.transpose(b_path, (1, 0, 2, 3, 4))
 
 
+_compute_field_jit_core_compiled = jax.jit(
+    _compute_field_jit_core,
+    static_argnames=("field", "in_out", "n_groups"),
+)
+
+
 def _apply_pixel_agg_masked(
     field: jnp.ndarray,
     pix_mask: jnp.ndarray,
@@ -1186,7 +1192,7 @@ def _compute_field_jit(
     sens_arrays_core["rot"] = sens_rot
 
     n_groups = int(src_meta["n_groups"])
-    B = _compute_field_jit_core(
+    B = _compute_field_jit_core_compiled(
         src_arrays_core, sens_arrays_core, field=field, in_out=in_out, n_groups=n_groups
     )
 
