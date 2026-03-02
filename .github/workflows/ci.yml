@@ -25,9 +25,11 @@ jobs:
       - name: Mypy
         run: mypy
 
-  tests:
+  tests-shard-a:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
+    env:
+      COVERAGE_FILE: .coverage.shard_a
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -38,8 +40,107 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e '.[test]'
-      - name: Run full test suite
-        run: pytest
+      - name: Run test shard A
+        run: >
+          pytest -o addopts='-ra --strict-config --strict-markers
+          --cov=src/magpylib_jax --cov-append --cov-report='
+          tests/differentiability tests/jit tests/parity tests/parity_gates
+          tests/physics tests/performance
+      - name: Upload coverage shard A
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-shard-a
+          path: .coverage.shard_a
+
+  tests-shard-b:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COVERAGE_FILE: .coverage.shard_b
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[test]'
+      - name: Run test shard B
+        run: >
+          pytest -o addopts='-ra --strict-config --strict-markers
+          --cov=src/magpylib_jax --cov-append --cov-report='
+          tests/test_compatibility.py tests/test_coverage_smoke.py
+          tests/test_motion_shape_compat.py tests/test_trimesh_semantics.py
+      - name: Upload coverage shard B
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-shard-b
+          path: .coverage.shard_b
+
+  tests-shard-c:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COVERAGE_FILE: .coverage.shard_c
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[test]'
+      - name: Run test shard C
+        run: >
+          pytest -o addopts='-ra --strict-config --strict-markers
+          --cov=src/magpylib_jax --cov-append --cov-report='
+          tests/upstream_mirror
+      - name: Upload coverage shard C
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-shard-c
+          path: .coverage.shard_c
+
+  coverage-combine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs:
+      - tests-shard-a
+      - tests-shard-b
+      - tests-shard-c
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install coverage tool
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install coverage[toml]
+      - name: Download coverage shard A
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-shard-a
+          path: coverage/shard_a
+      - name: Download coverage shard B
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-shard-b
+          path: coverage/shard_b
+      - name: Download coverage shard C
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-shard-c
+          path: coverage/shard_c
+      - name: Combine and enforce coverage
+        run: |
+          python -m coverage combine coverage/shard_a coverage/shard_b coverage/shard_c
+          python -m coverage report --fail-under=90
 
   docs:
     runs-on: ubuntu-latest
