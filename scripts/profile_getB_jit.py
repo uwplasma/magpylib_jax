@@ -144,7 +144,7 @@ def main() -> None:
     args = parser.parse_args()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    result = _profile_getB(args.repeats, args.output_dir)
+    result = {"getB_jit": _profile_getB(args.repeats, args.output_dir)}
     args.output.write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(json.dumps(result, indent=2))
 
