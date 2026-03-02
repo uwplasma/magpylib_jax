@@ -10,7 +10,6 @@ from typing import Any
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 
 from magpylib_jax._types import ArrayLike
 from magpylib_jax.constants import MU0
@@ -148,7 +147,7 @@ def _check_pixel_agg(pixel_agg: str | None):
 
 
 def _is_array_like(obj: object) -> bool:
-    if isinstance(obj, (np.ndarray, jnp.ndarray, jax.Array)):
+    if isinstance(obj, (jnp.ndarray, jax.Array)):
         return True
     if isinstance(obj, jax.core.Tracer):
         return True
@@ -227,7 +226,9 @@ def _format_observers(observers: object, pixel_agg: str | None):
     if getattr(observers, "_is_collection", False) or getattr(observers, "_is_sensor", False):
         observers = (observers,)
 
-    if not isinstance(observers, (list, tuple, np.ndarray)):
+    if not isinstance(observers, (list, tuple, jnp.ndarray, jax.Array)) and not _is_array_like(
+        observers
+    ):
         raise MagpylibBadUserInput("Bad observers provided.")
 
     if len(observers) == 0:  # type: ignore[arg-type]
@@ -235,10 +236,10 @@ def _format_observers(observers: object, pixel_agg: str | None):
 
     # attempt to parse as single array-like
     try:
-        arr = np.array(observers, dtype=float)
+        arr = jnp.asarray(observers, dtype=jnp.float64)
         if arr.shape[-1] != 3:
             raise ValueError
-        pix_shapes = [(1, 3) if arr.shape == (3,) else arr.shape]
+        pix_shapes = [(1, 3) if arr.shape == (3,) else tuple(arr.shape)]
         return [Sensor(pixel=arr)], pix_shapes
     except Exception:
         pass
@@ -254,7 +255,7 @@ def _format_observers(observers: object, pixel_agg: str | None):
             sensors.extend(child_sensors)
         else:
             try:
-                arr = np.array(obj, dtype=float)
+                arr = jnp.asarray(obj, dtype=jnp.float64)
                 if arr.shape[-1] != 3:
                     raise ValueError
                 sensors.append(Sensor(pixel=arr))
@@ -1236,7 +1237,7 @@ def _compute_field_jit(
             data=product(src_ids, range(B.shape[1]), sens_ids, range(num_pixels)),
             columns=["source", "path", "sensor", "pixel"],
         )
-        df_field[[field + k for k in "xyz"]] = np.asarray(B).reshape(-1, 3)
+        df_field[[field + k for k in "xyz"]] = jax.device_get(B).reshape(-1, 3)
         return df_field
 
     if squeeze:
@@ -1666,7 +1667,7 @@ def _compute_field_legacy(
             data=product(src_ids, range(max_path_len), sens_ids, range(num_pixels)),
             columns=["source", "path", "sensor", "pixel"],
         )
-        df_field[[field + k for k in "xyz"]] = np.asarray(B).reshape(-1, 3)
+        df_field[[field + k for k in "xyz"]] = jax.device_get(B).reshape(-1, 3)
         return df_field
 
     if squeeze:
