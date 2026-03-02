@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
+from magpylib.func import cuboid_field
 
 import magpylib_jax as mpj
-from magpylib.func import cuboid_field
 from magpylib_jax import MagpylibMissingInput
 
 
@@ -201,12 +201,8 @@ def test_dataframe_ouptut():
 
     for field in "BH":
         cols = [f"{field}{k}" for k in "xyz"]
-        df_field = getattr(mpj, f"get{field}")(
-            sources, sens_col, sumup=False, output="dataframe"
-        )
-        BH = getattr(mpj, f"get{field}")(
-            sources, sens_col, sumup=False, squeeze=False
-        )
+        df_field = getattr(mpj, f"get{field}")(sources, sens_col, sumup=False, output="dataframe")
+        BH = getattr(mpj, f"get{field}")(sources, sens_col, sumup=False, squeeze=False)
         for i in range(2):
             np.testing.assert_array_equal(
                 BH[i].reshape(-1, 3),
@@ -251,9 +247,7 @@ def test_dataframe_ouptut_pixel_agg():
     df_field = mpj.getB(sources, sensors, pixel_agg="mean", output="dataframe")
     np.testing.assert_allclose(
         df_field[["Bx", "By", "Bz"]].values,
-        np.array(
-            [[0.0, 0.0, 134.78238624], [0.0, 0.0, 19.63857207], [0.0, 0.0, 5.87908614]]
-        ),
+        np.array([[0.0, 0.0, 134.78238624], [0.0, 0.0, 19.63857207], [0.0, 0.0, 5.87908614]]),
     )
 
 
@@ -277,9 +271,7 @@ def test_sensor_handedness():
 
     pixel = np.array([[x, y, z] for x in ls(N[0]) for y in ls(N[1]) for z in ls(N[2])])
     pixel = pixel.reshape((*N, 3))
-    c = mpj.magnet.Cuboid(
-        polarization=(1, 0, 0), dimension=(1, 1, 1), position=(0, 1, 0)
-    )
+    c = mpj.magnet.Cuboid(polarization=(1, 0, 0), dimension=(1, 1, 1), position=(0, 1, 0))
     sr = mpj.Sensor(
         pixel=pixel,
         position=(-1, 0, 0),

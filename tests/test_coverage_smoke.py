@@ -1,23 +1,20 @@
-import numpy as np
-import pytest
-
 import jax
 import jax.numpy as jnp
+import numpy as np
+import pytest
 
 import magpylib_jax as mpj
 from magpylib_jax import functional as functional
 from magpylib_jax.collection import Collection
 from magpylib_jax.core import base as base
 from magpylib_jax.core import geometry as geom
-from magpylib_jax.core.base import MagpylibBadUserInput, MagpylibMissingInput
 from magpylib_jax.core import kernels_extended as kext
+from magpylib_jax.core.base import MagpylibBadUserInput, MagpylibMissingInput
 from magpylib_jax.functional import (
     _evaluate_source_field,
     _get_field_from_type,
     getB,
     getH,
-    getJ,
-    getM,
 )
 from magpylib_jax.misc.custom import CustomSource
 
@@ -37,11 +34,14 @@ def test_geometry_helpers_smoke() -> None:
         geom.normalize_orientation(np.zeros((2, 3, 3)))
     with pytest.raises(ValueError):
         geom.normalize_orientation(np.zeros((2, 2)))
+
     class _Dummy:
         def __init__(self, mat):
             self._mat = mat
+
         def as_matrix(self):
             return self._mat
+
     with pytest.raises(ValueError):
         geom.normalize_orientation(_Dummy(np.zeros((2, 3, 3))))
     with pytest.raises(ValueError):
@@ -197,7 +197,13 @@ def test_functional_smoke_and_errors() -> None:
     mean = getB("circle", obs, diameter=1.0, current=1.0, pixel_agg=np.mean)
     assert mean.shape[-1] == 3
 
-    b_pix = getB("circle", np.array([[0.0, 0.0, 1.0], [0.1, 0.0, 0.0]]), diameter=1.0, current=1.0, pixel_agg="mean")
+    b_pix = getB(
+        "circle",
+        np.array([[0.0, 0.0, 1.0], [0.1, 0.0, 0.0]]),
+        diameter=1.0,
+        current=1.0,
+        pixel_agg="mean",
+    )
     assert b_pix.shape[-1] == 3
 
     b_pix = getB(
@@ -222,7 +228,7 @@ def test_functional_smoke_and_errors() -> None:
         polarization=(0.0, 0.0, 1.0),
     )
 
-    df = pytest.importorskip("pandas")
+    pytest.importorskip("pandas")
     _ = getB(
         "cuboid",
         obs,
@@ -290,12 +296,8 @@ def test_functional_smoke_and_errors() -> None:
         _get_field_from_type("trianglestrip", obs, "B")
 
     tri = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
-    tet = np.array(
-        [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
-    )
-    mesh = np.array(
-        [[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)]], dtype=float
-    )
+    tet = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+    mesh = np.array([[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)]], dtype=float)
     seg_start = np.array([[0.0, 0.0, 0.0]])
     seg_end = np.array([[1.0, 0.0, 0.0]])
     verts = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
@@ -313,12 +315,8 @@ def test_functional_smoke_and_errors() -> None:
         _ = _get_field_from_type(
             "cylinder", obs, field, dimension=(1.0, 1.0), polarization=(0.0, 0.0, 1.0)
         )
-        _ = _get_field_from_type(
-            "sphere", obs, field, diameter=1.0, polarization=(0.0, 0.0, 1.0)
-        )
-        _ = _get_field_from_type(
-            "triangle", obs, field, vertices=tri, polarization=(0.0, 0.0, 1.0)
-        )
+        _ = _get_field_from_type("sphere", obs, field, diameter=1.0, polarization=(0.0, 0.0, 1.0))
+        _ = _get_field_from_type("triangle", obs, field, vertices=tri, polarization=(0.0, 0.0, 1.0))
         _ = _get_field_from_type(
             "tetrahedron", obs, field, vertices=tet, polarization=(0.0, 0.0, 1.0)
         )
@@ -366,7 +364,9 @@ def test_functional_internal_helpers() -> None:
     assert out.shape[-1] == 3
     out = functional._apply_squeeze(field, jnp.asarray(obs), squeeze=False, sumup=True, n_sources=1)
     assert out.shape[-1] == 3
-    out = functional._apply_squeeze(jnp.zeros((2, 1, 3)), jnp.asarray(obs), squeeze=False, sumup=False, n_sources=2)
+    out = functional._apply_squeeze(
+        jnp.zeros((2, 1, 3)), jnp.asarray(obs), squeeze=False, sumup=False, n_sources=2
+    )
     assert out.shape[-1] == 3
 
     pix_mask = jnp.array([[1.0, 0.0]])
@@ -437,9 +437,7 @@ def test_kernels_extended_smoke() -> None:
     tri = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
     _ = kext.triangle_bfield_jit(obs, tri, pol)
 
-    tetra = np.array(
-        [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
-    )
+    tetra = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
     _ = kext.tetrahedron_bfield_jit(obs, tetra, pol)
     _ = kext.tetrahedron_bfield(obs, tetra, pol, in_out="inside")
     _ = kext.tetrahedron_jfield(obs, tetra, pol, in_out="outside")
@@ -487,17 +485,33 @@ def test_kernels_extended_smoke() -> None:
 
 def test_triangle_sheet_strip_validation() -> None:
     with pytest.raises(ValueError):
-        mpj.current.TriangleSheet(vertices=[(0, 0)], faces=[(0, 1, 2)], current_densities=[(0, 0, 1)])
+        mpj.current.TriangleSheet(
+            vertices=[(0, 0)], faces=[(0, 1, 2)], current_densities=[(0, 0, 1)]
+        )
     with pytest.raises(ValueError):
-        mpj.current.TriangleSheet(vertices=[(0, 0, 0)], faces=[(0, 1)], current_densities=[(0, 0, 1)])
+        mpj.current.TriangleSheet(
+            vertices=[(0, 0, 0)], faces=[(0, 1)], current_densities=[(0, 0, 1)]
+        )
     with pytest.raises(ValueError):
-        mpj.current.TriangleSheet(vertices=[(0, 0, 0)], faces=[(0, 1, 2)], current_densities=[(0, 0)])
+        mpj.current.TriangleSheet(
+            vertices=[(0, 0, 0)], faces=[(0, 1, 2)], current_densities=[(0, 0)]
+        )
     with pytest.raises(ValueError):
-        mpj.current.TriangleSheet(vertices=[(0, 0, 0)], faces=[(0, 1, 2)], current_densities=[(0, 0, 1)])
+        mpj.current.TriangleSheet(
+            vertices=[(0, 0, 0)], faces=[(0, 1, 2)], current_densities=[(0, 0, 1)]
+        )
     with pytest.raises(ValueError):
-        mpj.current.TriangleSheet(vertices=[(0, 0, 0), (1, 0, 0)], faces=[(0, 1, 2)], current_densities=[(0, 0, 1)])
+        mpj.current.TriangleSheet(
+            vertices=[(0, 0, 0), (1, 0, 0)], faces=[(0, 1, 2)], current_densities=[(0, 0, 1)]
+        )
     with pytest.raises(ValueError):
-        mpj.current.TriangleSheet(vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], faces=[(0, 1, 2)], current_densities=[(0, 0, 1), (0, 1, 0)])
+        mpj.current.TriangleSheet(
+            vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)],
+            faces=[(0, 1, 2)],
+            current_densities=[(0, 0, 1), (0, 1, 0)],
+        )
     with pytest.raises(ValueError):
         mpj.current.TriangleStrip(vertices=[(0, 0, 0), (1, 0, 0)], current=1.0)
-    assert mpj.current.TriangleStrip(vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], current=1.0).centroid.shape == (3,)
+    assert mpj.current.TriangleStrip(
+        vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], current=1.0
+    ).centroid.shape == (3,)

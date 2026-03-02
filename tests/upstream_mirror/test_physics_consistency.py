@@ -1,8 +1,7 @@
 import numpy as np
-
-import magpylib as magpy
-import magpylib_jax as mpj
 from magpylib.func import polyline_field
+
+import magpylib_jax as mpj
 from magpylib_jax.constants import MU0
 
 
@@ -188,9 +187,7 @@ def test_Polyline_vs_Circle():
 
     bls = []
     for p in po:
-        bl = polyline_field(
-            "B", observers=p, currents=1, segments_start=ps, segments_end=pe
-        )
+        bl = polyline_field("B", observers=p, currents=1, segments_start=ps, segments_end=pe)
         bls += [np.sum(bl, axis=0)]
     bls = np.array(bls)
 
@@ -216,11 +213,7 @@ def test_Polyline_vs_Infinite():
     pe = (0, 0, 1000000)
     bls, binfs = [], []
     for p in pos_obs:
-        bls += [
-            polyline_field(
-                "B", observers=p, currents=1, segments_start=ps, segments_end=pe
-            )
-        ]
+        bls += [polyline_field("B", observers=p, currents=1, segments_start=ps, segments_end=pe)]
         binfs += [binf(1, p)]
     bls = np.array(bls)
     binfs = np.array(binfs)
@@ -229,7 +222,7 @@ def test_Polyline_vs_Infinite():
 
 
 def test_TriangleStrip_VS_Cuboid_VS_TriangleSheet():
-    """Test if TriangleStrip current gives same field as Cuboid magnet using the current replacement picture."""
+    """Test TriangleStrip current field against Cuboid/TriangleSheet replacement picture."""
     obs = [(0, 0, 0), (0.1, 0.2, 0.3), (-1, -2, 0.1), (0.5, 0.1, 0.2)]
 
     p1 = (-1, -1, -1)
@@ -267,10 +260,7 @@ def test_TriangleStrip_VS_Cuboid_VS_TriangleSheet():
             (6, 7, 0),
             (7, 0, 1),
         ],
-        current_densities=[(1, 0, 0)] * 2
-        + [(0, 1, 0)] * 2
-        + [(-1, 0, 0)] * 2
-        + [(0, -1, 0)] * 2,
+        current_densities=[(1, 0, 0)] * 2 + [(0, 1, 0)] * 2 + [(-1, 0, 0)] * 2 + [(0, -1, 0)] * 2,
     )
     sheet.position = np.linspace((-0.1, -0.1, -0.1), (0.1, 0.2, 0.3), 10)
     h3 = sheet.getH(obs)
@@ -314,10 +304,7 @@ def test_line_sheet_strip():
         (0.1, 0.2, 0.1),
         (0.1, 0.2, 0.2),
     ]
-    rotvecs = (
-        np.array([(1, 2, 3), (5, -1, -2), (6, 2, 0), (1, 2, 0), (1, 2, 1), (1, 2, 2)])
-        * 1e-2
-    )
+    rotvecs = np.array([(1, 2, 3), (5, -1, -2), (6, 2, 0), (1, 2, 0), (1, 2, 1), (1, 2, 2)]) * 1e-2
 
     pl = mpj.current.Polyline(
         current=1,

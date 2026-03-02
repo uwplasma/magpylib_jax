@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import numpy as np
-
 import jax.numpy as jnp
+import numpy as np
 
 from magpylib_jax._types import ArrayLike
 from magpylib_jax.core.base import (

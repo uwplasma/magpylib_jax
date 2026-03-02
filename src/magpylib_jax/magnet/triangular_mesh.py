@@ -61,9 +61,7 @@ class TriangularMesh(BaseSource):
 
             mode = self._validate_mode_arg(self.check_open, arg_name="check_open")
             if mode != "skip":
-                open_edges = self._get_open_edges(
-                    np.asarray(self.vertices), np.asarray(self.faces)
-                )
+                open_edges = self._get_open_edges(np.asarray(self.vertices), np.asarray(self.faces))
                 self.status_open = len(open_edges) > 0
                 self.status_open_data = [tuple(e) for e in open_edges.tolist()]
                 self.status_disconnected = False
@@ -109,9 +107,7 @@ class TriangularMesh(BaseSource):
 
     @staticmethod
     def _get_open_edges(vertices: np.ndarray, faces: np.ndarray) -> np.ndarray:
-        edges = np.concatenate(
-            [faces[:, [0, 1]], faces[:, [1, 2]], faces[:, [2, 0]]], axis=0
-        )
+        edges = np.concatenate([faces[:, [0, 1]], faces[:, [1, 2]], faces[:, [2, 0]]], axis=0)
         edges = np.sort(edges, axis=1)
         uniq, counts = np.unique(edges, axis=0, return_counts=True)
         return uniq[counts == 1]

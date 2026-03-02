@@ -7,9 +7,7 @@ def test_sensor1():
     """self-consistent test of the sensor class"""
     pm = mpj.magnet.Cuboid(polarization=(11, 22, 33), dimension=(1, 2, 3))
     angs = np.linspace(0, 555, 44)
-    possis = [
-        (3 * np.cos(t / 180 * np.pi), 3 * np.sin(t / 180 * np.pi), 1) for t in angs
-    ]
+    possis = [(3 * np.cos(t / 180 * np.pi), 3 * np.sin(t / 180 * np.pi), 1) for t in angs]
     sens = mpj.Sensor()
     sens.move((3, 0, 1))
     sens.rotate_from_angax(angs, "z", start=0, anchor=0)

@@ -171,10 +171,7 @@ def _current_segment_hfield(
 
     h = (delta / norm_o4)[:, None] * eB / norm12[:, None] * cur[:, None] / _FOUR_PI
     valid = (
-        valid_seg
-        & off_line
-        & jnp.all(jnp.isfinite(p1), axis=1)
-        & jnp.all(jnp.isfinite(p2), axis=1)
+        valid_seg & off_line & jnp.all(jnp.isfinite(p1), axis=1) & jnp.all(jnp.isfinite(p2), axis=1)
     )
     return jnp.where(valid[:, None], h, 0.0)
 
@@ -261,8 +258,12 @@ def current_polyline_bfield_jit(
         n_segments = 1
     else:
         n_segments = int(seg_start.shape[0])
-    jit_fn = _jit_kernel_segments("polyline_bfield", _current_polyline_bfield_segments_impl, obs.shape[0], n_segments)
-    return jit_fn(obs, seg_start, seg_end, jnp.asarray(currents, dtype=jnp.float64), n_segments=n_segments)
+    jit_fn = _jit_kernel_segments(
+        "polyline_bfield", _current_polyline_bfield_segments_impl, obs.shape[0], n_segments
+    )
+    return jit_fn(
+        obs, seg_start, seg_end, jnp.asarray(currents, dtype=jnp.float64), n_segments=n_segments
+    )
 
 
 def current_circle_bfield_jit(
@@ -505,9 +506,7 @@ def _points_inside_tetra(points: jnp.ndarray, vertices: jnp.ndarray) -> jnp.ndar
     delta = (points - vertices[:, 0])[:, :, None]
     newp = jnp.matmul(inv, delta).squeeze(-1)
     return (
-        jnp.all(newp >= 0.0, axis=1)
-        & jnp.all(newp <= 1.0, axis=1)
-        & (jnp.sum(newp, axis=1) <= 1.0)
+        jnp.all(newp >= 0.0, axis=1) & jnp.all(newp <= 1.0, axis=1) & (jnp.sum(newp, axis=1) <= 1.0)
     )
 
 
@@ -517,9 +516,7 @@ def _points_inside_tetra_single(points: jnp.ndarray, vertices: jnp.ndarray) -> j
     delta = points - vertices[0]
     newp = jnp.matmul(delta, inv.T)
     return (
-        jnp.all(newp >= 0.0, axis=1)
-        & jnp.all(newp <= 1.0, axis=1)
-        & (jnp.sum(newp, axis=1) <= 1.0)
+        jnp.all(newp >= 0.0, axis=1) & jnp.all(newp <= 1.0, axis=1) & (jnp.sum(newp, axis=1) <= 1.0)
     )
 
 
@@ -870,9 +867,9 @@ def _mask_inside_trimesh_jax(points: jnp.ndarray, faces: jnp.ndarray) -> jnp.nda
     mz = (points[:, 2] < zmax + eps) & (points[:, 2] > zmin - eps)
     mask_box = mx & my & mz
 
-    start_point_outside = jnp.array(
-        [xmin, ymin, zmin], dtype=jnp.float64
-    ) - jnp.array([12.0012345, 5.9923456, 6.9932109], dtype=jnp.float64)
+    start_point_outside = jnp.array([xmin, ymin, zmin], dtype=jnp.float64) - jnp.array(
+        [12.0012345, 5.9923456, 6.9932109], dtype=jnp.float64
+    )
     start_pts = jnp.broadcast_to(start_point_outside, points.shape)
     lines = jnp.stack((start_pts, points), axis=1)
     mask_inside2 = _lines_end_in_trimesh_jax(lines, faces)
@@ -901,9 +898,9 @@ def _mask_inside_trimesh_jax_masked(
         mz = (points[:, 2] < zmax + eps) & (points[:, 2] > zmin - eps)
         mask_box = mx & my & mz
 
-        start_point_outside = jnp.array(
-            [xmin, ymin, zmin], dtype=jnp.float64
-        ) - jnp.array([12.0012345, 5.9923456, 6.9932109], dtype=jnp.float64)
+        start_point_outside = jnp.array([xmin, ymin, zmin], dtype=jnp.float64) - jnp.array(
+            [12.0012345, 5.9923456, 6.9932109], dtype=jnp.float64
+        )
         start_pts = jnp.broadcast_to(start_point_outside, points.shape)
         lines = jnp.stack((start_pts, points), axis=1)
         mask_inside2 = _lines_end_in_trimesh_jax_masked(lines, faces, mask)
@@ -964,9 +961,7 @@ def magnet_trimesh_bfield(
         return _magnet_trimesh_bfield_const_impl(obs, mesh_arr, pol, in_out_flag=flag)
 
     mesh_by_face = jnp.swapaxes(mesh_arr, 0, 1)  # (n_faces, n_obs, 3, 3)
-    b_faces = jax.vmap(lambda face_vertices: triangle_bfield(obs, face_vertices, pol))(
-        mesh_by_face
-    )
+    b_faces = jax.vmap(lambda face_vertices: triangle_bfield(obs, face_vertices, pol))(mesh_by_face)
     b = jnp.sum(b_faces, axis=0)
 
     if in_out == "outside":
@@ -1141,9 +1136,7 @@ def magnet_trimesh_bfield_jit(
     mesh_arr = jnp.asarray(mesh, dtype=jnp.float64)
     pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), obs.shape[0])
     if mesh_arr.ndim == 3:
-        return magnet_trimesh_bfield_jit_faces(
-            obs, mesh_arr, pol, in_out=in_out
-        )
+        return magnet_trimesh_bfield_jit_faces(obs, mesh_arr, pol, in_out=in_out)
     flag = _in_out_flag(in_out)
     jit_fn = _jit_kernel(
         "triangularmesh_bfield",
@@ -1388,9 +1381,7 @@ def _ensure_dim5(dimensions: ArrayLike, n: int) -> jnp.ndarray:
             same = jnp.all(jnp.abs(dim - first[None, :]) < 1e-14)
             if bool(same):
                 return first
-            raise ValueError(
-                "Per-observer varying CylinderSegment dimensions are not supported."
-            )
+            raise ValueError("Per-observer varying CylinderSegment dimensions are not supported.")
     raise ValueError(f"CylinderSegment dimension must have shape (5,) or (n,5), got {dim.shape}.")
 
 
@@ -1482,9 +1473,7 @@ def magnet_cylinder_segment_mfield(
     polarizations: ArrayLike,
     in_out: str = "auto",
 ) -> jnp.ndarray:
-    return magnet_cylinder_segment_jfield(
-        observers, dimensions, polarizations, in_out=in_out
-    ) / MU0
+    return magnet_cylinder_segment_jfield(observers, dimensions, polarizations, in_out=in_out) / MU0
 
 
 _TRI_Q_W = jnp.asarray(
@@ -1538,17 +1527,13 @@ def _triangle_barycentric_mask(
 def _rot_x(theta: jnp.ndarray) -> jnp.ndarray:
     c = jnp.cos(theta)
     s = jnp.sin(theta)
-    return jnp.asarray(
-        [[1.0, 0.0, 0.0], [0.0, c, -s], [0.0, s, c]], dtype=jnp.float64
-    )
+    return jnp.asarray([[1.0, 0.0, 0.0], [0.0, c, -s], [0.0, s, c]], dtype=jnp.float64)
 
 
 def _rot_z(alpha: jnp.ndarray) -> jnp.ndarray:
     c = jnp.cos(alpha)
     s = jnp.sin(alpha)
-    return jnp.asarray(
-        [[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]], dtype=jnp.float64
-    )
+    return jnp.asarray([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]], dtype=jnp.float64)
 
 
 def _triangle_coordinate_transform(
@@ -1634,9 +1619,7 @@ def _elementar_current_sheet_hfield(
     hx_general = (
         jnp.arctan((-u2 * (y**2 + z**2) + v2 * x * y) / (v2 * z * sqrt1))
         + jnp.arctan((v2 * y * (u1 - x) - (u1 - u2) * (y**2 + z**2)) / (v2 * z * sqrt2))
-        - jnp.arctan(
-            (-u2 * (y**2 + z**2) - v2**2 * x + v2 * y * (u2 + x)) / (v2 * z * sqrt3)
-        )
+        - jnp.arctan((-u2 * (y**2 + z**2) - v2**2 * x + v2 * y * (u2 + x)) / (v2 * z * sqrt3))
         - jnp.arctan(
             (
                 -u1 * (v2**2 - 2 * v2 * y + y**2 + z**2)
@@ -1655,9 +1638,7 @@ def _elementar_current_sheet_hfield(
         * _safe_atanh((u1**2 - u1 * (u2 + x) + u2 * x + v2 * y) / (sqrt4 * sqrt2))
         / sqrt4
         + (ju * (u1 - u2) - jv * v2)
-        * _safe_atanh(
-            (u1 * (u2 - x) - u2**2 + u2 * x + v2 * (-v2 + y)) / (sqrt4 * sqrt3)
-        )
+        * _safe_atanh((u1 * (u2 - x) - u2**2 + u2 * x + v2 * (-v2 + y)) / (sqrt4 * sqrt3))
         / sqrt4
         + (ju * u2 + jv * v2) * _safe_atanh((-u2 * x - v2 * y) / (sqrt5 * sqrt1)) / sqrt5
         - (ju * u2 + jv * v2)
@@ -1678,13 +1659,9 @@ def _elementar_current_sheet_hfield(
         * _safe_atanh((u1**2 - u1 * (u2 + x) + u2 * x + v2 * y) / (sqrt_u12 * sqrt_u1))
         / sqrt_u12
         + (ju * (u1 - u2) - jv * v2)
-        * _safe_atanh(
-            (u1 * (u2 - x) - u2**2 + u2 * x + v2 * (-v2 + y)) / (sqrt_u12 * sqrt_u2)
-        )
+        * _safe_atanh((u1 * (u2 - x) - u2**2 + u2 * x + v2 * (-v2 + y)) / (sqrt_u12 * sqrt_u2))
         / sqrt_u12
-        + (ju * u2 + jv * v2)
-        * _safe_atanh((-u2 * x - v2 * y) / (sqrt_u2v2 * sqrt_xy))
-        / sqrt_u2v2
+        + (ju * u2 + jv * v2) * _safe_atanh((-u2 * x - v2 * y) / (sqrt_u2v2 * sqrt_xy)) / sqrt_u2v2
         - (ju * u2 + jv * v2)
         * _safe_atanh((u2**2 - u2 * x + v2 * (v2 - y)) / (sqrt_u2v2 * sqrt_u2))
         / sqrt_u2v2
@@ -1704,8 +1681,7 @@ def _elementar_current_sheet_hfield(
         / sqrt_u12
         + (ju * u2 + jv * v2)
         * _safe_atanh(
-            (u2**2 - u2 * x + v2**2)
-            / (sqrt_u2v2 * _safe_sqrt(u2**2 - 2 * u2 * x + v2**2 + x**2))
+            (u2**2 - u2 * x + v2**2) / (sqrt_u2v2 * _safe_sqrt(u2**2 - 2 * u2 * x + v2**2 + x**2))
         )
         / sqrt_u2v2
         - (ju * u2 + jv * v2)
@@ -1717,16 +1693,10 @@ def _elementar_current_sheet_hfield(
         -ju
         * _safe_atanh(
             (u1 * v2 - u2 * y)
-            / (
-                v2
-                * _safe_sqrt(u1**2 - 2 * u1 * u2 * y / v2 + y**2 * (u2**2 / v2**2 + 1))
-            )
+            / (v2 * _safe_sqrt(u1**2 - 2 * u1 * u2 * y / v2 + y**2 * (u2**2 / v2**2 + 1)))
         )
         + ju
-        * _safe_atanh(
-            u2 * (v2 - y)
-            / (v2 * _safe_sqrt((u2**2 + v2**2) * (v2 - y) ** 2 / v2**2))
-        )
+        * _safe_atanh(u2 * (v2 - y) / (v2 * _safe_sqrt((u2**2 + v2**2) * (v2 - y) ** 2 / v2**2)))
         + (ju * (u1 - u2) - jv * v2)
         * _safe_atanh(
             (u1**2 * v2 - u1 * u2 * (v2 + y) + y * (u2**2 + v2**2))
@@ -1739,12 +1709,9 @@ def _elementar_current_sheet_hfield(
         / sqrt_u12
         + (ju * (u1 - u2) - jv * v2)
         * _safe_atanh(
-            (v2 - y) * (-u1 * u2 + u2**2 + v2**2)
-            / (
-                v2
-                * _safe_sqrt((u2**2 + v2**2) * (v2 - y) ** 2 / v2**2)
-                * sqrt_u12
-            )
+            (v2 - y)
+            * (-u1 * u2 + u2**2 + v2**2)
+            / (v2 * _safe_sqrt((u2**2 + v2**2) * (v2 - y) ** 2 / v2**2) * sqrt_u12)
         )
         / sqrt_u12
         + y
@@ -1775,10 +1742,7 @@ def _elementar_current_sheet_hfield(
         * _safe_atanh(
             (u1 - u2)
             * (v2 - y)
-            / (
-                v2
-                * _safe_sqrt((v2 - y) ** 2 * (u1**2 - 2 * u1 * u2 + u2**2 + v2**2) / v2**2)
-            )
+            / (v2 * _safe_sqrt((v2 - y) ** 2 * (u1**2 - 2 * u1 * u2 + u2**2 + v2**2) / v2**2))
         )
         - v2
         * (ju * u2 + jv * v2)
@@ -1864,9 +1828,7 @@ def current_triangle_sheet_hfield(
         raise ValueError(f"Triangle sheet vertices must have shape (3,3), got {tri.shape}.")
     cd = jnp.asarray(current_densities, dtype=jnp.float64)
     if cd.shape != (3,):
-        raise ValueError(
-            f"Triangle sheet current density must have shape (3,), got {cd.shape}."
-        )
+        raise ValueError(f"Triangle sheet current density must have shape (3,), got {cd.shape}.")
 
     return _current_triangle_sheet_hfield_obs(obs, tri, cd)
 
@@ -1891,9 +1853,7 @@ def current_trisheet_hfield(
     if cds.shape[0] != tris.shape[0]:
         raise ValueError("TriangleSheet current_densities and faces length mismatch.")
 
-    h_faces = jax.vmap(lambda tri, cd: _current_triangle_sheet_hfield_obs(obs, tri, cd))(
-        tris, cds
-    )
+    h_faces = jax.vmap(lambda tri, cd: _current_triangle_sheet_hfield_obs(obs, tri, cd))(tris, cds)
     return jnp.sum(h_faces, axis=0)
 
 
@@ -1917,9 +1877,7 @@ def current_trisheet_bfield_masked(
     tris = jnp.asarray(triangles, dtype=jnp.float64)
     cds = jnp.asarray(current_densities, dtype=jnp.float64)
     mask = jnp.asarray(face_mask, dtype=jnp.float64).reshape((-1,))
-    h_faces = jax.vmap(lambda tri, cd: _current_triangle_sheet_hfield_obs(obs, tri, cd))(
-        tris, cds
-    )
+    h_faces = jax.vmap(lambda tri, cd: _current_triangle_sheet_hfield_obs(obs, tri, cd))(tris, cds)
     h_faces = h_faces * mask[:, None, None]
     return MU0 * jnp.sum(h_faces, axis=0)
 
@@ -1971,9 +1929,7 @@ def current_tristrip_hfield(
     cur = jnp.asarray(current, dtype=jnp.float64).reshape(())
     tris = _strip_triangles(verts)
     cds = _strip_current_densities(verts, cur)
-    h_faces = jax.vmap(lambda tri, cd: _current_triangle_sheet_hfield_obs(obs, tri, cd))(
-        tris, cds
-    )
+    h_faces = jax.vmap(lambda tri, cd: _current_triangle_sheet_hfield_obs(obs, tri, cd))(tris, cds)
     return jnp.sum(h_faces, axis=0)
 
 

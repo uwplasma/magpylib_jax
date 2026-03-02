@@ -31,8 +31,7 @@ def validate_pos_orient(obj, ppath, opath_as_rotvec):
         rtol=1e-05,
         atol=1e-08,
         err_msg=(
-            f"orientation validation failed with ({so.as_rotvec()})"
-            f"\n expected {opath_as_rotvec}"
+            f"orientation validation failed with ({so.as_rotvec()})\n expected {opath_as_rotvec}"
         ),
     )
 

@@ -8,15 +8,11 @@ def test_path_old_new_move():
     n = 100
     s_pos = (0, 0, 0)
 
-    pm1 = mpj.magnet.Cylinder(
-        polarization=(0, 0, 1), dimension=(3, 3), position=(-5, 0, 3)
-    )
+    pm1 = mpj.magnet.Cylinder(polarization=(0, 0, 1), dimension=(3, 3), position=(-5, 0, 3))
     pm1.move([(x, 0, 0) for x in np.linspace(0, 10, 100)], start=-1)
     b1 = pm1.getB(s_pos)
 
-    pm2 = mpj.magnet.Cylinder(
-        polarization=(0, 0, 1), dimension=(3, 3), position=(0, 0, 3)
-    )
+    pm2 = mpj.magnet.Cylinder(polarization=(0, 0, 1), dimension=(3, 3), position=(0, 0, 3))
     ts = np.linspace(-5, 5, n)
     possis = np.array([(t, 0, 0) for t in ts])
     b2 = pm2.getB(possis[::-1])
@@ -31,16 +27,12 @@ def test_path_old_new_rotate():
     ax = (1, 0, 0)
     anch = (0, 0, 10)
 
-    pm1 = mpj.magnet.Cuboid(
-        polarization=(0, 0, 1), dimension=(1, 2, 3), position=(0, 0, 3)
-    )
+    pm1 = mpj.magnet.Cuboid(polarization=(0, 0, 1), dimension=(1, 2, 3), position=(0, 0, 3))
     pm1.rotate_from_angax(-30, ax, anch)
     pm1.rotate_from_angax(np.linspace(0, 60, n), "x", anch, start=-1)
     b1 = pm1.getB(s_pos)
 
-    pm2 = mpj.magnet.Cuboid(
-        polarization=(0, 0, 1), dimension=(1, 2, 3), position=(0, 0, 3)
-    )
+    pm2 = mpj.magnet.Cuboid(polarization=(0, 0, 1), dimension=(1, 2, 3), position=(0, 0, 3))
     pm2.rotate_from_angax(-30, ax, anch)
     b2 = []
     for _ in range(n):

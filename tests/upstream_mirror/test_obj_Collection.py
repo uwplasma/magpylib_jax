@@ -46,9 +46,7 @@ def test_Collection_basics():
             for pm in [pm1b, pm2b, pm3b, pm4b, pm5b, pm6b]:
                 pm.move(mv).rotate_from_angax(a, aa, aaa).rotate(rot, aaa)
 
-            col1.move(mv).rotate_from_angax(a, aa, aaa, start=-1).rotate(
-                rot, aaa, start=-1
-            )
+            col1.move(mv).rotate_from_angax(a, aa, aaa, start=-1).rotate(rot, aaa, start=-1)
 
         B1 += [mpj.getB([pm1b, pm2b, pm3b, pm4b, pm5b, pm6b], poso, sumup=True)]
         B2 += [col1.getB(poso)]
@@ -83,12 +81,8 @@ def test_Collection_basics():
 )
 def test_col_getB(test_input, expected):
     """testing some Collection stuff with getB"""
-    src1 = mpj.magnet.Cuboid(
-        polarization=(1, 0, 1), dimension=(1, 1, 1), position=(0, 0, 0)
-    )
-    src2 = mpj.magnet.Cylinder(
-        polarization=(0, 1, 0), dimension=(1, 1), position=(-1, 0, 0)
-    )
+    src1 = mpj.magnet.Cuboid(polarization=(1, 0, 1), dimension=(1, 1, 1), position=(0, 0, 0))
+    src2 = mpj.magnet.Cylinder(polarization=(0, 1, 0), dimension=(1, 1), position=(-1, 0, 0))
     sens1 = mpj.Sensor(position=(0, 0, 1))
     sens2 = mpj.Sensor(position=(0, 0, 1))
     sens3 = mpj.Sensor(position=(0, 0, 1))
@@ -154,13 +148,9 @@ def test_col_getB(test_input, expected):
 )
 def test_bad_col_getB_inputs(test_input):
     """more undocumented Collection checking"""
-    src1 = mpj.magnet.Cuboid(
-        polarization=(1, 0, 1), dimension=(8, 4, 6), position=(0, 0, 0)
-    )
+    src1 = mpj.magnet.Cuboid(polarization=(1, 0, 1), dimension=(8, 4, 6), position=(0, 0, 0))
 
-    src2 = mpj.magnet.Cylinder(
-        polarization=(0, 1, 0), dimension=(8, 5), position=(-15, 0, 0)
-    )
+    src2 = mpj.magnet.Cylinder(polarization=(0, 1, 0), dimension=(8, 5), position=(-15, 0, 0))
 
     sens1 = mpj.Sensor(position=(0, 0, 6))
     sens2 = mpj.Sensor(position=(0, 0, 6))
@@ -441,15 +431,9 @@ def test_col_getBH_input_format():
 def test_Collection_volume():
     """Test Collection volume calculation (sum of individual magnet volumes)."""
 
-    sphere = mpj.magnet.Sphere(
-        diameter=2.0, polarization=(0, 0, 1)
-    )
-    cuboid = mpj.magnet.Cuboid(
-        dimension=(1.0, 2.0, 3.0), polarization=(0, 0, 1)
-    )
-    cylinder = mpj.magnet.Cylinder(
-        dimension=(2.0, 1.0), polarization=(0, 0, 1)
-    )
+    sphere = mpj.magnet.Sphere(diameter=2.0, polarization=(0, 0, 1))
+    cuboid = mpj.magnet.Cuboid(dimension=(1.0, 2.0, 3.0), polarization=(0, 0, 1))
+    cylinder = mpj.magnet.Cylinder(dimension=(2.0, 1.0), polarization=(0, 0, 1))
 
     collection = mpj.Collection(sphere, cuboid, cylinder)
 
@@ -470,9 +454,7 @@ def test_Collection_with_zero_volume_objects():
     """Test Collection volume with objects that have zero volume."""
 
     dipole = mpj.misc.Dipole(moment=(1, 0, 0))
-    triangle = mpj.misc.Triangle(
-        vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], polarization=(0, 0, 1)
-    )
+    triangle = mpj.misc.Triangle(vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], polarization=(0, 0, 1))
     circle = mpj.current.Circle(current=1.0, diameter=2.0)
     sensor = mpj.Sensor()
 
@@ -486,17 +468,11 @@ def test_Collection_with_zero_volume_objects():
 def test_Collection_mixed_volume():
     """Test Collection volume with mix of volumetric and non-volumetric objects."""
 
-    sphere = mpj.magnet.Sphere(
-        diameter=2.0, polarization=(0, 0, 1)
-    )
-    cuboid = mpj.magnet.Cuboid(
-        dimension=(1.0, 2.0, 3.0), polarization=(0, 0, 1)
-    )
+    sphere = mpj.magnet.Sphere(diameter=2.0, polarization=(0, 0, 1))
+    cuboid = mpj.magnet.Cuboid(dimension=(1.0, 2.0, 3.0), polarization=(0, 0, 1))
 
     dipole = mpj.misc.Dipole(moment=(1, 0, 0))
-    triangle = mpj.misc.Triangle(
-        vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], polarization=(0, 0, 1)
-    )
+    triangle = mpj.misc.Triangle(vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], polarization=(0, 0, 1))
     sensor = mpj.Sensor()
 
     collection = mpj.Collection(sphere, cuboid, dipole, triangle, sensor)
@@ -519,12 +495,8 @@ def test_Collection_centroid_empty():
 def test_Collection_centroid_with_objects():
     """Test Collection centroid with objects - volume-weighted centroid"""
     expected = (0, 0, 1)
-    obj1 = mpj.magnet.Cuboid(
-        dimension=(1, 1, 1), polarization=(0, 0, 1), position=(0, 0, 0)
-    )
-    obj2 = mpj.magnet.Cuboid(
-        dimension=(1, 1, 1), polarization=(0, 0, 1), position=(0, 0, 2)
-    )
+    obj1 = mpj.magnet.Cuboid(dimension=(1, 1, 1), polarization=(0, 0, 1), position=(0, 0, 0))
+    obj2 = mpj.magnet.Cuboid(dimension=(1, 1, 1), polarization=(0, 0, 1), position=(0, 0, 2))
 
     col = mpj.Collection(obj1, obj2, position=(1, 1, 1))
     assert np.allclose(col.centroid, expected)
@@ -543,7 +515,5 @@ def test_Collection_centroid_zero_volume():
 def test_Collection_centroid_path_object():
     """Test object with path - centroid should match position path"""
     expected = [(0, 0, 0), (1, 1, 1), (2, 2, 2)]
-    path_obj = mpj.magnet.Cuboid(
-        dimension=(1, 1, 1), polarization=(0, 0, 1), position=expected
-    )
+    path_obj = mpj.magnet.Cuboid(dimension=(1, 1, 1), polarization=(0, 0, 1), position=expected)
     assert np.allclose(path_obj.centroid, expected)

@@ -8,19 +8,19 @@ from itertools import product
 from math import prod
 from typing import Any
 
-import numpy as np
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from magpylib_jax._types import ArrayLike
+from magpylib_jax.constants import MU0
+from magpylib_jax.core.base import BaseSource, MagpylibBadUserInput, MagpylibMissingInput
 from magpylib_jax.core.geometry import (
     broadcast_pose,
     ensure_observers,
     to_global_field,
     to_local_coordinates,
 )
-from magpylib_jax.core.base import BaseSource, MagpylibBadUserInput, MagpylibMissingInput
-from magpylib_jax.constants import MU0
 from magpylib_jax.core.kernels import (
     current_circle_bfield,
     current_circle_hfield,
@@ -36,6 +36,10 @@ from magpylib_jax.core.kernels import (
     magnet_cylinder_mfield,
 )
 from magpylib_jax.core.kernels_extended import (
+    _in_out_flag,
+    _inside_mask_mesh_masked,
+    _strip_current_densities,
+    _strip_triangles,
     current_polyline_bfield,
     current_polyline_bfield_masked,
     current_polyline_hfield,
@@ -44,7 +48,6 @@ from magpylib_jax.core.kernels_extended import (
     current_trisheet_hfield,
     current_tristrip_bfield,
     current_tristrip_hfield,
-    magnet_trimesh_bfield_precomp_masked,
     magnet_cylinder_segment_bfield,
     magnet_cylinder_segment_hfield,
     magnet_cylinder_segment_jfield,
@@ -54,9 +57,11 @@ from magpylib_jax.core.kernels_extended import (
     magnet_sphere_jfield,
     magnet_sphere_mfield,
     magnet_trimesh_bfield,
+    magnet_trimesh_bfield_precomp_masked,
     magnet_trimesh_hfield,
     magnet_trimesh_jfield,
     magnet_trimesh_mfield,
+    precompute_trimesh_geometry,
     tetrahedron_bfield,
     tetrahedron_hfield,
     tetrahedron_jfield,
@@ -65,11 +70,6 @@ from magpylib_jax.core.kernels_extended import (
     triangle_hfield,
     triangle_jfield,
     triangle_mfield,
-    _in_out_flag,
-    _inside_mask_mesh_masked,
-    _strip_current_densities,
-    _strip_triangles,
-    precompute_trimesh_geometry,
 )
 
 _ALIASES = {
@@ -262,7 +262,9 @@ def _format_observers(observers: object, pixel_agg: str | None):
                 raise MagpylibBadUserInput("Bad observers provided.") from err
 
     pix_shapes = [
-        (1, 3) if (s.pixel is None or np.asarray(s.pixel).shape == (3,)) else np.asarray(s.pixel).shape
+        (1, 3)
+        if (s.pixel is None or np.asarray(s.pixel).shape == (3,))
+        else np.asarray(s.pixel).shape
         for s in sensors
     ]
     if pixel_agg is None and len(set(pix_shapes)) != 1:
@@ -460,7 +462,11 @@ def _prepare_sources_jit(
             data["triangle_vertices"] = jnp.asarray(skw["vertices"], dtype=jnp.float64)
             data["polarization"] = jnp.asarray(skw["polarization"], dtype=jnp.float64)
         elif stype == "polyline":
-            if skw.get("segment_start") is None or skw.get("segment_end") is None or skw.get("current") is None:
+            if (
+                skw.get("segment_start") is None
+                or skw.get("segment_end") is None
+                or skw.get("current") is None
+            ):
                 raise MagpylibMissingInput("Input vertices of Polyline must be set.")
             seg_start = jnp.asarray(skw["segment_start"], dtype=jnp.float64)
             seg_end = jnp.asarray(skw["segment_end"], dtype=jnp.float64)
@@ -472,7 +478,11 @@ def _prepare_sources_jit(
             data["current"] = jnp.asarray(skw["current"], dtype=jnp.float64)
             max_segments = max(max_segments, int(seg_start.shape[0]))
         elif stype == "trianglesheet":
-            if skw.get("vertices") is None or skw.get("faces") is None or skw.get("current_densities") is None:
+            if (
+                skw.get("vertices") is None
+                or skw.get("faces") is None
+                or skw.get("current_densities") is None
+            ):
                 raise MagpylibMissingInput("Input vertices of TriangleSheet must be set.")
             verts = jnp.asarray(skw["vertices"], dtype=jnp.float64)
             faces = jnp.asarray(skw["faces"], dtype=jnp.int32)
@@ -517,7 +527,8 @@ def _prepare_sources_jit(
         src_data.append(data)
 
     type_ids = jnp.asarray(
-        [_SOURCE_TYPE_IDS[data["type"]] for data in src_data], dtype=jnp.int32  # type: ignore[index]
+        [_SOURCE_TYPE_IDS[data["type"]] for data in src_data],
+        dtype=jnp.int32,  # type: ignore[index]
     )
     group_index = np.empty((len(src_data),), dtype=np.int32)
     for gid, group in enumerate(group_specs):
@@ -573,8 +584,10 @@ def _prepare_sources_jit(
             seg_end = data["segment_end"]
             seg_count = int(seg_start.shape[0])
             seg_mask = jnp.concatenate(
-                (jnp.ones((seg_count,), dtype=jnp.float64),
-                 jnp.zeros((max_segments - seg_count,), dtype=jnp.float64)),
+                (
+                    jnp.ones((seg_count,), dtype=jnp.float64),
+                    jnp.zeros((max_segments - seg_count,), dtype=jnp.float64),
+                ),
                 axis=0,
             )
             poly_seg_start.append(_pad_axis0(seg_start, max_segments))
@@ -590,8 +603,10 @@ def _prepare_sources_jit(
             cds = data["sheet_cd"]
             face_count = int(tris.shape[0])
             mask = jnp.concatenate(
-                (jnp.ones((face_count,), dtype=jnp.float64),
-                 jnp.zeros((max_sheet_faces - face_count,), dtype=jnp.float64)),
+                (
+                    jnp.ones((face_count,), dtype=jnp.float64),
+                    jnp.zeros((max_sheet_faces - face_count,), dtype=jnp.float64),
+                ),
                 axis=0,
             )
             sheet_tris.append(_pad_axis0(tris, max_sheet_faces))
@@ -610,8 +625,10 @@ def _prepare_sources_jit(
             l2 = data["mesh_l2"]
             face_count = int(mesh_arr.shape[0])
             mask = jnp.concatenate(
-                (jnp.ones((face_count,), dtype=jnp.float64),
-                 jnp.zeros((max_mesh_faces - face_count,), dtype=jnp.float64)),
+                (
+                    jnp.ones((face_count,), dtype=jnp.float64),
+                    jnp.zeros((max_mesh_faces - face_count,), dtype=jnp.float64),
+                ),
                 axis=0,
             )
             mesh_faces.append(_pad_axis0(mesh_arr, max_mesh_faces))
@@ -672,9 +689,12 @@ def _prepare_sensors_jit(
     if observers is None:
         raise MagpylibBadUserInput("No observers provided.")
 
-    if _is_array_like(observers) and not isinstance(observers, (list, tuple)) and not getattr(
-        observers, "_is_sensor", False
-    ) and not getattr(observers, "_is_collection", False):
+    if (
+        _is_array_like(observers)
+        and not isinstance(observers, (list, tuple))
+        and not getattr(observers, "_is_sensor", False)
+        and not getattr(observers, "_is_collection", False)
+    ):
         pix_arr = jnp.asarray(observers, dtype=jnp.float64)
         if pix_arr.shape[-1] != 3:
             raise MagpylibBadUserInput("Bad observers provided.")
@@ -749,8 +769,7 @@ def _prepare_sensors_jit(
         if pad_len > 0:
             pix_flat = _pad_axis0(pix_flat, max_pix)
         mask = jnp.concatenate(
-            (jnp.ones((pix_count,), dtype=jnp.float64),
-             jnp.zeros((pad_len,), dtype=jnp.float64)),
+            (jnp.ones((pix_count,), dtype=jnp.float64), jnp.zeros((pad_len,), dtype=jnp.float64)),
             axis=0,
         )
         pix_flat_list.append(pix_flat)
@@ -800,7 +819,6 @@ def _compute_field_jit_core(
     n_groups: int,
 ) -> jnp.ndarray:
     type_id = src["type_id"]
-    n_sources = type_id.shape[0]
     pos = src["pos"]
     rot = src["rot"]
     group_index = src["group_index"]
@@ -815,7 +833,9 @@ def _compute_field_jit_core(
     max_pix = pix_flat.shape[1]
     n_path = pos.shape[1]
 
-    def _mesh_inside(obs_local: jnp.ndarray, mesh_faces: jnp.ndarray, mesh_mask: jnp.ndarray, flag: jnp.ndarray) -> jnp.ndarray:
+    def _mesh_inside(
+        obs_local: jnp.ndarray, mesh_faces: jnp.ndarray, mesh_mask: jnp.ndarray, flag: jnp.ndarray
+    ) -> jnp.ndarray:
         return jax.lax.switch(
             flag,
             (
@@ -921,23 +941,30 @@ def _compute_field_jit_core(
                     obs_local, seg_start, seg_end, current, seg_mask
                 )
             if field == "H":
-                return current_polyline_bfield_masked(
-                    obs_local, seg_start, seg_end, current, seg_mask
-                ) / MU0
+                return (
+                    current_polyline_bfield_masked(obs_local, seg_start, seg_end, current, seg_mask)
+                    / MU0
+                )
             return jnp.zeros_like(obs_local, dtype=jnp.float64)
 
         def _trianglesheet(_):
             if field == "B":
                 return current_trisheet_bfield_masked(obs_local, sheet_tris, sheet_cd, sheet_mask)
             if field == "H":
-                return current_trisheet_bfield_masked(obs_local, sheet_tris, sheet_cd, sheet_mask) / MU0
+                return (
+                    current_trisheet_bfield_masked(obs_local, sheet_tris, sheet_cd, sheet_mask)
+                    / MU0
+                )
             return jnp.zeros_like(obs_local, dtype=jnp.float64)
 
         def _trianglestrip(_):
             if field == "B":
                 return current_trisheet_bfield_masked(obs_local, sheet_tris, sheet_cd, sheet_mask)
             if field == "H":
-                return current_trisheet_bfield_masked(obs_local, sheet_tris, sheet_cd, sheet_mask) / MU0
+                return (
+                    current_trisheet_bfield_masked(obs_local, sheet_tris, sheet_cd, sheet_mask)
+                    / MU0
+                )
             return jnp.zeros_like(obs_local, dtype=jnp.float64)
 
         def _triangularmesh(_):
@@ -1147,12 +1174,8 @@ def _compute_field_jit(
     sens_pos = jnp.stack([_pad_path(pos, max_path_len) for pos in sens_arrays["pos_list"]], axis=0)
     sens_rot = jnp.stack([_pad_path(rot, max_path_len) for rot in sens_arrays["rot_list"]], axis=0)
 
-    src_arrays_core = {
-        key: val for key, val in src_arrays.items() if not key.endswith("_list")
-    }
-    sens_arrays_core = {
-        key: val for key, val in sens_arrays.items() if not key.endswith("_list")
-    }
+    src_arrays_core = {key: val for key, val in src_arrays.items() if not key.endswith("_list")}
+    sens_arrays_core = {key: val for key, val in sens_arrays.items() if not key.endswith("_list")}
     src_arrays_core["pos"] = src_pos
     src_arrays_core["rot"] = src_rot
     sens_arrays_core["pos"] = sens_pos
@@ -1211,6 +1234,7 @@ def _compute_field_jit(
     elif pixel_agg is not None:
         B = jnp.expand_dims(B, axis=-2)
     return B
+
 
 def _evaluate_core_field(
     source_type: str,
@@ -1430,7 +1454,11 @@ def _source_kwargs_from_object(source: object, *, in_out: str) -> tuple[str, dic
     if stype == "triangularmesh":
         return stype, {"mesh": source.mesh, "polarization": source._polarization, "in_out": in_out}
     if stype == "tetrahedron":
-        return stype, {"vertices": source.vertices, "polarization": source._polarization, "in_out": in_out}
+        return stype, {
+            "vertices": source.vertices,
+            "polarization": source._polarization,
+            "in_out": in_out,
+        }
     if stype == "triangle":
         return stype, {"vertices": source.vertices, "polarization": source.polarization}
     if stype == "circle":

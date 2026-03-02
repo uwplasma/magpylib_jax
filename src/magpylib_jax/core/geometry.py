@@ -43,8 +43,7 @@ def normalize_orientation(orientation: ArrayLike | None) -> jnp.ndarray:
     if ori.ndim == 3:
         if ori.shape[0] != 1 or ori.shape[1:] != (3, 3):
             raise ValueError(
-                "Expected single orientation matrix with shape (3, 3), "
-                f"got {ori.shape}."
+                f"Expected single orientation matrix with shape (3, 3), got {ori.shape}."
             )
         return ori[0]
     if ori.shape != (3, 3):
@@ -77,8 +76,7 @@ def normalize_orientations(orientation: ArrayLike | None = None) -> jnp.ndarray:
     if mat.ndim == 3 and mat.shape[1:] == (3, 3):
         return mat
     raise ValueError(
-        "Expected orientation shape (3,3), (p,3,3), or scipy Rotation; "
-        f"got {mat.shape}."
+        f"Expected orientation shape (3,3), (p,3,3), or scipy Rotation; got {mat.shape}."
     )
 
 
@@ -93,13 +91,9 @@ def broadcast_pose(
     n_pos, n_rot = pos.shape[0], rot.shape[0]
     n = max(n_pos, n_rot)
     if n_pos not in (1, n):
-        raise ValueError(
-            f"Incompatible position path length {n_pos} for broadcast length {n}."
-        )
+        raise ValueError(f"Incompatible position path length {n_pos} for broadcast length {n}.")
     if n_rot not in (1, n):
-        raise ValueError(
-            f"Incompatible orientation path length {n_rot} for broadcast length {n}."
-        )
+        raise ValueError(f"Incompatible orientation path length {n_rot} for broadcast length {n}.")
     if n_pos == 1 and n > 1:
         pos = jnp.broadcast_to(pos, (n, 3))
     if n_rot == 1 and n > 1:

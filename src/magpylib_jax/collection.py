@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
-import numpy as np
 import jax.numpy as jnp
+import numpy as np
 
 from magpylib_jax._types import ArrayLike
 from magpylib_jax.core.base import BaseGeo, BaseSource, MagpylibBadUserInput
@@ -39,8 +39,10 @@ class Collection(BaseGeo):
             self.add(*children)
 
     def add(self, *objects: object, override_parent: bool = False) -> Collection:
-        if len(objects) == 1 and isinstance(objects[0], Iterable) and not isinstance(
-            objects[0], (BaseGeo, str, bytes)
+        if (
+            len(objects) == 1
+            and isinstance(objects[0], Iterable)
+            and not isinstance(objects[0], (BaseGeo, str, bytes))
         ):
             objects = tuple(objects[0])
 
@@ -55,9 +57,7 @@ class Collection(BaseGeo):
                     f"Cannot add object of type {type(obj).__name__!r} to Collection."
                 )
             if isinstance(obj, Collection) and (obj is self or self in obj._flatten_children()):
-                msg = (
-                    f"Cannot add {obj!r} because a Collection must not reference itself."
-                )
+                msg = f"Cannot add {obj!r} because a Collection must not reference itself."
                 raise MagpylibBadUserInput(msg)
 
             current_parent = getattr(obj, "_parent", None)
@@ -83,8 +83,10 @@ class Collection(BaseGeo):
         recursive: bool = True,
         errors: str = "raise",
     ) -> Collection:
-        if len(objects) == 1 and isinstance(objects[0], Iterable) and not isinstance(
-            objects[0], (BaseGeo, str, bytes)
+        if (
+            len(objects) == 1
+            and isinstance(objects[0], Iterable)
+            and not isinstance(objects[0], (BaseGeo, str, bytes))
         ):
             objects = tuple(objects[0])
 
@@ -103,9 +105,7 @@ class Collection(BaseGeo):
                 continue
             if not isinstance(obj, BaseGeo):
                 if errors == "raise":
-                    raise MagpylibBadUserInput(
-                        f"Cannot find and remove {obj!r} from {self!r}."
-                    )
+                    raise MagpylibBadUserInput(f"Cannot find and remove {obj!r} from {self!r}.")
                 if errors != "ignore":
                     raise MagpylibBadUserInput(
                         "Input errors must be one of {'raise', 'ignore'}; "
@@ -119,9 +119,7 @@ class Collection(BaseGeo):
                     obj._parent = None
             else:
                 if errors == "raise":
-                    raise MagpylibBadUserInput(
-                        f"Cannot find and remove {obj!r} from {self!r}."
-                    )
+                    raise MagpylibBadUserInput(f"Cannot find and remove {obj!r} from {self!r}.")
                 if errors != "ignore":
                     raise MagpylibBadUserInput(
                         "Input errors must be one of {'raise', 'ignore'}; "
@@ -313,7 +311,7 @@ class Collection(BaseGeo):
 
         dip = None
         if hasattr(obj, "dipole_moment"):
-            dip = getattr(obj, "dipole_moment")
+            dip = obj.dipole_moment
         else:
             pol = getattr(obj, "polarization", None)
             mag = getattr(obj, "magnetization", None)
@@ -332,7 +330,7 @@ class Collection(BaseGeo):
             props.insert(2, f"dimension: {dim if dim is None else fmt_vec(dim)} m")
             mag = getattr(obj, "magnetization", None)
             if mag is None and getattr(obj, "polarization", None) is not None:
-                mag = np.asarray(getattr(obj, "polarization"), dtype=float) / MU0
+                mag = np.asarray(obj.polarization, dtype=float) / MU0
             props.insert(
                 3,
                 f"magnetization: {mag if mag is None else fmt_vec(mag)} A/m",
@@ -354,7 +352,7 @@ class Collection(BaseGeo):
             lines = [self._describe_label(self, ["type", "label"])]
             for idx, (key, count) in enumerate(counts.items()):
                 suffix = "s" if count != 1 else ""
-                lines.append(f"{'└──' if idx == len(counts)-1 else '├──'} {count}x {key}{suffix}")
+                lines.append(f"{'└──' if idx == len(counts) - 1 else '├──'} {count}x {key}{suffix}")
             out = "\n".join(lines)
             if return_string:
                 return out

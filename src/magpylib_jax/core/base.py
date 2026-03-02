@@ -9,11 +9,11 @@ from typing import Any
 
 import jax
 import jax.numpy as jnp
-
 from jax.scipy.spatial.transform import Rotation as R
 
 from magpylib_jax.constants import MU0
 from magpylib_jax.core.style import BaseStyle
+
 
 class MagpylibMissingInput(ValueError):
     """Raised when required source inputs are missing."""
@@ -73,7 +73,7 @@ def check_format_input_vector(
 def check_format_input_orientation(orientation: Any | None, *, init_format: bool = False):
     if orientation is None:
         quat = jnp.array([[0.0, 0.0, 0.0, 1.0]])
-        #if not init_format:
+        # if not init_format:
         #    raise "This branch requires a jax version of scipy"
         rot = R.from_quat(quat)
         return quat if init_format else (rot, rot.as_quat())
@@ -126,9 +126,7 @@ def check_format_input_angle(angle: Any) -> jax.Array:
         return float(angle)
     arr = _as_array(angle)
     if arr.ndim != 1:
-        raise MagpylibBadUserInput(
-            "Input angle must be int, float, or array-like with shape (n,)."
-        )
+        raise MagpylibBadUserInput("Input angle must be int, float, or array-like with shape (n,).")
     return arr
 
 
@@ -242,12 +240,15 @@ def _apply_move(target_object, displacement, start: int | str = "auto"):
     if padded:
         target_object._orientation = R.from_quat(opath)
 
-    ppath[start:end] += inpath
+    moved = ppath[start:end] + inpath
+    ppath = ppath.at[start:end].set(moved)
     target_object._position = ppath
     return target_object
 
 
-def _apply_rotation(target_object, rotation: R, anchor=None, start: int | str = "auto", parent_path=None):
+def _apply_rotation(
+    target_object, rotation: R, anchor=None, start: int | str = "auto", parent_path=None
+):
     rotation, inrotQ = check_format_input_orientation(rotation)
     anchor = check_format_input_anchor(anchor)
     check_start_type(start)
@@ -259,18 +260,21 @@ def _apply_rotation(target_object, rotation: R, anchor=None, start: int | str = 
 
     if anchor is None and parent_path is not None:
         len_anchor = end - newstart
-        padding, start = _path_padding_param(inrotQ.ndim == 1, parent_path.shape[0], len_anchor, start)
+        padding, start = _path_padding_param(
+            inrotQ.ndim == 1, parent_path.shape[0], len_anchor, start
+        )
         if padding:
             parent_path = jnp.pad(parent_path, (padding, (0, 0)), "edge")
         anchor = parent_path[start : start + len_anchor]
 
     if anchor is not None:
-        ppath[newstart:end] -= anchor
-        ppath[newstart:end] = rotation.apply(ppath[newstart:end])
-        ppath[newstart:end] += anchor
+        rotated = ppath[newstart:end] - anchor
+        rotated = rotation.apply(rotated)
+        rotated = rotated + anchor
+        ppath = ppath.at[newstart:end].set(rotated)
 
     oldrot = R.from_quat(opath[newstart:end])
-    opath[newstart:end] = (rotation * oldrot).as_quat()
+    opath = opath.at[newstart:end].set((rotation * oldrot).as_quat())
 
     target_object._orientation = R.from_quat(opath)
     target_object._position = ppath
@@ -374,19 +378,17 @@ class BaseDisplayRepr:
             elif key == "magnetization":
                 mag = getattr(self, "magnetization", None)
                 if mag is None and getattr(self, "polarization", None) is not None:
-                    mag = jnp.asarray(getattr(self, "polarization"), dtype=float) / MU0
+                    mag = jnp.asarray(self.polarization, dtype=float) / MU0
                 val = mag
             elif key == "dipole_moment":
                 if hasattr(self, "dipole_moment"):
-                    val = getattr(self, "dipole_moment")
+                    val = self.dipole_moment
                 else:
                     mag = getattr(self, "magnetization", None)
                     if mag is None and getattr(self, "polarization", None) is not None:
-                        mag = jnp.asarray(getattr(self, "polarization"), dtype=float) / MU0
+                        mag = jnp.asarray(self.polarization, dtype=float) / MU0
                     if mag is not None:
-                        val = jnp.asarray(mag, dtype=float) * float(
-                            getattr(self, "volume", 0.0)
-                        )
+                        val = jnp.asarray(mag, dtype=float) * float(getattr(self, "volume", 0.0))
                     else:
                         val = None
             else:
@@ -439,7 +441,9 @@ class BaseTransform:
     def rotate(self, rotation: R, anchor=None, start: int | str = "auto"):
         return self._rotate(rotation=rotation, anchor=anchor, start=start)
 
-    def rotate_from_angax(self, angle, axis, anchor=None, start: int | str = "auto", degrees: bool = True):
+    def rotate_from_angax(
+        self, angle, axis, anchor=None, start: int | str = "auto", degrees: bool = True
+    ):
         angle = check_format_input_angle(angle)
         axis = check_format_input_axis(axis)
         check_start_type(start)
@@ -457,11 +461,15 @@ class BaseTransform:
         rot = R.from_rotvec(axis)
         return self.rotate(rot, anchor, start)
 
-    def rotate_from_rotvec(self, rotvec, anchor=None, start: int | str = "auto", degrees: bool = True):
+    def rotate_from_rotvec(
+        self, rotvec, anchor=None, start: int | str = "auto", degrees: bool = True
+    ):
         rot = R.from_rotvec(rotvec, degrees=degrees)
         return self.rotate(rot, anchor=anchor, start=start)
 
-    def rotate_from_euler(self, angle, seq, anchor=None, start: int | str = "auto", degrees: bool = True):
+    def rotate_from_euler(
+        self, angle, seq, anchor=None, start: int | str = "auto", degrees: bool = True
+    ):
         rot = R.from_euler(seq, angle, degrees=degrees)
         return self.rotate(rot, anchor=anchor, start=start)
 
@@ -658,8 +666,7 @@ class BaseGeo(BaseTransform, BaseDisplayRepr):
                 self._style.update(style_kwargs)
             except (AttributeError, ValueError) as e:
                 e.args = (
-                    f"{self!r} has been initialized with some invalid style arguments."
-                    + str(e),
+                    f"{self!r} has been initialized with some invalid style arguments." + str(e),
                 )
                 raise
         if self._style_label is not None and self._style.label is None:

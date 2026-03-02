@@ -38,9 +38,7 @@ class CylinderSegment(BaseSource):
                 )
             r1, r2, _, phi1, phi2 = dim
             if not (r1 >= 0 and r2 > r1 and phi2 > phi1):
-                raise ValueError(
-                    "CylinderSegment `dimension` must satisfy r2>r1>=0 and phi2>phi1."
-                )
+                raise ValueError("CylinderSegment `dimension` must satisfy r2>r1>=0 and phi2>phi1.")
         super().__init__(
             position=position,
             orientation=orientation,

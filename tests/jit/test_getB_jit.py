@@ -1,6 +1,6 @@
-import numpy as np
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 import magpylib_jax as mpj
 from magpylib_jax import functional as mpjf

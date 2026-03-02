@@ -332,9 +332,8 @@ def magnet_cylinder_axial_bfield(z0: jnp.ndarray, r: jnp.ndarray, z: jnp.ndarray
 
     br = (cel(k1, one, one, -one) / sq1 - cel(k0, one, one, -one) / sq0) / jnp.pi
 
-    bz = (
-        (zph * cel(k1, gamma * gamma, one, gamma) / sq1)
-        - (zmh * cel(k0, gamma * gamma, one, gamma) / sq0)
+    bz = (zph * cel(k1, gamma * gamma, one, gamma) / sq1) - (
+        zmh * cel(k0, gamma * gamma, one, gamma) / sq0
     )
     bz = bz / (dpr * jnp.pi)
 
@@ -372,7 +371,7 @@ def magnet_cylinder_diametral_hfield(
 
     term1 = frac1 - frac2
     term2 = (frac1 / zpp**2 - frac2 / zmm**2) * r2 / 8.0
-    term3 = ((3.0 - 4.0 * zp2) * frac1 / zpp**4 - (3.0 - 4.0 * zm2) * frac2 / zmm**4)
+    term3 = (3.0 - 4.0 * zp2) * frac1 / zpp**4 - (3.0 - 4.0 * zm2) * frac2 / zmm**4
     term3 = term3 * r4 / 64.0
 
     hr_small = -jnp.cos(phi) / 4.0 * (term1 + 9.0 * term2 + 25.0 * term3)

@@ -4,9 +4,7 @@ import pytest
 
 import magpylib_jax as mpj
 
-pytestmark = pytest.mark.filterwarnings(
-    "ignore:Unchecked open mesh status in TriangularMesh.*"
-)
+pytestmark = pytest.mark.filterwarnings("ignore:Unchecked open mesh status in TriangularMesh.*")
 
 
 @pytest.mark.parity_gate

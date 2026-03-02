@@ -28,7 +28,11 @@ class TriangleSheet(BaseSource):
         self.vertices = vertices
         self.faces = faces
         self.current_densities = current_densities
-        if self.vertices is not None and self.faces is not None and self.current_densities is not None:
+        if (
+            self.vertices is not None
+            and self.faces is not None
+            and self.current_densities is not None
+        ):
             verts = jnp.asarray(self.vertices, dtype=jnp.float64)
             facs = jnp.asarray(self.faces, dtype=jnp.int32)
             cds = jnp.asarray(self.current_densities, dtype=jnp.float64)

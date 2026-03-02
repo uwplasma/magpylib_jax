@@ -5,7 +5,6 @@ import pytest
 from scipy.spatial.transform import Rotation as R
 
 import magpylib_jax as mpj
-from magpylib_jax import MagpylibBadUserInput
 
 
 def test_BaseGeo_basics():
@@ -217,9 +216,7 @@ def test_attach():
 def test_path_functionality1():
     """testing path functionality in detail"""
     pos0 = np.array([[1, 1, 1], [2, 2, 2], [3, 3, 3], [4, 4, 4], [5, 5, 5.0]])
-    rot0 = R.from_quat(
-        [(1, 0, 0, 1), (2, 0, 0, 1), (4, 0, 0, 1), (5, 0, 0, 1), (10, 0, 0, 1.0)]
-    )
+    rot0 = R.from_quat([(1, 0, 0, 1), (2, 0, 0, 1), (4, 0, 0, 1), (5, 0, 0, 1), (10, 0, 0, 1.0)])
     inpath = np.array([(0.1, 0.1, 0.1), (0.2, 0.2, 0.2), (0.3, 0.3, 0.3)])
 
     b1, b2, b3, b4, b5 = pos0
@@ -272,9 +269,7 @@ def test_path_functionality1():
 def test_path_functionality2():
     """testing path functionality in detail"""
     pos0 = np.array([[1, 1, 1], [2, 2, 2], [3, 3, 3], [4, 4, 4], [5, 5, 5.0]])
-    rot0 = R.from_quat(
-        [(1, 0, 0, 1), (2, 0, 0, 1), (4, 0, 0, 1), (5, 0, 0, 1), (10, 0, 0, 1.0)]
-    )
+    rot0 = R.from_quat([(1, 0, 0, 1), (2, 0, 0, 1), (4, 0, 0, 1), (5, 0, 0, 1), (10, 0, 0, 1.0)])
     inpath = np.array([(0.1, 0.1, 0.1), (0.2, 0.2, 0.2), (0.3, 0.3, 0.3)])
 
     b1, b2, b3, b4, b5 = pos0
@@ -337,9 +332,7 @@ def test_path_functionality2():
 def test_path_functionality3():
     """testing path functionality in detail"""
     pos0 = np.array([[1, 1, 1], [2, 2, 2], [3, 3, 3], [4, 4, 4], [5, 5, 5.0]])
-    rot0 = R.from_quat(
-        [(1, 0, 0, 1), (2, 0, 0, 1), (4, 0, 0, 1), (5, 0, 0, 1), (10, 0, 0, 1.0)]
-    )
+    rot0 = R.from_quat([(1, 0, 0, 1), (2, 0, 0, 1), (4, 0, 0, 1), (5, 0, 0, 1), (10, 0, 0, 1.0)])
     inpath = np.array([(0.1, 0.1, 0.1), (0.2, 0.2, 0.2), (0.3, 0.3, 0.3)])
 
     pos1, ori1 = evall(
@@ -448,9 +441,7 @@ def test_scipy_from_methods():
         err_msg="from_rotvec failed on orientation",
     )
 
-    from_euler = cube().rotate_from_euler(
-        angs_deg[:, np.newaxis], "z", anchor=anchor, degrees=True
-    )
+    from_euler = cube().rotate_from_euler(angs_deg[:, np.newaxis], "z", anchor=anchor, degrees=True)
     np.testing.assert_allclose(
         cube0.position,
         from_euler.position,
@@ -699,7 +690,8 @@ def test_describe_with_exclude_None():
             " legend=Legend(show=None, text=None), model3d=Model3d(data=[], showdefault=True),"
             " opacity=None, path=Path(frames=None, line=Line(color=None, style=None, width=None),"
             " marker=Marker(color=None, size=None, symbol=None), numbering=None, show=None),"
-            " pixel=Pixel(color=None, field=PixelField(colormap=None, colorscaling=None, shownull=None,"
+            " pixel=Pixel(color=None, field=PixelField(colormap=None, colorscaling=None,"
+            " shownull=None,"
             " sizemin=None, sizescaling=None, source=None, symbol=None), size=1,"
             " sizemode=None, symbol=None), size=None, sizemode=None)"
         ),
