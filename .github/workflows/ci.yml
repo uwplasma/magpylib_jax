@@ -41,7 +41,7 @@ jobs:
           - shard: core-d
             pytest_paths: tests/parity_gates
     env:
-      COVERAGE_FILE: coverage.${{ matrix.shard }}
+      COVERAGE_FILE: covdata.${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -62,7 +62,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage-${{ matrix.shard }}
-          path: coverage.${{ matrix.shard }}
+          path: covdata.${{ matrix.shard }}
           if-no-files-found: error
 
   tests-upstream:
@@ -83,7 +83,7 @@ jobs:
           - shard: upstream-e
             pytest_paths: tests/upstream_mirror/test_path.py tests/upstream_mirror/test_physics_consistency.py
     env:
-      COVERAGE_FILE: coverage.${{ matrix.shard }}
+      COVERAGE_FILE: covdata.${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -104,7 +104,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage-${{ matrix.shard }}
-          path: coverage.${{ matrix.shard }}
+          path: covdata.${{ matrix.shard }}
           if-no-files-found: error
 
   coverage-combine:
@@ -132,8 +132,8 @@ jobs:
       - name: Combine and enforce coverage
         run: |
           ls -la coverage
-          python -m coverage combine --data-file=.coverage_combined coverage
-          python -m coverage report --data-file=.coverage_combined --fail-under=90
+          python -m coverage combine --data-file=covdata coverage
+          python -m coverage report --data-file=covdata --fail-under=90
 
   docs:
     runs-on: ubuntu-latest
