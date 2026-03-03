@@ -132,8 +132,8 @@ jobs:
       - name: Combine and enforce coverage
         run: |
           ls -la coverage
-          python -m coverage combine coverage
-          python -m coverage report --fail-under=90
+          python -m coverage combine --data-file=coverage coverage
+          python -m coverage report --data-file=coverage --fail-under=90
 
   docs:
     runs-on: ubuntu-latest
