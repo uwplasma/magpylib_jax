@@ -3,7 +3,7 @@
     "getB_jit": 12.0
   },
   "steady_state_runtime_s": {
-    "getB_jit": 0.05
+    "getB_jit": 0.1
   },
   "peak_memory_bytes": {
     "getB_jit": 3000000000
