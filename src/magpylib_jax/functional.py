@@ -868,10 +868,18 @@ def _prepare_sources_jit(
         "group_index": group_index,
         "in_out_flag": jnp.full((len(src_data),), in_out_flag, dtype=jnp.int32),
     }
+    src_singleton_paths = all(int(path.shape[0]) == 1 for path in pos_list + rot_list)
+    if src_singleton_paths:
+        src_arrays["pos_path1"] = _stack_singleton_paths(pos_list)
+        src_arrays["rot_path1"] = _stack_singleton_paths(rot_list)
+    else:
+        src_arrays["pos_path1"] = jnp.zeros((0, 1, 3), dtype=jnp.float64)
+        src_arrays["rot_path1"] = jnp.zeros((0, 1, 3, 3), dtype=jnp.float64)
 
     meta = {
         "group_labels": [group["label"] for group in group_specs],
         "n_groups": len(group_specs),
+        "all_path_len_one": src_singleton_paths,
     }
     if cache_key is not None:
         _lru_put(
@@ -889,6 +897,10 @@ def _stack_padded_paths(paths: Sequence[ArrayLike], target_len: int) -> jnp.ndar
         ]
         return jnp.stack(stacked, axis=0)
     return jnp.stack([_pad_path(path, target_len) for path in paths], axis=0)
+
+
+def _stack_singleton_paths(paths: Sequence[jnp.ndarray]) -> jnp.ndarray:
+    return jnp.stack([path[0] for path in paths], axis=0)[:, None, ...]
 
 
 def _prepare_sensors_jit(
@@ -1013,6 +1025,13 @@ def _prepare_sensors_jit(
         "rot_list": rot_list,
         "handedness": jnp.stack(hand_vec, axis=0),
     }
+    sens_singleton_paths = all(int(path.shape[0]) == 1 for path in pos_list + rot_list)
+    if sens_singleton_paths:
+        sens_arrays["pos_path1"] = _stack_singleton_paths(pos_list)
+        sens_arrays["rot_path1"] = _stack_singleton_paths(rot_list)
+    else:
+        sens_arrays["pos_path1"] = jnp.zeros((0, 1, 3), dtype=jnp.float64)
+        sens_arrays["rot_path1"] = jnp.zeros((0, 1, 3, 3), dtype=jnp.float64)
     pix_inds = [0]
     for pix_num in pix_nums:
         pix_inds.append(pix_inds[-1] + int(pix_num))
@@ -1023,6 +1042,7 @@ def _prepare_sensors_jit(
         "pix_all_same": pix_all_same,
         "pix_inds": tuple(pix_inds),
         "sensor_labels": labels,
+        "all_path_len_one": sens_singleton_paths,
     }
     if cache_key is not None:
         _lru_put(
@@ -1612,13 +1632,27 @@ def _compute_field_jit(
         [int(pos.shape[0]) for pos in src_arrays["pos_list"]]
         + [int(pos.shape[0]) for pos in sens_arrays["pos_list"]]
     )
-    src_pos = _stack_padded_paths(src_arrays["pos_list"], max_path_len)
-    src_rot = _stack_padded_paths(src_arrays["rot_list"], max_path_len)
-    sens_pos = _stack_padded_paths(sens_arrays["pos_list"], max_path_len)
-    sens_rot = _stack_padded_paths(sens_arrays["rot_list"], max_path_len)
+    if (
+        max_path_len == 1
+        and src_meta.get("all_path_len_one", False)
+        and sens_meta.get("all_path_len_one", False)
+    ):
+        src_pos = src_arrays["pos_path1"]
+        src_rot = src_arrays["rot_path1"]
+        sens_pos = sens_arrays["pos_path1"]
+        sens_rot = sens_arrays["rot_path1"]
+    else:
+        src_pos = _stack_padded_paths(src_arrays["pos_list"], max_path_len)
+        src_rot = _stack_padded_paths(src_arrays["rot_list"], max_path_len)
+        sens_pos = _stack_padded_paths(sens_arrays["pos_list"], max_path_len)
+        sens_rot = _stack_padded_paths(sens_arrays["rot_list"], max_path_len)
 
     src_arrays_core = {key: val for key, val in src_arrays.items() if not key.endswith("_list")}
     sens_arrays_core = {key: val for key, val in sens_arrays.items() if not key.endswith("_list")}
+    src_arrays_core.pop("pos_path1", None)
+    src_arrays_core.pop("rot_path1", None)
+    sens_arrays_core.pop("pos_path1", None)
+    sens_arrays_core.pop("rot_path1", None)
     src_arrays_core["pos"] = src_pos
     src_arrays_core["rot"] = src_rot
     all_circle = _safe_static_bool(

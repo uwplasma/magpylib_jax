@@ -65,8 +65,19 @@ def _build_sources_sensors():
     ]
     src3 = mpj.current.TriangleStrip(vertices=strip_vertices, current=1.4)
 
-    grid = np.stack(np.meshgrid(np.linspace(-0.05, 0.05, 3), np.linspace(-0.05, 0.05, 3), [0.0], indexing="ij"), axis=-1)
-    sens1 = mpj.Sensor(pixel=grid, position=[(0.0, 0.0, 0.0), (0.0, 0.1, 0.0), (0.0, 0.2, 0.0)])
+    grid = np.stack(
+        np.meshgrid(
+            np.linspace(-0.05, 0.05, 3),
+            np.linspace(-0.05, 0.05, 3),
+            [0.0],
+            indexing="ij",
+        ),
+        axis=-1,
+    )
+    sens1 = mpj.Sensor(
+        pixel=grid,
+        position=[(0.0, 0.0, 0.0), (0.0, 0.1, 0.0), (0.0, 0.2, 0.0)],
+    )
     sens2 = mpj.Sensor(pixel=(0.12, 0.03, -0.04), position=(0.0, 0.0, 0.0))
 
     sources = [src1, src2, src3]

@@ -139,9 +139,9 @@ def _profiles(observers: np.ndarray) -> dict[str, tuple]:
     import magpylib_jax as mpj
     from magpylib_jax.core.kernels_extended import (
         current_circle_bfield_jit,
+        current_polyline_bfield_jit,
         current_trisheet_bfield_jit,
         current_tristrip_bfield_jit,
-        current_polyline_bfield_jit,
         magnet_trimesh_bfield_jit_faces_precomp,
         precompute_cylinder_segment_geometry,
         precompute_trimesh_geometry,

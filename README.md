@@ -76,6 +76,7 @@ Notes:
 - `output="dataframe"` is still supported, but runs outside JIT (matches Magpylib semantics).
 - Circle-only object collections use a specialized chunked fast path and preparation cache, which substantially improves repeated-call performance and reduces memory pressure.
 - Repeated object calls reuse source/sensor preparation caches, cached orientation matrices, cached collection flattening, cached `TriangularMesh` geometry, and precomputed `CylinderSegment` face terms.
+- Large circle stacks with static paths also reuse cached singleton-path tensors, which removes most of the remaining small-grid host overhead.
 - For timing JAX code, call `jax.block_until_ready(...)` inside benchmarks to exclude asynchronous dispatch artifacts.
 
 ## Differentiable fitting (mini loop)

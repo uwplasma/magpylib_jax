@@ -68,6 +68,30 @@ steps that sit in front of the kernel math:
 These caches are invalidated by object mutations and are covered by dedicated cache-regression
 tests so repeated calls stay fast without sacrificing parity.
 
+### Tiny-batch circle fast path
+
+Small observer grids used with very large circle collections were still paying a host-side cost for
+rebuilding singleton path stacks on every call. The prepared state now caches single-path source and
+sensor tensors directly as JAX arrays, so repeated small-grid evaluations bypass that formatting
+work instead of rebuilding thousands of `(1, 3)` and `(1, 3, 3)` objects per call.
+
+This is especially relevant for coil-stack workloads where:
+- source count is very large,
+- observer count is small,
+- source and sensor paths are static.
+
+The change keeps the public API unchanged while making the prepared state more JAX-friendly for
+outer-loop `jax.jit` usage.
+
+### WHAM-style workload
+
+For the WHAM-style double-coil workload used during development, the reproducible profiling entry
+point is:
+- `scripts/profile_wham_workload.py`
+
+That script compares upstream `magpylib` and `magpylib_jax` on a small observer grid and a larger
+`(101, 31, 3)` grid, and also records the cost of converting the large JAX result back to NumPy.
+
 Profiling remains focused on kernel entrypoints for stable, comparable HLO baselines. The JIT-safe
 `getB` path is validated via parity tests against the legacy implementation and is suitable for
 application-level JIT usage.
