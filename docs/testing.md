@@ -8,6 +8,8 @@
 - Physics tests (`tests/physics/`): identity checks from electromagnetic theory.
 - Differentiability tests (`tests/differentiability/`): finite-gradient sanity checks.
 - Compatibility tests (`tests/test_compatibility.py`, `tests/test_motion_shape_compat.py`): API and shape/path/orientation behavior.
+- Performance smoke (`tests/performance/`): large-batch runtime checks with explicit
+  `block_until_ready()` synchronization to avoid async compile timing noise.
 
 ## Coverage policy
 
