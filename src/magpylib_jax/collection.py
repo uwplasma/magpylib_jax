@@ -35,8 +35,20 @@ class Collection(BaseGeo):
     ) -> None:
         super().__init__(position=position, orientation=orientation, style_label=style_label)
         self.children = []
+        self._flat_children_cache: list[object] | None = None
+        self._sources_cache: list[BaseSource] | None = None
+        self._sensors_cache: list[Sensor] | None = None
         if children:
             self.add(*children)
+
+    def _mark_structure_dirty(self) -> None:
+        self._flat_children_cache = None
+        self._sources_cache = None
+        self._sensors_cache = None
+        self._bump_cache_version()
+        parent = getattr(self, "_parent", None)
+        if isinstance(parent, Collection):
+            parent._mark_structure_dirty()
 
     def add(self, *objects: object, override_parent: bool = False) -> Collection:
         if (
@@ -75,6 +87,8 @@ class Collection(BaseGeo):
                 raise MagpylibBadUserInput(msg)
 
             self.children.append(obj)
+        if objects:
+            self._mark_structure_dirty()
         return self
 
     def remove(
@@ -126,23 +140,36 @@ class Collection(BaseGeo):
                         f"instead received {errors!r}."
                     )
 
+        if objects:
+            self._mark_structure_dirty()
         return self
 
     def _flatten_children(self) -> list[object]:
+        if self._flat_children_cache is not None:
+            return self._flat_children_cache
         out: list[object] = []
         for child in self.children:
             out.append(child)
             if isinstance(child, Collection):
                 out.extend(child._flatten_children())
+        self._flat_children_cache = out
         return out
 
     @property
     def sources(self) -> list[BaseSource]:
-        return [obj for obj in self._flatten_children() if isinstance(obj, BaseSource)]
+        if self._sources_cache is None:
+            self._sources_cache = [
+                obj for obj in self._flatten_children() if isinstance(obj, BaseSource)
+            ]
+        return list(self._sources_cache)
 
     @property
     def sensors(self) -> list[Sensor]:
-        return [obj for obj in self._flatten_children() if isinstance(obj, Sensor)]
+        if self._sensors_cache is None:
+            self._sensors_cache = [
+                obj for obj in self._flatten_children() if isinstance(obj, Sensor)
+            ]
+        return list(self._sensors_cache)
 
     @property
     def volume(self) -> float:

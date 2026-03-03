@@ -54,6 +54,20 @@ For circle-only object collections (for example, large coil stacks), the JIT cor
 This significantly reduces steady-state runtime and peak memory pressure for workloads that call
 `getB` repeatedly with the same source object graph and observer grid.
 
+### Object preparation caches
+
+The default JIT-safe `getB/getH/getJ/getM` path also caches the expensive host-side preparation
+steps that sit in front of the kernel math:
+- generalized source preparation caches keyed by stable object cache tokens,
+- sensor preparation caches keyed by sensor identity, path, pixel layout, and handedness,
+- cached orientation matrices on `BaseGeo` objects to avoid repeated `Rotation.as_matrix()` work,
+- cached `Collection` flatten/source/sensor lists with dirty propagation on add/remove,
+- cached `TriangularMesh` oriented faces and face geometry reuse,
+- precomputed `CylinderSegment` face geometry inside the high-level JIT path.
+
+These caches are invalidated by object mutations and are covered by dedicated cache-regression
+tests so repeated calls stay fast without sacrificing parity.
+
 Profiling remains focused on kernel entrypoints for stable, comparable HLO baselines. The JIT-safe
 `getB` path is validated via parity tests against the legacy implementation and is suitable for
 application-level JIT usage.

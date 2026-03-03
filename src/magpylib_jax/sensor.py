@@ -84,7 +84,7 @@ class Sensor(BaseGeo):
         pix_flat = pix.reshape((-1, 3))
 
         pos_path = jnp.asarray(self._position, dtype=jnp.float64)
-        rot_mats = jnp.asarray(self._orientation.as_matrix(), dtype=jnp.float64)
+        rot_mats = jnp.asarray(self._orientation_matrix, dtype=jnp.float64)
         obs_path = []
         for idx in range(pos_path.shape[0]):
             rot = rot_mats[min(idx, rot_mats.shape[0] - 1)]

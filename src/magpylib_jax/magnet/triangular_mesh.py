@@ -84,6 +84,46 @@ class TriangularMesh(BaseSource):
             style_label=style_label,
             **kwargs,
         )
+        self._mesh_cache_key: tuple[object, ...] | None = None
+        self._faces_oriented_cache = jnp.zeros((0, 3), dtype=jnp.int32)
+        self._mesh_cache = jnp.zeros((0, 3, 3), dtype=jnp.float64)
+
+    def _geometry_cache_key(self) -> tuple[object, ...]:
+        return (
+            id(self.vertices),
+            id(self.faces),
+            bool(self.reorient_faces),
+        )
+
+    def _geometry_cache(self) -> tuple[jnp.ndarray, jnp.ndarray]:
+        if self.vertices is None or self.faces is None:
+            empty_faces = jnp.zeros((0, 3), dtype=jnp.int32)
+            empty_mesh = jnp.zeros((0, 3, 3), dtype=jnp.float64)
+            self._mesh_cache_key = None
+            self._faces_oriented_cache = empty_faces
+            self._mesh_cache = empty_mesh
+            return empty_faces, empty_mesh
+
+        cache_key = self._geometry_cache_key()
+        if self._mesh_cache_key == cache_key:
+            return self._faces_oriented_cache, self._mesh_cache
+
+        faces = jnp.asarray(self.faces, dtype=jnp.int32)
+        if self.reorient_faces:
+            verts = jnp.asarray(self.vertices, dtype=jnp.float64)
+            tri = verts[faces]
+            center = jnp.mean(verts, axis=0)
+            ctri = jnp.mean(tri, axis=1)
+            nvec = jnp.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
+            inward = jnp.sum(nvec * (ctri - center), axis=1) < 0
+            faces = jnp.where(inward[:, None], faces[:, (0, 2, 1)], faces)
+
+        verts = jnp.asarray(self.vertices, dtype=jnp.float64)
+        mesh = verts[faces]
+        self._mesh_cache_key = cache_key
+        self._faces_oriented_cache = faces
+        self._mesh_cache = mesh
+        return faces, mesh
 
     @staticmethod
     def _validate_mode_arg(arg: bool | str, *, arg_name: str = "mode") -> str:
@@ -133,27 +173,13 @@ class TriangularMesh(BaseSource):
 
     @property
     def _faces_oriented(self) -> jnp.ndarray:
-        if self.vertices is None or self.faces is None:
-            return jnp.zeros((0, 3), dtype=jnp.int32)
-        faces = jnp.asarray(self.faces, dtype=jnp.int32)
-        if not self.reorient_faces:
-            return faces
-
-        verts = jnp.asarray(self.vertices, dtype=jnp.float64)
-        tri = verts[faces]
-        center = jnp.mean(verts, axis=0)
-        ctri = jnp.mean(tri, axis=1)
-        n = jnp.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
-        inward = jnp.sum(n * (ctri - center), axis=1) < 0
-        flipped = faces[:, (0, 2, 1)]
-        return jnp.where(inward[:, None], flipped, faces)
+        faces, _ = self._geometry_cache()
+        return faces
 
     @property
     def mesh(self) -> jnp.ndarray:
-        if self.vertices is None or self.faces is None:
-            return jnp.zeros((0, 3, 3), dtype=jnp.float64)
-        verts = jnp.asarray(self.vertices, dtype=jnp.float64)
-        return verts[self._faces_oriented]
+        _, mesh = self._geometry_cache()
+        return mesh
 
     @property
     def barycenter(self) -> jnp.ndarray:

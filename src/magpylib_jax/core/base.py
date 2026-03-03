@@ -5,6 +5,7 @@ from __future__ import annotations
 import numbers
 import re
 from copy import deepcopy
+from itertools import count
 from math import prod
 from typing import Any
 
@@ -26,6 +27,9 @@ class MagpylibBadUserInput(ValueError):
 
 def _as_array(x: Any) -> jax.Array:
     return jnp.array(x, dtype=jnp.float64)
+
+
+_INSTANCE_TOKEN_COUNTER = count()
 
 
 def check_format_input_vector(
@@ -239,11 +243,22 @@ def _apply_move(target_object, displacement, start: int | str = "auto"):
 
     ppath, opath, start, end, padded = _path_padding(inpath, start, target_object)
     if padded:
-        target_object._orientation = R.from_quat(opath)
+        if hasattr(target_object, "_set_cache_suspended"):
+            target_object._set_cache_suspended(True)
+        try:
+            if hasattr(target_object, "_set_orientation_quat"):
+                target_object._set_orientation_quat(opath)
+            else:
+                target_object._orientation = R.from_quat(opath)
+        finally:
+            if hasattr(target_object, "_set_cache_suspended"):
+                target_object._set_cache_suspended(False)
 
     moved = ppath[start:end] + inpath
     ppath = ppath.at[start:end].set(moved)
     target_object._position = ppath
+    if hasattr(target_object, "_bump_cache_version"):
+        target_object._bump_cache_version()
     return target_object
 
 
@@ -258,7 +273,6 @@ def _apply_rotation(
         anchor, inrotQ, rotation = _multi_anchor_behavior(anchor, inrotQ, rotation)
 
     ppath, opath, newstart, end, _ = _path_padding(inrotQ, start, target_object)
-
     if anchor is None and parent_path is not None:
         len_anchor = end - newstart
         padding, start = _path_padding_param(
@@ -277,8 +291,19 @@ def _apply_rotation(
     oldrot = R.from_quat(opath[newstart:end])
     opath = opath.at[newstart:end].set((rotation * oldrot).as_quat())
 
-    target_object._orientation = R.from_quat(opath)
-    target_object._position = ppath
+    if hasattr(target_object, "_set_cache_suspended"):
+        target_object._set_cache_suspended(True)
+    try:
+        if hasattr(target_object, "_set_orientation_quat"):
+            target_object._set_orientation_quat(opath)
+        else:
+            target_object._orientation = R.from_quat(opath)
+        target_object._position = ppath
+    finally:
+        if hasattr(target_object, "_set_cache_suspended"):
+            target_object._set_cache_suspended(False)
+    if hasattr(target_object, "_bump_cache_version"):
+        target_object._bump_cache_version()
     return target_object
 
 
@@ -491,6 +516,26 @@ class BaseTransform:
 
 class BaseGeo(BaseTransform, BaseDisplayRepr):
     _style_class = BaseStyle
+    _CACHE_TRACKED_INTERNALS = {
+        "_position",
+        "_oriQ",
+        "_orientation",
+        "_orientation_matrix",
+        "_pixel",
+        "_handedness",
+    }
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        object.__setattr__(self, name, value)
+        if name in {"_cache_version", "_cache_tracking_ready", "_suspend_cache_tracking"}:
+            return
+        if not getattr(self, "_cache_tracking_ready", False):
+            return
+        if getattr(self, "_suspend_cache_tracking", False):
+            return
+        if name.startswith("_") and name not in self._CACHE_TRACKED_INTERNALS:
+            return
+        self._bump_cache_version()
 
     def __init__(
         self,
@@ -500,6 +545,10 @@ class BaseGeo(BaseTransform, BaseDisplayRepr):
         style_label: str | None = None,
         **kwargs,
     ):
+        object.__setattr__(self, "_instance_token", next(_INSTANCE_TOKEN_COUNTER))
+        object.__setattr__(self, "_cache_version", 0)
+        object.__setattr__(self, "_cache_tracking_ready", False)
+        object.__setattr__(self, "_suspend_cache_tracking", False)
         self._style_kwargs: dict[str, Any] = {}
         self._style = None
         self._style_label = style_label
@@ -521,6 +570,38 @@ class BaseGeo(BaseTransform, BaseDisplayRepr):
                 if not self._style_kwargs:
                     self._style_kwargs = {}
                 self._style_kwargs["label"] = style_label
+        object.__setattr__(self, "_cache_tracking_ready", True)
+
+    def _set_orientation_quat(self, quat: jax.Array) -> None:
+        quat_arr = jnp.asarray(quat, dtype=jnp.float64)
+        object.__setattr__(self, "_oriQ", quat_arr)
+        rot = R.from_quat(quat_arr)
+        object.__setattr__(self, "_orientation", rot)
+        object.__setattr__(
+            self,
+            "_orientation_matrix",
+            jnp.asarray(rot.as_matrix(), dtype=jnp.float64),
+        )
+
+    def _set_cache_suspended(self, suspended: bool) -> None:
+        object.__setattr__(self, "_suspend_cache_tracking", suspended)
+
+    def _bump_cache_version(self) -> None:
+        object.__setattr__(self, "_cache_version", int(getattr(self, "_cache_version", 0)) + 1)
+
+    def _renew_cache_identity(self) -> None:
+        object.__setattr__(self, "_instance_token", next(_INSTANCE_TOKEN_COUNTER))
+        object.__setattr__(self, "_cache_version", int(getattr(self, "_cache_version", 0)) + 1)
+        for child in getattr(self, "children", []):
+            if hasattr(child, "_renew_cache_identity"):
+                child._renew_cache_identity()
+
+    @property
+    def cache_token(self) -> tuple[int, int]:
+        return (
+            int(getattr(self, "_instance_token", id(self))),
+            int(getattr(self, "_cache_version", 0)),
+        )
 
     @staticmethod
     def _process_style_kwargs(style=None, **kwargs):
@@ -551,18 +632,18 @@ class BaseGeo(BaseTransform, BaseDisplayRepr):
             sig_type="array-like with shape (3,) or (n, 3)",
             reshape=(-1, 3),
         )
-        self._oriQ = check_format_input_orientation(orientation, init_format=True)
+        oriQ = check_format_input_orientation(orientation, init_format=True)
 
         len_pos = pos.shape[0]
-        len_ori = self._oriQ.shape[0]
+        len_ori = oriQ.shape[0]
 
         if len_pos > len_ori:
-            self._oriQ = jnp.pad(self._oriQ, ((0, len_pos - len_ori), (0, 0)), "edge")
+            oriQ = jnp.pad(oriQ, ((0, len_pos - len_ori), (0, 0)), "edge")
         elif len_pos < len_ori:
             pos = jnp.pad(pos, ((0, len_ori - len_pos), (0, 0)), "edge")
 
-        self._position = pos
-        self._orientation = R.from_quat(self._oriQ)
+        object.__setattr__(self, "_position", pos)
+        self._set_orientation_quat(oriQ)
 
     @property
     def parent(self):
@@ -604,7 +685,7 @@ class BaseGeo(BaseTransform, BaseDisplayRepr):
     @position.setter
     def position(self, position):
         old_pos = self._position
-        self._position = check_format_input_vector(
+        pos = check_format_input_vector(
             position,
             name="position",
             dims=(1, 2),
@@ -612,7 +693,13 @@ class BaseGeo(BaseTransform, BaseDisplayRepr):
             sig_type="array-like with shape (3,) or (n, 3)",
             reshape=(-1, 3),
         )
-        self._orientation = R.from_quat(_pad_slice_path(self._position, self._oriQ))
+        self._set_cache_suspended(True)
+        try:
+            object.__setattr__(self, "_position", pos)
+            self._set_orientation_quat(_pad_slice_path(pos, self._oriQ))
+        finally:
+            self._set_cache_suspended(False)
+        self._bump_cache_version()
 
         for child in getattr(self, "children", []):
             old_pos = _pad_slice_path(self._position, old_pos)
@@ -629,9 +716,14 @@ class BaseGeo(BaseTransform, BaseDisplayRepr):
     @orientation.setter
     def orientation(self, orientation):
         old_oriQ = self._oriQ
-        self._oriQ = check_format_input_orientation(orientation, init_format=True)
-        self._orientation = R.from_quat(self._oriQ)
-        self._position = _pad_slice_path(self._oriQ, self._position)
+        oriQ = check_format_input_orientation(orientation, init_format=True)
+        self._set_cache_suspended(True)
+        try:
+            self._set_orientation_quat(oriQ)
+            object.__setattr__(self, "_position", _pad_slice_path(self._oriQ, self._position))
+        finally:
+            self._set_cache_suspended(False)
+        self._bump_cache_version()
 
         for child in getattr(self, "children", []):
             child.position = _pad_slice_path(self._position, child._position)
@@ -686,6 +778,7 @@ class BaseGeo(BaseTransform, BaseDisplayRepr):
             self._parent = parent
         else:
             obj_copy = deepcopy(self)
+        obj_copy._renew_cache_identity()
 
         if getattr(self, "_style", None) is not None or bool(getattr(self, "_style_kwargs", False)):
             label = self.style.label
