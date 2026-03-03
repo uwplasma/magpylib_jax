@@ -74,6 +74,8 @@ print(jax.grad(bz)(1.2))
 Notes:
 - When `pixel_agg` is a string, supported reducers are `mean`, `sum`, `min`, `max`. Other reducers fall back to the legacy path.
 - `output="dataframe"` is still supported, but runs outside JIT (matches Magpylib semantics).
+- Circle-only object collections use a specialized chunked fast path and preparation cache, which substantially improves repeated-call performance and reduces memory pressure.
+- For timing JAX code, call `jax.block_until_ready(...)` inside benchmarks to exclude asynchronous dispatch artifacts.
 
 ## Differentiable fitting (mini loop)
 

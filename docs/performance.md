@@ -44,6 +44,16 @@ The high-level `getB/getH/getJ/getM` API runs through a JIT-safe core by default
 end-to-end compilation and differentiation across source parameters and observer grids while
 preserving Magpylib-compatible shapes and squeeze behavior.
 
+### Circle-heavy collection fast path
+
+For circle-only object collections (for example, large coil stacks), the JIT core now uses:
+- observer-aware source chunking (memory-bounded intermediate tensors),
+- a single-sensor/identity-rotation fast path for reduced transform overhead,
+- source-preparation caching for repeated calls on unchanged circle collections.
+
+This significantly reduces steady-state runtime and peak memory pressure for workloads that call
+`getB` repeatedly with the same source object graph and observer grid.
+
 Profiling remains focused on kernel entrypoints for stable, comparable HLO baselines. The JIT-safe
 `getB` path is validated via parity tests against the legacy implementation and is suitable for
 application-level JIT usage.

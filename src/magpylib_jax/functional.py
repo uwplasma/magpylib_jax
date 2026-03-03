@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+from collections import OrderedDict
 from collections.abc import Sequence
 from itertools import product
 from math import prod
@@ -107,6 +108,33 @@ _SOURCE_TYPE_ORDER = (
 )
 _SOURCE_TYPE_IDS = {name: idx for idx, name in enumerate(_SOURCE_TYPE_ORDER)}
 _SUPPORTED_PIXEL_AGGS = {"mean", "sum", "min", "max"}
+_MAX_SOURCE_CHUNK_SIZE = 256
+_SOURCE_PREP_CACHE_MAX = 8
+_SOURCE_PREP_CACHE: OrderedDict[
+    tuple[object, ...],
+    tuple[dict[str, jnp.ndarray], dict[str, object]],
+] = OrderedDict()
+
+
+def _select_source_chunk_size(
+    n_sources: int, *, observer_count: int, all_circle: bool
+) -> int:
+    if n_sources <= 1:
+        return 1
+    if all_circle:
+        candidates = (1, 2, 4, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256)
+        target_bytes = 4 * 1024 * 1024
+    else:
+        candidates = (1, 2, 4, 8, 16, 32, 64, 96, 128, 192, 256)
+        target_bytes = 16 * 1024 * 1024
+
+    bytes_per_source = max(1, observer_count) * 3 * 8
+    max_by_memory = max(1, target_bytes // bytes_per_source)
+    upper = min(_MAX_SOURCE_CHUNK_SIZE, n_sources, max_by_memory)
+    for cand in reversed(candidates):
+        if cand <= upper:
+            return cand
+    return 1
 
 
 def _check_getbh_output_type(output: str) -> str:
@@ -215,6 +243,65 @@ def _format_source_groups(source: object) -> list[dict[str, object]]:
         else:
             raise MagpylibBadUserInput(f"Bad sources provided: {src!r}.")
     return groups
+
+
+def _lru_get(
+    cache: OrderedDict[tuple[object, ...], object],
+    key: tuple[object, ...],
+) -> object | None:
+    val = cache.get(key)
+    if val is not None:
+        cache.move_to_end(key)
+    return val
+
+
+def _lru_put(
+    cache: OrderedDict[tuple[object, ...], object],
+    key: tuple[object, ...],
+    value: object,
+    *,
+    max_items: int,
+) -> None:
+    cache[key] = value
+    cache.move_to_end(key)
+    while len(cache) > max_items:
+        cache.popitem(last=False)
+
+
+def _circle_source_cache_key(source: object, *, in_out: str) -> tuple[object, ...] | None:
+    if isinstance(source, str):
+        return None
+    if _has_tracer(source):
+        return None
+    try:
+        groups = _format_source_groups(source)
+    except Exception:
+        return None
+
+    key_parts: list[object] = ["circle", in_out]
+    for group in groups:
+        group_label = group.get("label")
+        group_sources = group.get("sources")
+        if not isinstance(group_sources, list):
+            return None
+        key_parts.append(("group", group_label, len(group_sources)))
+        for src in group_sources:
+            if getattr(src, "_source_type", None) != "circle":
+                return None
+            current = getattr(src, "current", None)
+            diameter = getattr(src, "diameter", None)
+            if current is None or diameter is None:
+                return None
+            key_parts.append(
+                (
+                    id(src),
+                    float(current),
+                    float(diameter),
+                    id(getattr(src, "_position", None)),
+                    id(getattr(src, "_orientation", None)),
+                )
+            )
+    return tuple(key_parts)
 
 
 def _format_observers(observers: object, pixel_agg: str | None):
@@ -406,6 +493,13 @@ def _prepare_sources_jit(
     in_out: str,
     kwargs: dict[str, ArrayLike],
 ) -> tuple[dict[str, jnp.ndarray], dict[str, object]]:
+    cache_key = _circle_source_cache_key(source, in_out=in_out)
+    if cache_key is not None:
+        cached = _lru_get(_SOURCE_PREP_CACHE, cache_key)
+        if cached is not None:
+            cached_src, cached_meta = cached
+            return cached_src, cached_meta
+
     src_specs, group_specs = _build_source_specs(
         source, position=position, orientation=orientation, in_out=in_out, kwargs=kwargs
     )
@@ -679,6 +773,10 @@ def _prepare_sources_jit(
         "group_labels": [group["label"] for group in group_specs],
         "n_groups": len(group_specs),
     }
+    if cache_key is not None:
+        _lru_put(
+            _SOURCE_PREP_CACHE, cache_key, (src_arrays, meta), max_items=_SOURCE_PREP_CACHE_MAX
+        )
     return src_arrays, meta
 
 
@@ -815,6 +913,49 @@ def _segment_sum(data: jnp.ndarray, segment_ids: jnp.ndarray, num_segments: int)
         return jax.ops.segment_sum(data, segment_ids, num_segments)
 
 
+def _is_identity_rotation_stack(rot: jnp.ndarray, *, atol: float = 1e-12) -> bool:
+    eye = jnp.eye(3, dtype=rot.dtype)
+    return _safe_static_bool(jnp.all(jnp.abs(rot - eye) <= atol), default=False)
+
+
+def _is_all_right_handed(handedness: jnp.ndarray) -> bool:
+    right = jnp.array([1.0, 1.0, 1.0], dtype=handedness.dtype)
+    return _safe_static_bool(jnp.all(handedness == right), default=False)
+
+
+def _safe_static_bool(value: jnp.ndarray, *, default: bool) -> bool:
+    try:
+        return bool(jax.device_get(value))
+    except Exception:
+        return default
+
+
+def _pad_sources_for_chunking(
+    src_arrays: dict[str, jnp.ndarray], *, chunk_size: int
+) -> dict[str, jnp.ndarray]:
+    n_src = int(src_arrays["type_id"].shape[0])
+    pad = (-n_src) % chunk_size
+    source_mask = jnp.concatenate(
+        (
+            jnp.ones((n_src,), dtype=jnp.float64),
+            jnp.zeros((pad,), dtype=jnp.float64),
+        ),
+        axis=0,
+    )
+    if pad == 0:
+        return {**src_arrays, "source_mask": source_mask}
+
+    out: dict[str, jnp.ndarray] = {}
+    for key, arr in src_arrays.items():
+        if arr.shape[0] != n_src:
+            out[key] = arr
+            continue
+        pad_cfg = [(0, pad), *[(0, 0)] * (arr.ndim - 1)]
+        out[key] = jnp.pad(arr, pad_cfg)
+    out["source_mask"] = source_mask
+    return out
+
+
 def _compute_field_jit_core(
     src: dict[str, jnp.ndarray],
     sens: dict[str, jnp.ndarray],
@@ -822,11 +963,17 @@ def _compute_field_jit_core(
     field: str,
     in_out: str,
     n_groups: int,
+    chunk_size: int,
+    all_circle: bool,
+    source_rot_identity: bool,
+    sensor_rot_identity: bool,
+    right_handed: bool,
 ) -> jnp.ndarray:
     type_id = src["type_id"]
     pos = src["pos"]
     rot = src["rot"]
     group_index = src["group_index"]
+    source_mask = src["source_mask"]
 
     pix_flat = sens["pix_flat"]
     pix_mask = sens["pix_mask"]
@@ -837,6 +984,56 @@ def _compute_field_jit_core(
     n_sensors = pix_flat.shape[0]
     max_pix = pix_flat.shape[1]
     n_path = pos.shape[1]
+    n_sources = type_id.shape[0]
+    n_chunks = n_sources // chunk_size
+    pix_valid_mask = pix_mask[None, :, :, None] > 0
+
+    if (
+        all_circle
+        and n_groups == 1
+        and n_sensors == 1
+        and source_rot_identity
+        and sensor_rot_identity
+        and right_handed
+    ):
+
+        def _slice_chunk(arr: jnp.ndarray, start: jnp.ndarray) -> jnp.ndarray:
+            return jax.lax.dynamic_slice_in_dim(arr, start, chunk_size, axis=0)
+
+        def _step_fast(_, t):
+            obs_flat = pix_flat[0] + sens_pos[0, t][None, :]
+            pos_t = pos[:, t]
+
+            def _chunk_step(carry: jnp.ndarray, chunk_idx: jnp.ndarray) -> tuple[jnp.ndarray, None]:
+                start = chunk_idx * chunk_size
+                pos_chunk = _slice_chunk(pos_t, start)
+                obs_local = obs_flat[None, :, :] - pos_chunk[:, None, :]
+                if field == "B":
+                    fields = jax.vmap(current_circle_bfield, in_axes=(0, 0, 0))(
+                        obs_local,
+                        _slice_chunk(src["diameter"], start),
+                        _slice_chunk(src["current"], start),
+                    )
+                elif field == "H":
+                    fields = jax.vmap(current_circle_hfield, in_axes=(0, 0, 0))(
+                        obs_local,
+                        _slice_chunk(src["diameter"], start),
+                        _slice_chunk(src["current"], start),
+                    )
+                else:
+                    fields = jnp.zeros(
+                        (chunk_size, obs_flat.shape[0], 3),
+                        dtype=jnp.float64,
+                    )
+                fields = fields * _slice_chunk(source_mask, start)[:, None, None]
+                return carry + jnp.sum(fields, axis=0), None
+
+            init = jnp.zeros((obs_flat.shape[0], 3), dtype=jnp.float64)
+            out, _ = jax.lax.scan(_chunk_step, init, jnp.arange(n_chunks))
+            return None, out
+
+        _, b_path_fast = jax.lax.scan(_step_fast, None, jnp.arange(n_path))
+        return b_path_fast[None, :, None, :, :]
 
     def _mesh_inside(
         obs_local: jnp.ndarray, mesh_faces: jnp.ndarray, mesh_mask: jnp.ndarray, flag: jnp.ndarray
@@ -1039,75 +1236,128 @@ def _compute_field_jit_core(
         field_sens = field_sens * hand_vec[:, None, :]
         return field_sens
 
+    def per_source_circle(
+        pos_t: jnp.ndarray,
+        rot_t: jnp.ndarray,
+        diameter: jnp.ndarray,
+        current: jnp.ndarray,
+        obs_flat: jnp.ndarray,
+        rot_s: jnp.ndarray,
+    ) -> jnp.ndarray:
+        obs_local = (obs_flat - pos_t) @ rot_t
+        if field == "B":
+            field_local = current_circle_bfield(obs_local, diameter, current)
+        elif field == "H":
+            field_local = current_circle_hfield(obs_local, diameter, current)
+        else:
+            field_local = jnp.zeros_like(obs_local, dtype=jnp.float64)
+        field_global = field_local @ rot_t.T
+        field_global = field_global.reshape((n_sensors, max_pix, 3))
+        field_sens = jnp.einsum("spc,sdc->spd", field_global, rot_s)
+        field_sens = field_sens * hand_vec[:, None, :]
+        return field_sens
+
     def step(_, t):
         pos_s = sens_pos[:, t, :]
         rot_s = sens_rot[:, t, :, :]
         pix_rot = jnp.einsum("spc,sdc->spd", pix_flat, rot_s)
         obs = pix_rot + pos_s[:, None, :]
         obs_flat = obs.reshape((n_sensors * max_pix, 3))
+        pos_t = pos[:, t]
+        rot_t = rot[:, t]
 
-        fields = jax.vmap(
-            per_source,
-            in_axes=(
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                None,
-                None,
-            ),
-        )(
-            type_id,
-            pos[:, t],
-            rot[:, t],
-            src["moment"],
-            src["diameter"],
-            src["cuboid_dim"],
-            src["cylinder_dim"],
-            src["cseg_dim"],
-            src["polarization"],
-            src["triangle_vertices"],
-            src["tetra_vertices"],
-            src["current"],
-            src["poly_seg_start"],
-            src["poly_seg_end"],
-            src["poly_seg_mask"],
-            src["sheet_tris"],
-            src["sheet_cd"],
-            src["sheet_mask"],
-            src["mesh_faces"],
-            src["mesh_mask"],
-            src["mesh_nvec"],
-            src["mesh_L"],
-            src["mesh_l1"],
-            src["mesh_l2"],
-            src["in_out_flag"],
-            obs_flat,
-            rot_s,
-        )
-        fields = jnp.where(pix_mask[None, :, :, None] > 0, fields, 0.0)
-        group_fields = _segment_sum(fields, group_index, n_groups)
+        def _slice_chunk(arr: jnp.ndarray, start: jnp.ndarray) -> jnp.ndarray:
+            return jax.lax.dynamic_slice_in_dim(arr, start, chunk_size, axis=0)
+
+        def _chunk_step(carry: jnp.ndarray, chunk_idx: jnp.ndarray) -> tuple[jnp.ndarray, None]:
+            start = chunk_idx * chunk_size
+            if all_circle:
+                fields = jax.vmap(
+                    per_source_circle,
+                    in_axes=(0, 0, 0, 0, None, None),
+                )(
+                    _slice_chunk(pos_t, start),
+                    _slice_chunk(rot_t, start),
+                    _slice_chunk(src["diameter"], start),
+                    _slice_chunk(src["current"], start),
+                    obs_flat,
+                    rot_s,
+                )
+            else:
+                fields = jax.vmap(
+                    per_source,
+                    in_axes=(
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        None,
+                        None,
+                    ),
+                )(
+                    _slice_chunk(type_id, start),
+                    _slice_chunk(pos_t, start),
+                    _slice_chunk(rot_t, start),
+                    _slice_chunk(src["moment"], start),
+                    _slice_chunk(src["diameter"], start),
+                    _slice_chunk(src["cuboid_dim"], start),
+                    _slice_chunk(src["cylinder_dim"], start),
+                    _slice_chunk(src["cseg_dim"], start),
+                    _slice_chunk(src["polarization"], start),
+                    _slice_chunk(src["triangle_vertices"], start),
+                    _slice_chunk(src["tetra_vertices"], start),
+                    _slice_chunk(src["current"], start),
+                    _slice_chunk(src["poly_seg_start"], start),
+                    _slice_chunk(src["poly_seg_end"], start),
+                    _slice_chunk(src["poly_seg_mask"], start),
+                    _slice_chunk(src["sheet_tris"], start),
+                    _slice_chunk(src["sheet_cd"], start),
+                    _slice_chunk(src["sheet_mask"], start),
+                    _slice_chunk(src["mesh_faces"], start),
+                    _slice_chunk(src["mesh_mask"], start),
+                    _slice_chunk(src["mesh_nvec"], start),
+                    _slice_chunk(src["mesh_L"], start),
+                    _slice_chunk(src["mesh_l1"], start),
+                    _slice_chunk(src["mesh_l2"], start),
+                    _slice_chunk(src["in_out_flag"], start),
+                    obs_flat,
+                    rot_s,
+                )
+            fields = jnp.where(pix_valid_mask, fields, 0.0)
+            fields = fields * _slice_chunk(source_mask, start)[:, None, None, None]
+            if n_groups == 1:
+                chunk_group_fields = jnp.sum(fields, axis=0, keepdims=True)
+            else:
+                chunk_group_fields = _segment_sum(
+                    fields,
+                    _slice_chunk(group_index, start),
+                    n_groups,
+                )
+            return carry + chunk_group_fields, None
+
+        init = jnp.zeros((n_groups, n_sensors, max_pix, 3), dtype=jnp.float64)
+        group_fields, _ = jax.lax.scan(_chunk_step, init, jnp.arange(n_chunks))
         return None, group_fields
 
     _, b_path = jax.lax.scan(step, None, jnp.arange(n_path))
@@ -1116,7 +1366,16 @@ def _compute_field_jit_core(
 
 _compute_field_jit_core_compiled = jax.jit(
     _compute_field_jit_core,
-    static_argnames=("field", "in_out", "n_groups"),
+    static_argnames=(
+        "field",
+        "in_out",
+        "n_groups",
+        "chunk_size",
+        "all_circle",
+        "source_rot_identity",
+        "sensor_rot_identity",
+        "right_handed",
+    ),
 )
 
 
@@ -1189,12 +1448,41 @@ def _compute_field_jit(
     sens_arrays_core = {key: val for key, val in sens_arrays.items() if not key.endswith("_list")}
     src_arrays_core["pos"] = src_pos
     src_arrays_core["rot"] = src_rot
+    all_circle = _safe_static_bool(
+        jnp.all(src_arrays_core["type_id"] == _SOURCE_TYPE_IDS["circle"]),
+        default=False,
+    )
     sens_arrays_core["pos"] = sens_pos
     sens_arrays_core["rot"] = sens_rot
 
     n_groups = int(src_meta["n_groups"])
+    n_sources = int(src_arrays_core["type_id"].shape[0])
+    n_observers = int(sens_arrays_core["pix_flat"].shape[0] * sens_arrays_core["pix_flat"].shape[1])
+    chunk_size = _select_source_chunk_size(
+        n_sources,
+        observer_count=n_observers,
+        all_circle=all_circle,
+    )
+    source_rot_identity = False
+    sensor_rot_identity = False
+    right_handed = False
+    if all_circle and n_groups == 1 and int(sens_arrays_core["pix_flat"].shape[0]) == 1:
+        source_rot_identity = _is_identity_rotation_stack(src_rot)
+        sensor_rot_identity = _is_identity_rotation_stack(sens_rot)
+        right_handed = _is_all_right_handed(sens_arrays_core["handedness"])
+
+    src_arrays_core = _pad_sources_for_chunking(src_arrays_core, chunk_size=chunk_size)
     B = _compute_field_jit_core_compiled(
-        src_arrays_core, sens_arrays_core, field=field, in_out=in_out, n_groups=n_groups
+        src_arrays_core,
+        sens_arrays_core,
+        field=field,
+        in_out=in_out,
+        n_groups=n_groups,
+        chunk_size=chunk_size,
+        all_circle=all_circle,
+        source_rot_identity=source_rot_identity,
+        sensor_rot_identity=sensor_rot_identity,
+        right_handed=right_handed,
     )
 
     pix_shapes = sens_meta["pix_shapes"]
