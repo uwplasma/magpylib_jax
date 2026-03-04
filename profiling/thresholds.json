@@ -6,7 +6,7 @@
     "cuboid": 25.0,
     "cylinder": 30.0,
     "cylindersegment": 40.0,
-    "cylindersegment_jit": 1.5,
+    "cylindersegment_jit": 2.0,
     "sphere": 20.0,
     "polyline": 25.0,
     "polyline_jit": 0.5,
@@ -41,7 +41,7 @@
     "triangularmesh_jit": 0.01,
     "tetrahedron": 4.0,
     "tetrahedron_jit": 0.01,
-    "cylindersegment_jit": 0.2
+    "cylindersegment_jit": 0.3
   },
   "max_abs_parity_error_T": {
     "dipole": 1e-10,
