@@ -16,6 +16,8 @@ from magpylib_jax.magnet import (
 from magpylib_jax.misc import CustomSource, Dipole, Triangle
 from magpylib_jax.sensor import Sensor
 
+__version__ = "1.0.0"
+
 __all__ = [
     "Circle",
     "Collection",
@@ -32,6 +34,7 @@ __all__ = [
     "TriangleSheet",
     "TriangleStrip",
     "TriangularMesh",
+    "__version__",
     "current",
     "getB",
     "getH",

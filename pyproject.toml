@@ -4,28 +4,31 @@ build-backend = "hatchling.build"
 
 [project]
 name = "magpylib-jax"
-version = "0.1.0"
-description = "Differentiable JAX-native magnetic field library inspired by Magpylib"
+version = "1.0.0"
+description = "Differentiable JAX-native magnetic field modeling with Magpylib-compatible APIs"
 readme = "README.md"
 license = { text = "BSD-2-Clause" }
 requires-python = ">=3.11"
 authors = [
   { name = "uwplasma" }
 ]
-keywords = ["jax", "magnetism", "magnetic field", "differentiable physics"]
+keywords = ["jax", "magpylib", "magnetism", "magnetic field", "differentiable physics"]
 classifiers = [
-  "Development Status :: 2 - Pre-Alpha",
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
   "Intended Audience :: Science/Research",
   "License :: OSI Approved :: BSD License",
+  "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Topic :: Scientific/Engineering :: Physics",
 ]
 dependencies = [
-  "jax[cpu]==0.6.1",
-  "numpy>=1.26",
-  "scipy>=1.11",
+  "jax>=0.6.1,<0.7",
+  "numpy>=1.26,<3",
+  "scipy>=1.11,<2",
 ]
 
 [project.optional-dependencies]
@@ -44,6 +47,8 @@ docs = [
 [project.urls]
 Homepage = "https://github.com/uwplasma/magpylib_jax"
 Repository = "https://github.com/uwplasma/magpylib_jax"
+Documentation = "https://magpylib-jax.readthedocs.io/"
+Changelog = "https://github.com/uwplasma/magpylib_jax/blob/main/CHANGELOG.md"
 Issues = "https://github.com/uwplasma/magpylib_jax/issues"
 
 [tool.hatch.build.targets.wheel]

@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 *.so
 *.dylib
+.DS_Store
 .venv/
 .pytest_cache/
 .mypy_cache/

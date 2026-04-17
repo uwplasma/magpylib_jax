@@ -1,6 +1,6 @@
 # magpylib_jax
 
-Differentiable magnetic field modeling in JAX with Magpylib-compatible APIs, parity gates, and profiling/benchmark CI.
+Differentiable magnetic field modeling in JAX with Magpylib-compatible APIs, parity gates, and profiling/benchmark CI. Version `1.0.0` ships the full source set currently implemented in this repository, a JIT-safe high-level field path, and release automation for GitHub and PyPI.
 
 `magpylib_jax` targets optimization and inverse-design workflows where you need:
 - analytical or high-fidelity kernel models,
@@ -33,7 +33,13 @@ Differentiable magnetic field modeling in JAX with Magpylib-compatible APIs, par
 - Fixed-observer-count JIT entrypoints for hotspot kernels (triangle*, tetrahedron, mesh)
 - JIT-safe `getB/getH/getJ/getM` path with parity checks against legacy behavior
 
-## Quickstart
+## Install
+
+```bash
+pip install magpylib-jax
+```
+
+For development, tests, and docs:
 
 ```bash
 python -m venv .venv
@@ -41,6 +47,8 @@ source .venv/bin/activate
 pip install -e '.[test,docs]'
 pytest
 ```
+
+For GPU-backed JAX environments, install the appropriate `jax`/`jaxlib` build first, then install `magpylib-jax`.
 
 ## Example
 
@@ -133,6 +141,7 @@ Update `profiling/thresholds.json` when intentional kernel changes shift HLO siz
 
 Detailed docs are in `docs/` (equations, numerics, examples, parity strategy, testing, performance, API).
 Read the Docs config is in [`.readthedocs.yaml`](.readthedocs.yaml).
+Release notes live in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
