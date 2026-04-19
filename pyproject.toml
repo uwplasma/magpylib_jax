@@ -8,7 +8,7 @@ version = "1.0.0"
 description = "Differentiable JAX-native magnetic field modeling with Magpylib-compatible APIs"
 readme = "README.md"
 license = { text = "BSD-2-Clause" }
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 authors = [
   { name = "uwplasma" }
 ]
@@ -21,8 +21,10 @@ classifiers = [
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Scientific/Engineering :: Physics",
 ]
 dependencies = [
@@ -37,6 +39,7 @@ test = [
   "pytest-cov",
   "magpylib",
   "pandas",
+  "tomli; python_version < '3.11'",
 ]
 docs = [
   "sphinx",
@@ -65,13 +68,13 @@ markers = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.10"
 warn_unused_configs = true
 files = ["src"]
 disallow_untyped_defs = false

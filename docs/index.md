@@ -1,23 +1,32 @@
 # magpylib_jax
 
-JAX-native, end-to-end differentiable magnetic field computations inspired by Magpylib.
+JAX-native, end-to-end differentiable magnetic field computation with Magpylib-compatible APIs.
 
-## Highlights
+`magpylib_jax` is organized around three goals:
 
-- Differentiable source kernels using JAX
-- Functional and object APIs with path/orientation shape compatibility coverage
-- Numerical parity tests and upstream-file mirrored tests against Magpylib
-- Coverage, benchmark, and profiling regression gates in CI/nightly workflows
+- keep the high-level Magpylib user model familiar,
+- provide analytical field kernels that remain differentiable through JAX,
+- make correctness and performance observable through parity tests, benchmarks, and profiling artifacts.
+
+## Start here
+
+- New user: [Quickstart](quickstart.md)
+- Looking for the mathematical model: [Equation Models](equations.md)
+- Looking for implementation details: [Architecture and Source Map](architecture.md)
+- Looking for examples: [Examples](examples/index.md)
+- Looking for validation guarantees: [Testing and Validation](testing.md)
+- Looking for performance guidance: [Performance](performance.md)
 
 ```{toctree}
 :maxdepth: 2
-:caption: Contents
+:caption: User Guide
 
 overview
 quickstart
 equations
 numerics
-examples
+architecture
+examples/index
 testing
 performance
 parity
