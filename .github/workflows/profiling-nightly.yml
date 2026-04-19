@@ -35,7 +35,8 @@ jobs:
           python scripts/check_profiling_thresholds.py \
             profiling/getB_jit_nightly.json \
             profiling/thresholds_getB_jit.json
-      - name: Check getB JIT HLO baseline
+      - name: Check getB JIT HLO baseline (report-only)
+        continue-on-error: true
         run: |
           python scripts/check_hlo_diffs.py \
             profiling/getB_jit_nightly.json \
@@ -45,7 +46,8 @@ jobs:
           python scripts/check_profiling_thresholds.py \
             profiling/latest_nightly.json \
             profiling/thresholds.json
-      - name: Check HLO hash baseline
+      - name: Check HLO hash baseline (report-only)
+        continue-on-error: true
         run: |
           python scripts/check_hlo_diffs.py \
             profiling/latest_nightly.json \

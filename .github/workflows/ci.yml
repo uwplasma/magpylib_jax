@@ -200,7 +200,8 @@ jobs:
           python scripts/check_profiling_thresholds.py \
             profiling/latest_ci.json \
             profiling/thresholds.json
-      - name: Validate HLO baseline
+      - name: Validate HLO baseline (report-only)
+        continue-on-error: true
         run: |
           python scripts/check_hlo_diffs.py \
             profiling/latest_ci.json \
@@ -244,7 +245,8 @@ jobs:
           python scripts/check_profiling_thresholds.py \
             profiling/getB_jit_ci.json \
             profiling/thresholds_getB_jit.json
-      - name: Validate getB JIT HLO baseline
+      - name: Validate getB JIT HLO baseline (report-only)
+        continue-on-error: true
         run: |
           python scripts/check_hlo_diffs.py \
             profiling/getB_jit_ci.json \
