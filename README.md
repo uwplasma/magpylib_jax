@@ -3,6 +3,7 @@
 [![CI](https://github.com/uwplasma/magpylib_jax/actions/workflows/ci.yml/badge.svg)](https://github.com/uwplasma/magpylib_jax/actions/workflows/ci.yml)
 [![Full Validation](https://github.com/uwplasma/magpylib_jax/actions/workflows/full-validation.yml/badge.svg)](https://github.com/uwplasma/magpylib_jax/actions/workflows/full-validation.yml)
 [![Publish Release](https://github.com/uwplasma/magpylib_jax/actions/workflows/publish-pypi.yml/badge.svg)](https://github.com/uwplasma/magpylib_jax/actions/workflows/publish-pypi.yml)
+[![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen.svg)](https://github.com/uwplasma/magpylib_jax/actions/workflows/ci.yml)
 [![PyPI version](https://img.shields.io/pypi/v/magpylib-jax.svg)](https://pypi.org/project/magpylib-jax/)
 [![Python versions](https://img.shields.io/pypi/pyversions/magpylib-jax.svg)](https://pypi.org/project/magpylib-jax/)
 [![Docs](https://readthedocs.org/projects/magpylib-jax/badge/?version=latest)](https://magpylib-jax.readthedocs.io/)

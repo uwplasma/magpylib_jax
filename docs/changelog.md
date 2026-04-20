@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.1
+
+- Restored the nightly `Full Validation` workflow to Python 3.11 so the upstream mirror tests
+  run in an upstream-compatible environment.
+- Kept Python 3.10 package compatibility while avoiding false workflow failures from upstream
+  dependency drift.
+- Added a coverage badge to the repository README.
+- Simplified release publishing so PyPI uploads are driven by GitHub releases.
+
 ## 1.0.0
 
 `magpylib_jax` 1.0.0 is the first stable release.

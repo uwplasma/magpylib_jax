@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.1 - 2026-04-20
+
+### Release maintenance
+
+- Restored the `Full Validation` workflow to Python 3.11 so the mirrored upstream Magpylib
+  suite runs against an upstream-compatible dependency set.
+- Kept Python 3.10 support in package metadata and CI compatibility coverage without forcing
+  the nightly upstream-mirror workflow onto an unsupported upstream combination.
+- Added a coverage badge to the README and kept the PyPI badges aligned with the published
+  package name `magpylib-jax`.
+- Simplified the PyPI release workflow so publishing is driven from GitHub releases and
+  manual dispatch, avoiding duplicate release jobs from both tag-push and release events.
+
 ## 1.0.0 - 2026-04-17
 
 `magpylib_jax` 1.0.0 is the first stable release of the project.
