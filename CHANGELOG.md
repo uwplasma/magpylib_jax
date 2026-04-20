@@ -11,7 +11,8 @@
 - Added a coverage badge to the README and kept the PyPI badges aligned with the published
   package name `magpylib-jax`.
 - Simplified the PyPI release workflow so publishing is driven from GitHub releases and
-  manual dispatch, avoiding duplicate release jobs from both tag-push and release events.
+  manual dispatch, using trusted publishing and avoiding duplicate release jobs from both
+  tag-push and release events.
 
 ## 1.0.0 - 2026-04-17
 

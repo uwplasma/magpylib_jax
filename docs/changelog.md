@@ -7,7 +7,8 @@
 - Kept Python 3.10 package compatibility while avoiding false workflow failures from upstream
   dependency drift.
 - Added a coverage badge to the repository README.
-- Simplified release publishing so PyPI uploads are driven by GitHub releases.
+- Simplified release publishing so PyPI uploads are driven by GitHub releases with trusted
+  publishing.
 
 ## 1.0.0
 
