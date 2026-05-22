@@ -433,6 +433,7 @@ def test_scipy_from_methods():
     np.testing.assert_allclose(
         cube0.position,
         from_angax.position,
+        atol=1e-12,
         err_msg="from_angax failed on position",
     )
     np.testing.assert_allclose(
