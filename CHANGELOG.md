@@ -8,6 +8,14 @@
   `SUPPORTED_PLOTTING_BACKENDS`, and minimal `defaults` / `show_context` shims, so common magpylib
   field-computation scripts run unchanged. A `tests/test_magpylib_compat.py` suite exercises the
   shared API (construction, `getB` parity, collections/sensors, motion, `getFT`, `show`).
+- **`Collection` gains the magpylib recursive/typed accessors** `sources_all`, `sensors_all`,
+  `collections`, `collections_all`, and `children_all`.
+- **`getFT` accepts a `Collection` as a source**, summing its members into one force per target
+  (magpylib semantics).
+- **`examples/` folder** — 19 runnable scripts: ported magpylib user-guide examples (basics,
+  shapes, force, visualization, coil/Halbach applications) plus magpylib_jax-specific
+  differentiable examples (inverse design, geometry optimization, jit/vmap batching, getFT
+  equilibrium, field Jacobians), with a smoke test.
 
 ## 2.1.0 - 2026-07-13
 

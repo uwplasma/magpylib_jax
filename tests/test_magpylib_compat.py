@@ -107,6 +107,35 @@ def test_getFT_api_and_parity():
     np.testing.assert_allclose(np.asarray(F), np.asarray(F_ref), rtol=1e-4, atol=1e-12)
 
 
+# --- collection recursive accessors (magpylib parity) ------------------------
+def test_collection_recursive_accessors():
+    inner = magpy.Collection(
+        magpy.misc.Dipole(moment=(0, 0, 1)), magpy.Sensor(position=(1, 0, 0))
+    )
+    outer = magpy.Collection(
+        magpy.magnet.Cuboid(polarization=(0, 0, 1), dimension=(1, 1, 1)), inner
+    )
+    assert len(outer.sources_all) == 2  # cuboid + inner dipole
+    assert len(outer.sensors_all) == 1
+    assert inner in outer.collections
+    assert inner in outer.collections_all
+    assert set(outer.children_all) >= set(inner.children)
+
+
+def test_getFT_accepts_collection_source():
+    coll = magpy.Collection(
+        magpy.magnet.Cuboid(polarization=(0, 0, 1), dimension=(1, 1, 1)),
+        magpy.misc.Dipole(moment=(0, 0, 1), position=(0, 1, 0)),
+    )
+    tgt = magpy.misc.Dipole(moment=(0, 0, 1), position=(2, 0, 0))
+    F_coll, T_coll = magpy.getFT(coll, tgt)
+    F_list, T_list = magpy.getFT(list(coll.sources), tgt)
+    # a Collection source sums to the same force as its flattened leaf list
+    np.testing.assert_allclose(
+        np.asarray(F_coll), np.asarray(F_list).sum(axis=0), rtol=1e-9, atol=1e-14
+    )
+
+
 # --- show (matplotlib) --------------------------------------------------------
 def test_show_api():
     src = magpy.magnet.Cuboid(polarization=(0, 0, 1), dimension=(1, 1, 1))

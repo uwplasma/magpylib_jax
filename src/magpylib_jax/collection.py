@@ -170,6 +170,32 @@ class Collection(BaseGeo):
             ]
         return list(self._sensors_cache)
 
+    # --- magpylib-compatible recursive / typed accessors ---------------------
+    @property
+    def sources_all(self) -> list[BaseSource]:
+        """All source descendants, recursing into sub-collections."""
+        return self.sources
+
+    @property
+    def sensors_all(self) -> list[Sensor]:
+        """All sensor descendants, recursing into sub-collections."""
+        return self.sensors
+
+    @property
+    def collections(self) -> list[Collection]:
+        """Direct child collections."""
+        return [c for c in self.children if isinstance(c, Collection)]
+
+    @property
+    def collections_all(self) -> list[Collection]:
+        """All collection descendants, recursing into sub-collections."""
+        return [c for c in self._flatten_children() if isinstance(c, Collection)]
+
+    @property
+    def children_all(self) -> list[object]:
+        """All descendants (sources, sensors, and collections), recursively."""
+        return self._flatten_children()
+
     @property
     def volume(self) -> float:
         return float(sum(getattr(obj, "volume", 0.0) for obj in self.sources))

@@ -499,10 +499,26 @@ def _generate_ft_mesh(target: Any) -> tuple[jnp.ndarray, jnp.ndarray, str]:
 # ---------------------------------------------------------------------------
 # Input formatting helpers.
 # ---------------------------------------------------------------------------
-def _as_source_list(sources: Any) -> list:
-    if isinstance(sources, (list, tuple)):
-        return list(sources)
-    return [sources]
+def _as_source_list(sources: Any) -> tuple[list, list[int]]:
+    """Flatten sources to leaf objects, tracking top-level source groups.
+
+    Returns ``(flat_leaves, group_starts)`` where ``group_starts[g]`` is the index
+    in ``flat_leaves`` where top-level source ``g`` begins. A Collection source is
+    expanded into its leaf sources but kept as one output group (magpylib sums a
+    collection's members into a single force on the target).
+    """
+    from magpylib_jax.collection import Collection
+
+    raw = list(sources) if isinstance(sources, (list, tuple)) else [sources]
+    flat: list = []
+    group_starts: list[int] = []
+    for s in raw:
+        group_starts.append(len(flat))
+        if isinstance(s, Collection):
+            flat.extend(s.sources)
+        else:
+            flat.append(s)
+    return flat, group_starts
 
 
 def _flatten_targets(targets: Any) -> tuple[list, list[int]]:
@@ -596,8 +612,10 @@ def getFT(
 
     Parameters
     ----------
-    sources : Source | list[Source]
-        One or more magpylib_jax sources generating the field.
+    sources : Source | Collection | list[Source | Collection]
+        One or more magpylib_jax sources generating the field. A ``Collection`` is
+        treated as a single source: its member fields are summed into one force on
+        each target (matching magpylib).
     targets : Target | list[Target] | Collection
         Objects the field acts on. Supported target types:
 
@@ -637,10 +655,11 @@ def getFT(
         the number of sources, ``p`` the path length and ``t`` the number of
         targets.
     """
-    src_list = _as_source_list(sources)
+    src_list, src_group_starts = _as_source_list(sources)
     flat_targets, coll_idx = _flatten_targets(targets)
 
     n_src = len(src_list)
+    n_src_out = len(src_group_starts)
     n_tgt_out = len(coll_idx)
 
     # Path length: max over source and target position paths (static shapes).
@@ -730,6 +749,18 @@ def getFT(
         T_arr = jnp.stack(
             [jnp.sum(T_arr[:, :, coll_idx[g]:ends[g], :], axis=2) for g in range(n_tgt_out)],
             axis=2,
+        )
+
+    # Sum leaf sources within each top-level source group (Collection -> 1 source).
+    if n_src_out != n_src:
+        src_ends = src_group_starts[1:] + [n_src]
+        F_arr = jnp.stack(
+            [jnp.sum(F_arr[src_group_starts[g]:src_ends[g]], axis=0) for g in range(n_src_out)],
+            axis=0,
+        )
+        T_arr = jnp.stack(
+            [jnp.sum(T_arr[src_group_starts[g]:src_ends[g]], axis=0) for g in range(n_src_out)],
+            axis=0,
         )
 
     if squeeze:
