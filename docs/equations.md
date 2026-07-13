@@ -140,7 +140,7 @@ That structure is easier to validate and profile than directly transcribing symb
 
 ## Where to read the implementation
 
-- Core analytical kernels: [`src/magpylib_jax/core/kernels.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/core/kernels.py)
-- Extended and mesh/segment kernels: [`src/magpylib_jax/core/kernels_extended.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/core/kernels_extended.py)
+- Core analytical kernels: [`src/magpylib_jax/core/kernels.py`](https://github.com/uwplasma/magpylib_jax/tree/main/src/magpylib_jax/core/kernels)
+- Extended and mesh/segment kernels: [`src/magpylib_jax/core/kernels/`](https://github.com/uwplasma/magpylib_jax/tree/main/src/magpylib_jax/core/kernels)
 - Geometric coordinate helpers: [`src/magpylib_jax/core/geometry.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/core/geometry.py)
 - High-level field assembly: [`src/magpylib_jax/functional.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/functional.py)

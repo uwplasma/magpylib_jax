@@ -42,7 +42,7 @@ Artifacts produced per source family:
 
 ## Fixed-observer-count JIT entrypoints
 
-Hotspot wrappers live in [`core/kernels_extended.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/core/kernels_extended.py) and cache compilation by observer count.
+Hotspot wrappers live in [`core/kernels/`](https://github.com/uwplasma/magpylib_jax/tree/main/src/magpylib_jax/core/kernels) and cache compilation by observer count.
 
 Representative examples:
 

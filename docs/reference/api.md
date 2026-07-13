@@ -11,7 +11,14 @@
 
 ```{eval-rst}
 .. automodule:: magpylib_jax.functional
-   :members:
+   :members: getB, getH, getJ, getM, getFT
+```
+
+## Force and torque
+
+```{eval-rst}
+.. automodule:: magpylib_jax.fields.force
+   :members: getFT
 ```
 
 ## Object containers
@@ -109,7 +116,9 @@
    :members:
 ```
 
+## Field engine
+
 ```{eval-rst}
-.. automodule:: magpylib_jax.core.kernels_extended
-   :members:
+.. automodule:: magpylib_jax.fields.api
+   :members: getB, getH, getJ, getM
 ```

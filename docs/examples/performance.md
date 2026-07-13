@@ -36,6 +36,6 @@ That script compares upstream `magpylib` and `magpylib_jax` on a representative 
 
 ## When to use kernel JIT entrypoints directly
 
-If your application has a fixed observer count and repeatedly evaluates a single source family, the specialized wrappers in `core.kernels_extended` can be useful for isolating compile/runtime behavior.
+If your application has a fixed observer count and repeatedly evaluates a single source family, the specialized wrappers in `core.kernels` can be useful for isolating compile/runtime behavior.
 
 For most users, the high-level `getB` path is the right default.

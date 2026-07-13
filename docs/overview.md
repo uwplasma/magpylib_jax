@@ -79,5 +79,5 @@ See [Performance](performance.md).
 
 - High-level API: [`src/magpylib_jax/functional.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/functional.py)
 - Object base classes: [`src/magpylib_jax/core/base.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/core/base.py)
-- Analytical kernels: [`src/magpylib_jax/core/kernels.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/core/kernels.py)
-- Extended kernels and hotspot JIT wrappers: [`src/magpylib_jax/core/kernels_extended.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/core/kernels_extended.py)
+- Analytical kernels: [`src/magpylib_jax/core/kernels.py`](https://github.com/uwplasma/magpylib_jax/tree/main/src/magpylib_jax/core/kernels)
+- Extended kernels and hotspot JIT wrappers: [`src/magpylib_jax/core/kernels/`](https://github.com/uwplasma/magpylib_jax/tree/main/src/magpylib_jax/core/kernels)

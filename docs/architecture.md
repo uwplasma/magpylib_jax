@@ -8,8 +8,8 @@ The repository is organized in layers.
 
 ## Public API layer
 
-- [`src/magpylib_jax/__init__.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/__init__.py)
-- [`src/magpylib_jax/functional.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/functional.py)
+- [`src/magpylib_jax/__init__.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/__init__.py) — package surface; enables JAX x64 on import.
+- [`src/magpylib_jax/functional.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/functional.py) — thin re-export facade over the `fields/` package (`getB/getH/getJ/getM/getFT`).
 - [`src/magpylib_jax/collection.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/collection.py)
 - [`src/magpylib_jax/sensor.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/sensor.py)
 
@@ -21,6 +21,15 @@ This layer handles:
 - path and orientation semantics,
 - pixel aggregation,
 - squeeze and broadcasting behavior.
+
+## Field engine layer (`fields/`)
+
+- [`fields/api.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/fields/api.py) — public `getB/getH/getJ/getM` and the `_compute_field` router.
+- [`fields/prepare.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/fields/prepare.py) — source/sensor/observer preparation and padding.
+- [`fields/engine.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/fields/engine.py) — the vectorized JIT evaluation engine (default path).
+- [`fields/eager.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/fields/eager.py) — eager reference evaluator for output modes outside JIT.
+- [`fields/cache.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/fields/cache.py) — preparation caches.
+- [`fields/force.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/fields/force.py) — `getFT`, autodiff force and torque.
 
 ## Object base layer
 
@@ -37,12 +46,11 @@ This layer handles:
 
 ## Geometry and kernel layer
 
-- [`src/magpylib_jax/core/geometry.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/core/geometry.py)
-- [`src/magpylib_jax/core/elliptic.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/core/elliptic.py)
-- [`src/magpylib_jax/core/kernels.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/core/kernels.py)
-- [`src/magpylib_jax/core/kernels_extended.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/core/kernels_extended.py)
+- [`src/magpylib_jax/core/geometry.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/core/geometry.py) — frame transforms, cartesian↔cylindrical, pose broadcasting.
+- [`src/magpylib_jax/core/kernels/`](https://github.com/uwplasma/magpylib_jax/tree/main/src/magpylib_jax/core/kernels) — the analytic field kernels, one module per source family (`dipole`, `circle`, `cuboid`, `cylinder`, `sphere`, `polyline`, `triangle`, `tetrahedron`, `trimesh`, `cylinder_segment`, `current_sheet`, `current_strip`), plus `elliptic` (Bulirsch `cel`), `_raycast` (mesh inside-tests), and `_safe`/`_common` helpers.
 
-This is where the actual field formulas live.
+This is where the actual field formulas live. Each kernel is a pure function of
+origin-local observer coordinates and is differentiable in JAX.
 
 ## Source wrappers
 
@@ -79,12 +87,14 @@ A typical high-level `getB` call follows this path:
 5. Rotate the resulting field back to the global frame.
 6. Apply sensor aggregation and Magpylib-compatible squeeze behavior.
 
-The orchestration lives in [`functional.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/functional.py).
+The orchestration lives in the [`fields/`](https://github.com/uwplasma/magpylib_jax/tree/main/src/magpylib_jax/fields)
+package: `api.py` routes the call, `prepare.py` builds the batched tensors, and `engine.py`
+runs the vectorized JIT kernel. Force and torque follow the same field path through
+[`fields/force.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/fields/force.py),
+adding a `jax.jacfwd` of the field for the magnet gradient term.
 
 ## Where to profile
 
-If the issue is:
-
-- compile time or HLO size: start in [`scripts/profile_kernels.py`](https://github.com/uwplasma/magpylib_jax/blob/main/scripts/profile_kernels.py)
-- high-level `getB` overhead: start in [`scripts/profile_getB_jit.py`](https://github.com/uwplasma/magpylib_jax/blob/main/scripts/profile_getB_jit.py)
-- large loop/coil workloads: start in [`scripts/profile_wham_workload.py`](https://github.com/uwplasma/magpylib_jax/blob/main/scripts/profile_wham_workload.py)
+- kernel compile/runtime: [`scripts/profile_kernels.py`](https://github.com/uwplasma/magpylib_jax/blob/main/scripts/profile_kernels.py)
+- high-level `getB` overhead: [`scripts/profile_getB_jit.py`](https://github.com/uwplasma/magpylib_jax/blob/main/scripts/profile_getB_jit.py)
+- figures/benchmarks: [`scripts/make_figures.py`](https://github.com/uwplasma/magpylib_jax/blob/main/scripts/make_figures.py)
