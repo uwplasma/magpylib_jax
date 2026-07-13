@@ -6,7 +6,6 @@ import jax.numpy as jnp
 
 from magpylib_jax._types import ArrayLike
 from magpylib_jax.core.base import BaseSource, MagpylibMissingInput
-from magpylib_jax.functional import getB, getH, getJ, getM
 
 
 class TriangleStrip(BaseSource):
@@ -55,97 +54,6 @@ class TriangleStrip(BaseSource):
         if self.current is None:
             raise MagpylibMissingInput("Input current of TriangleStrip must be set.")
 
-    def getB(
-        self,
-        *observers: ArrayLike,
-        in_out: str = "auto",
-        squeeze: bool = True,
-        sumup: bool = False,
-        output: str = "ndarray",
-        pixel_agg: str | None = None,
-    ) -> jnp.ndarray:
-        self._require_inputs()
-        obs = observers[0] if len(observers) == 1 else list(observers)
-        return getB(
-            "trianglestrip",
-            obs,
-            vertices=self.vertices,
-            current=self.current,
-            position=self.position,
-            orientation=self.orientation,
-            in_out=in_out,
-            squeeze=squeeze,
-            sumup=sumup,
-            output=output,
-            pixel_agg=pixel_agg,
-        )
-
-    def getH(
-        self,
-        *observers: ArrayLike,
-        in_out: str = "auto",
-        squeeze: bool = True,
-        sumup: bool = False,
-        output: str = "ndarray",
-        pixel_agg: str | None = None,
-    ) -> jnp.ndarray:
-        self._require_inputs()
-        obs = observers[0] if len(observers) == 1 else list(observers)
-        return getH(
-            "trianglestrip",
-            obs,
-            vertices=self.vertices,
-            current=self.current,
-            position=self.position,
-            orientation=self.orientation,
-            in_out=in_out,
-            squeeze=squeeze,
-            sumup=sumup,
-            output=output,
-            pixel_agg=pixel_agg,
-        )
-
-    def getJ(
-        self,
-        *observers: ArrayLike,
-        in_out: str = "auto",
-        squeeze: bool = True,
-        sumup: bool = False,
-    ) -> jnp.ndarray:
-        self._require_inputs()
-        obs = observers[0] if len(observers) == 1 else list(observers)
-        return getJ(
-            "trianglestrip",
-            obs,
-            vertices=self.vertices,
-            current=self.current,
-            position=self.position,
-            orientation=self.orientation,
-            in_out=in_out,
-            squeeze=squeeze,
-            sumup=sumup,
-        )
-
-    def getM(
-        self,
-        *observers: ArrayLike,
-        in_out: str = "auto",
-        squeeze: bool = True,
-        sumup: bool = False,
-    ) -> jnp.ndarray:
-        self._require_inputs()
-        obs = observers[0] if len(observers) == 1 else list(observers)
-        return getM(
-            "trianglestrip",
-            obs,
-            vertices=self.vertices,
-            current=self.current,
-            position=self.position,
-            orientation=self.orientation,
-            in_out=in_out,
-            squeeze=squeeze,
-            sumup=sumup,
-        )
-
-    def copy(self, **kwargs) -> TriangleStrip:
-        return super().copy(**kwargs)
+    def _field_kwargs(self) -> dict:
+        """Geometry + excitation arguments for the field engine."""
+        return {"vertices": self.vertices, "current": self.current}

@@ -810,9 +810,108 @@ class BaseGeo(BaseTransform, BaseDisplayRepr):
 
 
 class BaseSource(BaseGeo):
-    """Marker base class for source objects."""
+    """Base class for source objects, providing the shared field interface.
+
+    Concrete sources declare ``_source_type`` and implement ``_field_kwargs``
+    (their geometry + excitation arguments). The four ``getB/getH/getJ/getM``
+    methods and their plumbing live here, so a source class only describes its
+    geometry, not how a field is computed.
+    """
 
     _is_source = True
+    _source_type: str = ""
+
+    def _field_kwargs(self) -> dict[str, Any]:
+        """Geometry + excitation kwargs forwarded to the field engine."""
+        raise NotImplementedError(
+            f"{type(self).__name__} must implement _field_kwargs()."
+        )
+
+    def _require_inputs(self) -> None:
+        """Validate that required inputs are set (overridden by sources)."""
+
+    def _resolve_in_out(self, in_out: str) -> str:
+        """Hook for sources that reinterpret ``in_out`` (e.g. TriangularMesh)."""
+        return in_out
+
+    def _get_field(
+        self,
+        field: str,
+        observers: tuple,
+        *,
+        in_out: str,
+        squeeze: bool,
+        sumup: bool,
+        output: str = "ndarray",
+        pixel_agg: str | None = None,
+    ) -> jax.Array:
+        from magpylib_jax.functional import _compute_field
+
+        self._require_inputs()
+        obs = observers[0] if len(observers) == 1 else list(observers)
+        return _compute_field(
+            self._source_type,
+            obs,
+            field,
+            position=self.position,
+            orientation=self.orientation,
+            in_out=self._resolve_in_out(in_out),
+            squeeze=squeeze,
+            sumup=sumup,
+            output=output,
+            pixel_agg=pixel_agg,
+            **self._field_kwargs(),
+        )
+
+    def getB(
+        self,
+        *observers: Any,
+        in_out: str = "auto",
+        squeeze: bool = True,
+        sumup: bool = False,
+        output: str = "ndarray",
+        pixel_agg: str | None = None,
+    ) -> jax.Array:
+        """Magnetic flux density B in tesla at the given observers."""
+        return self._get_field(
+            "B", observers, in_out=in_out, squeeze=squeeze, sumup=sumup,
+            output=output, pixel_agg=pixel_agg,
+        )
+
+    def getH(
+        self,
+        *observers: Any,
+        in_out: str = "auto",
+        squeeze: bool = True,
+        sumup: bool = False,
+        output: str = "ndarray",
+        pixel_agg: str | None = None,
+    ) -> jax.Array:
+        """Magnetic field strength H in A/m at the given observers."""
+        return self._get_field(
+            "H", observers, in_out=in_out, squeeze=squeeze, sumup=sumup,
+            output=output, pixel_agg=pixel_agg,
+        )
+
+    def getJ(
+        self,
+        *observers: Any,
+        in_out: str = "auto",
+        squeeze: bool = True,
+        sumup: bool = False,
+    ) -> jax.Array:
+        """Magnetic polarization J in tesla at the given observers."""
+        return self._get_field("J", observers, in_out=in_out, squeeze=squeeze, sumup=sumup)
+
+    def getM(
+        self,
+        *observers: Any,
+        in_out: str = "auto",
+        squeeze: bool = True,
+        sumup: bool = False,
+    ) -> jax.Array:
+        """Magnetization M in A/m at the given observers."""
+        return self._get_field("M", observers, in_out=in_out, squeeze=squeeze, sumup=sumup)
 
     @property
     def dipole_moment(self) -> jax.Array:

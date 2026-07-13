@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import jax.numpy as jnp
-
 from magpylib_jax._types import ArrayLike
 from magpylib_jax.core.base import BaseSource, MagpylibMissingInput
-from magpylib_jax.functional import getB, getH, getJ, getM
 
 
 class Circle(BaseSource):
@@ -44,97 +41,6 @@ class Circle(BaseSource):
         if self.current is None:
             raise MagpylibMissingInput("Input current of Circle must be set.")
 
-    def getH(
-        self,
-        *observers: ArrayLike,
-        in_out: str = "auto",
-        squeeze: bool = True,
-        sumup: bool = False,
-        output: str = "ndarray",
-        pixel_agg: str | None = None,
-    ) -> jnp.ndarray:
-        self._require_inputs()
-        obs = observers[0] if len(observers) == 1 else list(observers)
-        return getH(
-            "circle",
-            obs,
-            current=self.current,
-            diameter=self.diameter,
-            position=self.position,
-            orientation=self.orientation,
-            in_out=in_out,
-            squeeze=squeeze,
-            sumup=sumup,
-            output=output,
-            pixel_agg=pixel_agg,
-        )
-
-    def getB(
-        self,
-        *observers: ArrayLike,
-        in_out: str = "auto",
-        squeeze: bool = True,
-        sumup: bool = False,
-        output: str = "ndarray",
-        pixel_agg: str | None = None,
-    ) -> jnp.ndarray:
-        self._require_inputs()
-        obs = observers[0] if len(observers) == 1 else list(observers)
-        return getB(
-            "circle",
-            obs,
-            current=self.current,
-            diameter=self.diameter,
-            position=self.position,
-            orientation=self.orientation,
-            in_out=in_out,
-            squeeze=squeeze,
-            sumup=sumup,
-            output=output,
-            pixel_agg=pixel_agg,
-        )
-
-    def getJ(
-        self,
-        *observers: ArrayLike,
-        in_out: str = "auto",
-        squeeze: bool = True,
-        sumup: bool = False,
-    ) -> jnp.ndarray:
-        self._require_inputs()
-        obs = observers[0] if len(observers) == 1 else list(observers)
-        return getJ(
-            "circle",
-            obs,
-            current=self.current,
-            diameter=self.diameter,
-            position=self.position,
-            orientation=self.orientation,
-            in_out=in_out,
-            squeeze=squeeze,
-            sumup=sumup,
-        )
-
-    def getM(
-        self,
-        *observers: ArrayLike,
-        in_out: str = "auto",
-        squeeze: bool = True,
-        sumup: bool = False,
-    ) -> jnp.ndarray:
-        self._require_inputs()
-        obs = observers[0] if len(observers) == 1 else list(observers)
-        return getM(
-            "circle",
-            obs,
-            current=self.current,
-            diameter=self.diameter,
-            position=self.position,
-            orientation=self.orientation,
-            in_out=in_out,
-            squeeze=squeeze,
-            sumup=sumup,
-        )
-
-    def copy(self, **kwargs) -> Circle:
-        return super().copy(**kwargs)
+    def _field_kwargs(self) -> dict:
+        """Geometry + excitation arguments for the field engine."""
+        return {"diameter": self.diameter, "current": self.current}

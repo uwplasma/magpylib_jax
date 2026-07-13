@@ -6,7 +6,6 @@ import jax.numpy as jnp
 
 from magpylib_jax._types import ArrayLike
 from magpylib_jax.core.base import BaseSource, MagpylibMissingInput
-from magpylib_jax.functional import getB, getH, getJ, getM
 
 
 class Polyline(BaseSource):
@@ -60,105 +59,11 @@ class Polyline(BaseSource):
         if self.current is None:
             raise MagpylibMissingInput("Input current of Polyline must be set.")
 
-    def getB(
-        self,
-        *observers: ArrayLike,
-        in_out: str = "auto",
-        squeeze: bool = True,
-        sumup: bool = False,
-        output: str = "ndarray",
-        pixel_agg: str | None = None,
-    ) -> jnp.ndarray:
-        self._require_inputs()
-        obs = observers[0] if len(observers) == 1 else list(observers)
+    def _field_kwargs(self) -> dict:
+        """Geometry + excitation arguments for the field engine."""
         seg_start, seg_end = self._segments
-        return getB(
-            "polyline",
-            obs,
-            segment_start=seg_start,
-            segment_end=seg_end,
-            current=self.current,
-            position=self.position,
-            orientation=self.orientation,
-            in_out=in_out,
-            squeeze=squeeze,
-            sumup=sumup,
-            output=output,
-            pixel_agg=pixel_agg,
-        )
-
-    def getH(
-        self,
-        *observers: ArrayLike,
-        in_out: str = "auto",
-        squeeze: bool = True,
-        sumup: bool = False,
-        output: str = "ndarray",
-        pixel_agg: str | None = None,
-    ) -> jnp.ndarray:
-        self._require_inputs()
-        obs = observers[0] if len(observers) == 1 else list(observers)
-        seg_start, seg_end = self._segments
-        return getH(
-            "polyline",
-            obs,
-            segment_start=seg_start,
-            segment_end=seg_end,
-            current=self.current,
-            position=self.position,
-            orientation=self.orientation,
-            in_out=in_out,
-            squeeze=squeeze,
-            sumup=sumup,
-            output=output,
-            pixel_agg=pixel_agg,
-        )
-
-    def getJ(
-        self,
-        *observers: ArrayLike,
-        in_out: str = "auto",
-        squeeze: bool = True,
-        sumup: bool = False,
-    ) -> jnp.ndarray:
-        self._require_inputs()
-        obs = observers[0] if len(observers) == 1 else list(observers)
-        seg_start, seg_end = self._segments
-        return getJ(
-            "polyline",
-            obs,
-            segment_start=seg_start,
-            segment_end=seg_end,
-            current=self.current,
-            position=self.position,
-            orientation=self.orientation,
-            in_out=in_out,
-            squeeze=squeeze,
-            sumup=sumup,
-        )
-
-    def getM(
-        self,
-        *observers: ArrayLike,
-        in_out: str = "auto",
-        squeeze: bool = True,
-        sumup: bool = False,
-    ) -> jnp.ndarray:
-        self._require_inputs()
-        obs = observers[0] if len(observers) == 1 else list(observers)
-        seg_start, seg_end = self._segments
-        return getM(
-            "polyline",
-            obs,
-            segment_start=seg_start,
-            segment_end=seg_end,
-            current=self.current,
-            position=self.position,
-            orientation=self.orientation,
-            in_out=in_out,
-            squeeze=squeeze,
-            sumup=sumup,
-        )
-
-    def copy(self, **kwargs) -> Polyline:
-        return super().copy(**kwargs)
+        return {
+            "segment_start": seg_start,
+            "segment_end": seg_end,
+            "current": self.current,
+        }

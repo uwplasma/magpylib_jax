@@ -73,6 +73,11 @@ target-version = "py310"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
+[tool.ruff.lint.per-file-ignores]
+# x64 must be enabled before any submodule builds arrays, so the package
+# imports intentionally follow the jax.config call.
+"src/magpylib_jax/__init__.py" = ["E402"]
+
 [tool.mypy]
 python_version = "3.10"
 warn_unused_configs = true

@@ -1,5 +1,13 @@
 """Differentiable JAX-native magnetic field toolkit."""
 
+import jax as _jax
+
+# magpylib works in SI double precision; enable JAX x64 on import so field
+# values and gradients match upstream out of the box. Must run before any
+# submodule builds arrays. Users who prefer single precision can set
+# ``jax.config.update("jax_enable_x64", False)`` after importing this package.
+_jax.config.update("jax_enable_x64", True)
+
 from magpylib_jax import current, magnet, misc
 from magpylib_jax.collection import Collection
 from magpylib_jax.core.base import MagpylibBadUserInput, MagpylibMissingInput

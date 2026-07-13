@@ -10,7 +10,6 @@ import numpy as np
 from magpylib_jax._types import ArrayLike
 from magpylib_jax.constants import MU0
 from magpylib_jax.core.base import BaseSource, MagpylibMissingInput
-from magpylib_jax.functional import getB, getH, getJ, getM
 
 
 class TriangularMesh(BaseSource):
@@ -214,109 +213,26 @@ class TriangularMesh(BaseSource):
         if self.polarization is None and self.magnetization is None:
             raise MagpylibMissingInput("Input polarization of TriangularMesh must be set.")
 
-    def getB(
-        self,
-        *observers: ArrayLike,
-        in_out: str | None = None,
-        squeeze: bool = True,
-        sumup: bool = False,
-        output: str = "ndarray",
-        pixel_agg: str | None = None,
-    ) -> jnp.ndarray:
-        self._require_inputs()
-        if in_out is None:
-            in_out = self.in_out
-        in_out = self._validate_in_out(in_out)
-        obs = observers[0] if len(observers) == 1 else list(observers)
-        return getB(
-            "triangularmesh",
-            obs,
-            mesh=self.mesh,
-            polarization=self._polarization,
-            position=self.position,
-            orientation=self.orientation,
-            in_out=in_out,
-            squeeze=squeeze,
-            sumup=sumup,
-            output=output,
-            pixel_agg=pixel_agg,
-        )
+    def _field_kwargs(self) -> dict:
+        """Geometry + excitation arguments for the field engine."""
+        return {"mesh": self.mesh, "polarization": self._polarization}
 
-    def getH(
-        self,
-        *observers: ArrayLike,
-        in_out: str | None = None,
-        squeeze: bool = True,
-        sumup: bool = False,
-        output: str = "ndarray",
-        pixel_agg: str | None = None,
-    ) -> jnp.ndarray:
-        self._require_inputs()
-        if in_out is None:
-            in_out = self.in_out
-        in_out = self._validate_in_out(in_out)
-        obs = observers[0] if len(observers) == 1 else list(observers)
-        return getH(
-            "triangularmesh",
-            obs,
-            mesh=self.mesh,
-            polarization=self._polarization,
-            position=self.position,
-            orientation=self.orientation,
-            in_out=in_out,
-            squeeze=squeeze,
-            sumup=sumup,
-            output=output,
-            pixel_agg=pixel_agg,
-        )
+    def _resolve_in_out(self, in_out: str | None) -> str:
+        """Default ``in_out`` to the mesh's configured value and validate it."""
+        return self._validate_in_out(self.in_out if in_out is None else in_out)
 
-    def getJ(
-        self,
-        *observers: ArrayLike,
-        in_out: str | None = None,
-        squeeze: bool = True,
-        sumup: bool = False,
-    ) -> jnp.ndarray:
-        self._require_inputs()
-        if in_out is None:
-            in_out = self.in_out
-        in_out = self._validate_in_out(in_out)
-        obs = observers[0] if len(observers) == 1 else list(observers)
-        return getJ(
-            "triangularmesh",
-            obs,
-            mesh=self.mesh,
-            polarization=self._polarization,
-            position=self.position,
-            orientation=self.orientation,
-            in_out=in_out,
-            squeeze=squeeze,
-            sumup=sumup,
-        )
+    def getB(self, *observers, in_out=None, squeeze=True, sumup=False,
+             output="ndarray", pixel_agg=None):
+        return self._get_field("B", observers, in_out=in_out, squeeze=squeeze,
+                               sumup=sumup, output=output, pixel_agg=pixel_agg)
 
-    def getM(
-        self,
-        *observers: ArrayLike,
-        in_out: str | None = None,
-        squeeze: bool = True,
-        sumup: bool = False,
-    ) -> jnp.ndarray:
-        self._require_inputs()
-        if in_out is None:
-            in_out = self.in_out
-        in_out = self._validate_in_out(in_out)
-        obs = observers[0] if len(observers) == 1 else list(observers)
-        return getM(
-            "triangularmesh",
-            obs,
-            mesh=self.mesh,
-            polarization=self._polarization,
-            position=self.position,
-            orientation=self.orientation,
-            in_out=in_out,
-            squeeze=squeeze,
-            sumup=sumup,
-        )
+    def getH(self, *observers, in_out=None, squeeze=True, sumup=False,
+             output="ndarray", pixel_agg=None):
+        return self._get_field("H", observers, in_out=in_out, squeeze=squeeze,
+                               sumup=sumup, output=output, pixel_agg=pixel_agg)
 
-    def copy(self, **kwargs) -> TriangularMesh:
-        return super().copy(**kwargs)
+    def getJ(self, *observers, in_out=None, squeeze=True, sumup=False):
+        return self._get_field("J", observers, in_out=in_out, squeeze=squeeze, sumup=sumup)
+
+    def getM(self, *observers, in_out=None, squeeze=True, sumup=False):
+        return self._get_field("M", observers, in_out=in_out, squeeze=squeeze, sumup=sumup)

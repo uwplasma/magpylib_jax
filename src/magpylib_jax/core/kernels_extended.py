@@ -796,9 +796,7 @@ def _lines_end_in_trimesh_jax(lines: jnp.ndarray, faces: jnp.ndarray) -> jnp.nda
     return inside1 | inside2
 
 
-_MASK_FACE_SENTINEL = jnp.array(
-    ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)), dtype=jnp.float64
-)
+_MASK_FACE_SENTINEL = jnp.array(((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)))
 
 
 def _lines_end_in_trimesh_jax_masked(
@@ -1486,7 +1484,6 @@ _TRI_Q_W = jnp.asarray(
         0.1259391805448272,
         0.1259391805448272,
     ],
-    dtype=jnp.float64,
 )
 _TRI_Q_L = jnp.asarray(
     [
@@ -1498,7 +1495,6 @@ _TRI_Q_L = jnp.asarray(
         [0.101286507323456, 0.797426985353087, 0.101286507323456],
         [0.101286507323456, 0.101286507323456, 0.797426985353087],
     ],
-    dtype=jnp.float64,
 )
 
 

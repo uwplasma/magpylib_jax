@@ -17,9 +17,7 @@ import jax
 import numpy as np
 import pytest
 
-jax.config.update("jax_enable_x64", True)
-
-import magpylib_jax as mpj
+import magpylib_jax as mpj  # enables jax x64 on import
 
 GOLDEN = json.loads((Path(__file__).parent / "data" / "golden.json").read_text())
 OBS = np.array(GOLDEN["observers"])
@@ -86,13 +84,14 @@ def test_golden_gradients():
         ).getB(OBS[0])[2]
 
     def circle_bz(d):
-        return mpj.current.Circle(current=2.5, diameter=d, position=(0.1, 0.2, -0.4)).getB(OBS[0])[2]
+        src = mpj.current.Circle(current=2.5, diameter=d, position=(0.1, 0.2, -0.4))
+        return src.getB(OBS[0])[2]
 
     def dipole_bx(mx):
-        return mpj.misc.Dipole(moment=(mx, -0.7, 0.3), position=(0.2, -0.1, 0.5)).getB(OBS[0])[0]
+        src = mpj.misc.Dipole(moment=(mx, -0.7, 0.3), position=(0.2, -0.1, 0.5))
+        return src.getB(OBS[0])[0]
 
-    assert float(jax.grad(cuboid_bz)(1.4)) == pytest.approx(GOLDEN["grads"]["cuboid_dBz_dc"], rel=1e-7)
-    assert float(jax.grad(circle_bz)(0.9)) == pytest.approx(GOLDEN["grads"]["circle_dBz_dd"], rel=1e-7)
-    assert float(jax.grad(dipole_bx)(1.2)) == pytest.approx(
-        GOLDEN["grads"]["dipole_dBx_dmx"], rel=1e-7
-    )
+    grads = GOLDEN["grads"]
+    assert float(jax.grad(cuboid_bz)(1.4)) == pytest.approx(grads["cuboid_dBz_dc"], rel=1e-7)
+    assert float(jax.grad(circle_bz)(0.9)) == pytest.approx(grads["circle_dBz_dd"], rel=1e-7)
+    assert float(jax.grad(dipole_bx)(1.2)) == pytest.approx(grads["dipole_dBx_dmx"], rel=1e-7)
