@@ -55,9 +55,11 @@ A JAX-native, **end-to-end differentiable** reimplementation of [magpylib](https
   combine; lint/types/docs/benchmark.
 - ✅ docs/README — showcase README with figures, refreshed API/architecture/numerics, 2.0.0 changelog.
 - ✅ Released as **2.0.0** (version bumped; GitHub release/PyPI publish left to rogeriojorge).
-- ☐ **D5** safe-op `custom_jvp` for singular kernels — deferred follow-up (documented in
-  `numerics.md`; fields are differentiable everywhere they are defined).
-- ☐ **D7** remove the mutable `__setattr__` prep-cache layer — deferred follow-up.
+- ✅ **D5** safe-op `custom_jvp` — singular kernels (dipole/cuboid; circle/sheet via shared
+  helpers) now give finite gradients on their singular set; primal bit-stable.
+- ✅ **D7** removed the mutable `__setattr__` cache-tracking layer and the prep caches.
+- ✅ **`show()`** — matplotlib 3-D visualization of all sources/sensors/collections/paths;
+  display is no longer out of scope.
 
 **Follow-ups noted:** `getFT` compiles a fresh `jacfwd` graph per call (like the object-API
 `getB`, it is differentiable but not itself jit-cached); fine for correctness/grad, a perf tuning
