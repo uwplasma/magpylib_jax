@@ -46,7 +46,6 @@ optimizer is slow and noisy. `magpylib_jax` closes that gap:
 | `getFT` force/torque | finite differences (step `eps`) | autodiff, exact, `eps`-free |
 | Precision | float64 | float64 (x64 enabled on import) |
 | 3-D `show()` display | ✓ (matplotlib/plotly/pyvista) | ✓ (matplotlib) |
-| Force & torque `getFT` | ✓ (finite differences) | ✓ (autodiff, exact) |
 | Source families | all | all 12 (parity-tested) |
 
 magpylib_jax matches magpylib's numerical surface and adds exact gradients and `getFT`. It ships a
@@ -179,7 +178,7 @@ axes; paths draw as faint trails. Pass an existing `ax` to compose with your own
 
 - [Overview](docs/overview.md) · [Quickstart](docs/quickstart.md)
 - [Equation models & derivations](docs/equations.md) · [Numerics & differentiability](docs/numerics.md)
-- [Examples](docs/examples/index.md): object API, functional API, optimization, performance
+- [Examples](docs/examples/index.md): object API, functional API, force & torque, visualization, optimization, performance
 - [Architecture & source map](docs/architecture.md) · [Testing & validation](docs/testing.md)
 - [Performance](docs/performance.md) · [Parity strategy](docs/parity.md) · [API reference](docs/reference/api.md)
 - [Refactor & roadmap plan](PLAN.md) · [Changelog](CHANGELOG.md)
