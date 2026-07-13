@@ -58,7 +58,25 @@ jobs:
 
   tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: parity
+            pytest_paths: tests/parity
+          - shard: upstream
+            pytest_paths: tests/upstream_mirror
+          - shard: getft
+            pytest_paths: tests/test_getft.py
+          - shard: rest
+            pytest_paths: >-
+              tests
+              --ignore=tests/parity
+              --ignore=tests/upstream_mirror
+              --ignore=tests/test_getft.py
+    env:
+      COVERAGE_FILE: covdata.${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -69,13 +87,43 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e '.[test]'
-      - name: Run full test suite with coverage
+      - name: Run test shard with coverage
         run: >
           pytest -o addopts='-ra --strict-config --strict-markers'
           -m 'not slow'
-          --cov=src/magpylib_jax --cov-report=term-missing --cov-fail-under=95
-          tests
+          --cov=src/magpylib_jax --cov-report= --cov-fail-under=0
+          ${{ matrix.pytest_paths }}
+      - name: Upload coverage shard
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-${{ matrix.shard }}
+          path: covdata.${{ matrix.shard }}
+          if-no-files-found: error
 
+  coverage-combine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: tests
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install coverage tool
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install coverage[toml]
+      - name: Download coverage shards
+        uses: actions/download-artifact@v8
+        with:
+          pattern: coverage-*
+          path: coverage
+          merge-multiple: true
+      - name: Combine and enforce coverage
+        run: |
+          python -m coverage combine --data-file=covdata coverage
+          python -m coverage report --data-file=covdata --fail-under=95
   docs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
