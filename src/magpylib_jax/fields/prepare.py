@@ -24,21 +24,10 @@ from magpylib_jax.core.kernels import (
 )
 from magpylib_jax.fields.api import (
     _SOURCE_TYPE_IDS,
-    _has_tracer,
     _is_array_like,
     _normalize_source_type,
     _pad_axis0,
     _pad_path,
-)
-from magpylib_jax.fields.cache import (
-    _SENSOR_PREP_CACHE,
-    _SENSOR_PREP_CACHE_MAX,
-    _SOURCE_PREP_CACHE,
-    _SOURCE_PREP_CACHE_MAX,
-    _lru_get,
-    _lru_put,
-    _sensor_prep_cache_key,
-    _source_prep_cache_key,
 )
 
 _MAX_SOURCE_CHUNK_SIZE = 256
@@ -263,17 +252,7 @@ def _prepare_sources_jit(
     orientation: ArrayLike | None,
     in_out: str,
     kwargs: dict[str, ArrayLike],
-    use_cache: bool = True,
 ) -> tuple[dict[str, jnp.ndarray], dict[str, object]]:
-    cache_key = None
-    if use_cache and not _has_tracer(kwargs):
-        cache_key = _source_prep_cache_key(source, in_out=in_out)
-    if cache_key is not None:
-        cached = _lru_get(_SOURCE_PREP_CACHE, cache_key)
-        if cached is not None:
-            cached_src, cached_meta = cached
-            return cached_src, cached_meta
-
     src_specs, group_specs = _build_source_specs(
         source, position=position, orientation=orientation, in_out=in_out, kwargs=kwargs
     )
@@ -605,10 +584,6 @@ def _prepare_sources_jit(
         "n_groups": len(group_specs),
         "all_path_len_one": src_singleton_paths,
     }
-    if cache_key is not None:
-        _lru_put(
-            _SOURCE_PREP_CACHE, cache_key, (src_arrays, meta), max_items=_SOURCE_PREP_CACHE_MAX
-        )
     return src_arrays, meta
 
 
@@ -631,17 +606,7 @@ def _prepare_sensors_jit(
     observers: object,
     *,
     pixel_agg: str | None,
-    use_cache: bool = True,
 ) -> tuple[dict[str, jnp.ndarray], dict[str, object]]:
-    cache_key = None
-    if use_cache:
-        cache_key = _sensor_prep_cache_key(observers, pixel_agg=pixel_agg)
-    if cache_key is not None:
-        cached = _lru_get(_SENSOR_PREP_CACHE, cache_key)
-        if cached is not None:
-            cached_sens, cached_meta = cached
-            return cached_sens, cached_meta
-
     if observers is None:
         raise MagpylibBadUserInput("No observers provided.")
 
@@ -768,13 +733,6 @@ def _prepare_sensors_jit(
         "sensor_labels": labels,
         "all_path_len_one": sens_singleton_paths,
     }
-    if cache_key is not None:
-        _lru_put(
-            _SENSOR_PREP_CACHE,
-            cache_key,
-            (sens_arrays, meta),
-            max_items=_SENSOR_PREP_CACHE_MAX,
-        )
     return sens_arrays, meta
 
 

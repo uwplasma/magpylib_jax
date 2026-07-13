@@ -45,7 +45,6 @@ class Collection(BaseGeo):
         self._flat_children_cache = None
         self._sources_cache = None
         self._sensors_cache = None
-        self._bump_cache_version()
         parent = getattr(self, "_parent", None)
         if isinstance(parent, Collection):
             parent._mark_structure_dirty()

@@ -603,12 +603,10 @@ def _compute_field_jit(
         orientation=orientation,
         in_out=in_out,
         kwargs=kwargs,
-        use_cache=output == "ndarray",
     )
     sens_arrays, sens_meta = _prepare_sensors_jit(
         observers,
         pixel_agg=pixel_agg,
-        use_cache=output == "ndarray",
     )
 
     max_path_len = max(

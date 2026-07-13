@@ -1,7 +1,7 @@
 """Functional public interface and compatibility dispatch.
 
 This module is a thin re-export facade. The implementation now lives in the
-``magpylib_jax.fields`` package (``api``, ``prepare``, ``cache``, ``engine`` and
+``magpylib_jax.fields`` package (``api``, ``prepare``, ``engine`` and
 ``eager`` submodules). Every historical ``from magpylib_jax.functional import X``
 and ``functional.X`` access keeps resolving through the re-exports below.
 """
@@ -26,16 +26,6 @@ from magpylib_jax.fields.api import (
     getH,
     getJ,
     getM,
-)
-from magpylib_jax.fields.cache import (
-    _SENSOR_PREP_CACHE,
-    _SENSOR_PREP_CACHE_MAX,
-    _SOURCE_PREP_CACHE,
-    _SOURCE_PREP_CACHE_MAX,
-    _lru_get,
-    _lru_put,
-    _sensor_prep_cache_key,
-    _source_prep_cache_key,
 )
 from magpylib_jax.fields.eager import (
     _compute_field_legacy,
@@ -107,17 +97,9 @@ __all__ = [
     "_has_tracer",
     "_pad_path",
     "_pad_axis0",
-    "_lru_get",
-    "_lru_put",
-    "_source_prep_cache_key",
-    "_sensor_prep_cache_key",
     "_ALIASES",
     "_SOURCE_TYPE_ORDER",
     "_SOURCE_TYPE_IDS",
     "_SUPPORTED_PIXEL_AGGS",
     "_MAX_SOURCE_CHUNK_SIZE",
-    "_SOURCE_PREP_CACHE",
-    "_SOURCE_PREP_CACHE_MAX",
-    "_SENSOR_PREP_CACHE",
-    "_SENSOR_PREP_CACHE_MAX",
 ]

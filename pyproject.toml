@@ -100,7 +100,6 @@ module = [
   "magpylib_jax.fields.prepare",
   "magpylib_jax.fields.engine",
   "magpylib_jax.fields.eager",
-  "magpylib_jax.fields.cache",
   "magpylib_jax.fields.force",
   "magpylib_jax.misc.custom",
   "magpylib_jax.sensor",
