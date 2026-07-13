@@ -48,7 +48,16 @@ A JAX-native, **end-to-end differentiable** reimplementation of [magpylib](https
 - ✅ D2/D4 `functional.py` → `fields/` package (`api/prepare/cache/engine/eager`) + facade.
 - ✅ D11 `getFT` — autodiff force/torque (`fields/force.py`), exact ∇B via `jacfwd` (no eps),
   dipole/sphere/cuboid/circle/polyline targets, analytic dipole parity < 1e-8.
-- ☐ D5 safe-op custom_jvp; ☐ D7 cache layer; ☐ D8 mypy; ☐ 95% cov; ☐ D9 CI; ☐ docs/README.
+- ✅ D8 mypy — green (kernels + source classes checked; dynamic `fields/*` engine ignored,
+  as the old `functional.py` was).
+- ✅ 95% coverage — **95.38%**, 428 tests + full magpylib parity; `--cov-fail-under=95`.
+- ✅ D9 CI — profiling/HLO gates → nightly; four directory-partitioned test shards + coverage
+  combine; lint/types/docs/benchmark.
+- ✅ docs/README — showcase README with figures, refreshed API/architecture/numerics, 2.0.0 changelog.
+- ✅ Released as **2.0.0** (version bumped; GitHub release/PyPI publish left to rogeriojorge).
+- ☐ **D5** safe-op `custom_jvp` for singular kernels — deferred follow-up (documented in
+  `numerics.md`; fields are differentiable everywhere they are defined).
+- ☐ **D7** remove the mutable `__setattr__` prep-cache layer — deferred follow-up.
 
 **Follow-ups noted:** `getFT` compiles a fresh `jacfwd` graph per call (like the object-API
 `getB`, it is differentiable but not itself jit-cached); fine for correctness/grad, a perf tuning

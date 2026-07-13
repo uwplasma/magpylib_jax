@@ -89,7 +89,7 @@ Numerical behavior is validated along three axes:
 
 This matters because a kernel can be numerically correct but operationally unusable if compile time, memory, or shape behavior regresses.
 
-## Differentiability
+## Differentiable field API
 
 Every kernel is a pure JAX function, so `getB/getH/getJ/getM` and `getFT` are differentiable
 with `jax.grad`, `jacfwd`, and `jacrev` with respect to observer positions, source pose
