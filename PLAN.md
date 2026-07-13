@@ -37,6 +37,26 @@ A JAX-native, **end-to-end differentiable** reimplementation of [magpylib](https
 | D10 | **README has no plots / showcase**; docs lack derivations & citations depth. | `README.md`. | Undersells the project vs the vmec_jax bar. |
 | D11 | **Parity gap: no `getFT`** (force & torque). magpylib 5.2 computes it by finite differences (`eps`); JAX autodiff does it exactly. | upstream `field_FT.py`. | Missing feature *and* a flagship differentiability demo. |
 
+## 2b. Progress log
+
+- ✅ Revised plan (this file) replaces `MIGRATION_PLAN.md`.
+- ✅ Golden-value regression net (`tests/test_golden_regression.py`) — fast behaviour gate.
+- ✅ D1 x64 enabled in-package; import warning-free; float64 by default.
+- ✅ D3 field mixin — 52 `getB/H/J/M` methods → one `BaseSource` mixin (−~1000 LOC).
+- ✅ D6 (kernels) `kernels.py` + `kernels_extended.py` → `core/kernels/` package (16 family
+  modules + `_common`/`_safe`/`_raycast`); circle/broadcast de-duped; `cel` kept specialized.
+- ⏳ D2/D4 `functional.py` → `fields/` package (`api/prepare/cache/engine/eager`) + facade.
+- ☐ D5 safe-op custom_jvp; ☐ D11 getFT; ☐ D7 cache layer; ☐ D8 mypy; ☐ 95% cov; ☐ D9 CI; ☐ docs.
+
+**Architecture note (pragmatic deviation):** the public namespaces `magnet/`, `current/`,
+`misc/` are kept (they already map cleanly to magpylib and are intuitive) rather than folded
+into `objects/`. Kernels live in `core/kernels/`. The field engine is split into `fields/`
+with `functional.py` retained as a thin re-export facade for import stability. The four
+overlapping evaluators are consolidated to **two documented paths**: one vectorized JIT engine
+(`fields/engine.py`, the default) and one eager reference (`fields/eager.py`) for output modes
+outside JIT (callable/unsupported `pixel_agg`, non-uniform pixel grids, dataframe, 4-D meshes,
+pairwise observers). Dead evaluators removed.
+
 ## 3. Target architecture (slimmer, one obvious path)
 
 ```
