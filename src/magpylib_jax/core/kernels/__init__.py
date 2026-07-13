@@ -1,0 +1,280 @@
+"""JAX-native differentiable magnetic field kernels.
+
+This package splits the former ``kernels.py`` and ``kernels_extended.py`` modules
+into cohesive per-source-family submodules. Every public (and select private)
+name previously importable from ``magpylib_jax.core.kernels`` is re-exported here
+so existing imports keep resolving unchanged.
+"""
+
+from __future__ import annotations
+
+from magpylib_jax.core.kernels._common import (
+    _FOUR_PI,
+    _IN_OUT_FLAGS,
+    _broadcast_vec3,
+    _broadcast_vector,
+    _in_out_flag,
+    _jit_kernel,
+    _jit_kernel_mesh,
+    _jit_kernel_segments,
+    _jit_kernel_simple,
+    _safe_norm,
+)
+from magpylib_jax.core.kernels._raycast import (
+    _MASK_FACE_SENTINEL,
+    _inside_mask_mesh,
+    _inside_mask_mesh_masked,
+    _lines_end_in_trimesh_jax,
+    _lines_end_in_trimesh_jax_masked,
+    _mask_inside_trimesh_jax,
+    _mask_inside_trimesh_jax_masked,
+    _moller_trumbore_hits,
+    _point_inside_mesh,
+    _point_on_triangles,
+    _v_dot_cross3d_jax,
+    _v_norm2_jax,
+    _v_norm_proj_jax,
+)
+from magpylib_jax.core.kernels._safe import _safe_atanh, _safe_logabs, _safe_sqrt
+from magpylib_jax.core.kernels.circle import (
+    _cel_iter,
+    current_circle_bfield,
+    current_circle_bfield_jit,
+    current_circle_hfield,
+)
+from magpylib_jax.core.kernels.cuboid import (
+    _cuboid_masks,
+    magnet_cuboid_bfield,
+    magnet_cuboid_hfield,
+    magnet_cuboid_jfield,
+    magnet_cuboid_mfield,
+)
+from magpylib_jax.core.kernels.current_sheet import (
+    _TRI_Q_L,
+    _TRI_Q_W,
+    _current_triangle_sheet_hfield_obs,
+    _elementar_current_sheet_hfield,
+    _rot_x,
+    _rot_z,
+    _triangle_barycentric_mask,
+    _triangle_coordinate_transform,
+    current_triangle_sheet_hfield,
+    current_trisheet_bfield,
+    current_trisheet_bfield_jit,
+    current_trisheet_bfield_masked,
+    current_trisheet_hfield,
+)
+from magpylib_jax.core.kernels.current_strip import (
+    _strip_current_densities,
+    _strip_triangles,
+    current_tristrip_bfield,
+    current_tristrip_bfield_jit,
+    current_tristrip_hfield,
+)
+from magpylib_jax.core.kernels.cylinder import (
+    _cylinder_masks,
+    magnet_cylinder_axial_bfield,
+    magnet_cylinder_bfield,
+    magnet_cylinder_diametral_hfield,
+    magnet_cylinder_hfield,
+    magnet_cylinder_jfield,
+    magnet_cylinder_mfield,
+)
+from magpylib_jax.core.kernels.cylinder_segment import (
+    _build_cylinder_segment_mesh,
+    _ensure_dim5,
+    _grid_to_triangles,
+    magnet_cylinder_segment_bfield,
+    magnet_cylinder_segment_bfield_jit,
+    magnet_cylinder_segment_bfield_jit_faces,
+    magnet_cylinder_segment_hfield,
+    magnet_cylinder_segment_jfield,
+    magnet_cylinder_segment_mfield,
+    precompute_cylinder_segment_geometry,
+)
+from magpylib_jax.core.kernels.dipole import dipole_bfield, dipole_hfield
+from magpylib_jax.core.kernels.polyline import (
+    _current_polyline_bfield_segments_impl,
+    _current_segment_hfield,
+    current_polyline_bfield,
+    current_polyline_bfield_jit,
+    current_polyline_bfield_masked,
+    current_polyline_hfield,
+)
+from magpylib_jax.core.kernels.sphere import (
+    magnet_sphere_bfield,
+    magnet_sphere_hfield,
+    magnet_sphere_jfield,
+    magnet_sphere_mfield,
+)
+from magpylib_jax.core.kernels.tetrahedron import (
+    _TETRA_FACES,
+    _check_tetra_chirality,
+    _points_inside_tetra,
+    _points_inside_tetra_single,
+    _tetrahedron_bfield_const_impl,
+    tetrahedron_bfield,
+    tetrahedron_bfield_jit,
+    tetrahedron_hfield,
+    tetrahedron_jfield,
+    tetrahedron_mfield,
+)
+from magpylib_jax.core.kernels.triangle import (
+    _solid_angle,
+    _triangle_bfield_const_impl,
+    _triangle_bfield_const_precomp,
+    _triangle_geom_terms,
+    _triangle_norm_vector,
+    triangle_bfield,
+    triangle_bfield_jit,
+    triangle_hfield,
+    triangle_jfield,
+    triangle_mfield,
+)
+from magpylib_jax.core.kernels.trimesh import (
+    _broadcast_mesh,
+    _magnet_trimesh_bfield_const_impl,
+    _magnet_trimesh_bfield_faces_impl,
+    _magnet_trimesh_bfield_precomp_impl,
+    magnet_trimesh_bfield,
+    magnet_trimesh_bfield_jit,
+    magnet_trimesh_bfield_jit_faces,
+    magnet_trimesh_bfield_jit_faces_precomp,
+    magnet_trimesh_bfield_precomp_masked,
+    magnet_trimesh_hfield,
+    magnet_trimesh_jfield,
+    magnet_trimesh_mfield,
+    precompute_trimesh_geometry,
+)
+
+__all__ = [
+    # shared helpers / constants
+    "_FOUR_PI",
+    "_IN_OUT_FLAGS",
+    "_in_out_flag",
+    "_broadcast_vector",
+    "_broadcast_vec3",
+    "_safe_norm",
+    "_safe_sqrt",
+    "_safe_atanh",
+    "_safe_logabs",
+    "_jit_kernel",
+    "_jit_kernel_simple",
+    "_jit_kernel_mesh",
+    "_jit_kernel_segments",
+    # dipole
+    "dipole_bfield",
+    "dipole_hfield",
+    # circle
+    "_cel_iter",
+    "current_circle_bfield",
+    "current_circle_bfield_jit",
+    "current_circle_hfield",
+    # cuboid
+    "_cuboid_masks",
+    "magnet_cuboid_bfield",
+    "magnet_cuboid_hfield",
+    "magnet_cuboid_jfield",
+    "magnet_cuboid_mfield",
+    # cylinder
+    "_cylinder_masks",
+    "magnet_cylinder_axial_bfield",
+    "magnet_cylinder_bfield",
+    "magnet_cylinder_diametral_hfield",
+    "magnet_cylinder_hfield",
+    "magnet_cylinder_jfield",
+    "magnet_cylinder_mfield",
+    # sphere
+    "magnet_sphere_bfield",
+    "magnet_sphere_hfield",
+    "magnet_sphere_jfield",
+    "magnet_sphere_mfield",
+    # polyline
+    "_current_segment_hfield",
+    "_current_polyline_bfield_segments_impl",
+    "current_polyline_bfield",
+    "current_polyline_bfield_jit",
+    "current_polyline_bfield_masked",
+    "current_polyline_hfield",
+    # triangle
+    "_solid_angle",
+    "_triangle_bfield_const_impl",
+    "_triangle_bfield_const_precomp",
+    "_triangle_geom_terms",
+    "_triangle_norm_vector",
+    "triangle_bfield",
+    "triangle_bfield_jit",
+    "triangle_hfield",
+    "triangle_jfield",
+    "triangle_mfield",
+    # tetrahedron
+    "_TETRA_FACES",
+    "_check_tetra_chirality",
+    "_points_inside_tetra",
+    "_points_inside_tetra_single",
+    "_tetrahedron_bfield_const_impl",
+    "tetrahedron_bfield",
+    "tetrahedron_bfield_jit",
+    "tetrahedron_hfield",
+    "tetrahedron_jfield",
+    "tetrahedron_mfield",
+    # ray-casting / inside tests
+    "_MASK_FACE_SENTINEL",
+    "_inside_mask_mesh",
+    "_inside_mask_mesh_masked",
+    "_lines_end_in_trimesh_jax",
+    "_lines_end_in_trimesh_jax_masked",
+    "_mask_inside_trimesh_jax",
+    "_mask_inside_trimesh_jax_masked",
+    "_moller_trumbore_hits",
+    "_point_inside_mesh",
+    "_point_on_triangles",
+    "_v_dot_cross3d_jax",
+    "_v_norm2_jax",
+    "_v_norm_proj_jax",
+    # trimesh
+    "_broadcast_mesh",
+    "_magnet_trimesh_bfield_const_impl",
+    "_magnet_trimesh_bfield_faces_impl",
+    "_magnet_trimesh_bfield_precomp_impl",
+    "magnet_trimesh_bfield",
+    "magnet_trimesh_bfield_jit",
+    "magnet_trimesh_bfield_jit_faces",
+    "magnet_trimesh_bfield_jit_faces_precomp",
+    "magnet_trimesh_bfield_precomp_masked",
+    "magnet_trimesh_hfield",
+    "magnet_trimesh_jfield",
+    "magnet_trimesh_mfield",
+    "precompute_trimesh_geometry",
+    # cylinder segment
+    "_build_cylinder_segment_mesh",
+    "_ensure_dim5",
+    "_grid_to_triangles",
+    "magnet_cylinder_segment_bfield",
+    "magnet_cylinder_segment_bfield_jit",
+    "magnet_cylinder_segment_bfield_jit_faces",
+    "magnet_cylinder_segment_hfield",
+    "magnet_cylinder_segment_jfield",
+    "magnet_cylinder_segment_mfield",
+    "precompute_cylinder_segment_geometry",
+    # current sheet
+    "_TRI_Q_L",
+    "_TRI_Q_W",
+    "_current_triangle_sheet_hfield_obs",
+    "_elementar_current_sheet_hfield",
+    "_rot_x",
+    "_rot_z",
+    "_triangle_barycentric_mask",
+    "_triangle_coordinate_transform",
+    "current_triangle_sheet_hfield",
+    "current_trisheet_bfield",
+    "current_trisheet_bfield_jit",
+    "current_trisheet_bfield_masked",
+    "current_trisheet_hfield",
+    # current strip
+    "_strip_current_densities",
+    "_strip_triangles",
+    "current_tristrip_bfield",
+    "current_tristrip_bfield_jit",
+    "current_tristrip_hfield",
+]

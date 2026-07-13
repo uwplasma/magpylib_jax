@@ -8,7 +8,7 @@ from magpylib_jax import functional as functional
 from magpylib_jax.collection import Collection
 from magpylib_jax.core import base as base
 from magpylib_jax.core import geometry as geom
-from magpylib_jax.core import kernels_extended as kext
+from magpylib_jax.core import kernels as kext
 from magpylib_jax.core.base import MagpylibBadUserInput, MagpylibMissingInput
 from magpylib_jax.functional import (
     _evaluate_source_field,
