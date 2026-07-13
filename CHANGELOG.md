@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Drop-in magpylib compatibility.** `import magpylib_jax as magpy` now also exposes `mu_0`,
+  `SUPPORTED_PLOTTING_BACKENDS`, and minimal `defaults` / `show_context` shims, so common magpylib
+  field-computation scripts run unchanged. A `tests/test_magpylib_compat.py` suite exercises the
+  shared API (construction, `getB` parity, collections/sensors, motion, `getFT`, `show`).
+
 ## 2.1.0 - 2026-07-13
 
 ### Added

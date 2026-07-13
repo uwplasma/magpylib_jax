@@ -52,6 +52,22 @@ magpylib_jax matches magpylib's numerical surface and adds exact gradients and `
 matplotlib `show()` (below); the extra plotly/pyvista backends and the full interactive style
 system are the only display features left aside. See the [parity strategy](docs/parity.md).
 
+### Drop-in for magpylib
+
+Most magpylib field-computation scripts run unchanged — just swap the import:
+
+```python
+# import magpylib as magpy
+import magpylib_jax as magpy   # same source classes, Collection, Sensor,
+                               # getB/getH/getJ/getM, getFT, show, and mu_0
+```
+
+The source classes, `Collection`, `Sensor`, motion (`move`/`rotate*`), `getB/getH/getJ/getM`,
+`getFT`, `show`, `mu_0`, and `SUPPORTED_PLOTTING_BACKENDS` all match. Fields come back as JAX arrays
+(use `np.asarray(...)` if a downstream call needs NumPy). Not shimmed: the plotly/pyvista `show`
+backends, the full `defaults`/`graphics` style trees, and the `magpy.func`/`magpy.core` low-level
+interfaces. A compatibility test suite (`tests/test_magpylib_compat.py`) exercises the shared API.
+
 ## Installation
 
 ```bash

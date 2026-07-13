@@ -10,6 +10,12 @@ _jax.config.update("jax_enable_x64", True)
 
 from magpylib_jax import current, magnet, misc
 from magpylib_jax.collection import Collection
+from magpylib_jax.compat import (
+    SUPPORTED_PLOTTING_BACKENDS,
+    defaults,
+    mu_0,
+    show_context,
+)
 from magpylib_jax.core.base import MagpylibBadUserInput, MagpylibMissingInput
 from magpylib_jax.current import Circle, Polyline, TriangleSheet, TriangleStrip
 from magpylib_jax.display import show
@@ -52,7 +58,11 @@ __all__ = [
     "getM",
     "MagpylibBadUserInput",
     "MagpylibMissingInput",
+    "SUPPORTED_PLOTTING_BACKENDS",
+    "defaults",
     "magnet",
     "misc",
+    "mu_0",
     "show",
+    "show_context",
 ]
