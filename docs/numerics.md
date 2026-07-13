@@ -89,10 +89,24 @@ Numerical behavior is validated along three axes:
 
 This matters because a kernel can be numerically correct but operationally unusable if compile time, memory, or shape behavior regresses.
 
+## Differentiability
+
+Every kernel is a pure JAX function, so `getB/getH/getJ/getM` and `getFT` are differentiable
+with `jax.grad`, `jacfwd`, and `jacrev` with respect to observer positions, source pose
+(position/orientation), and excitation (polarization, current, moment). Gradients are smooth and
+finite everywhere the field itself is defined, which is the region that matters for optimization
+and inverse design.
+
+The exception is the **singular set** of each source — the points where the closed-form field
+diverges (a dipole at its own location, a point on a current wire, the surface of a current sheet,
+a magnet face or edge). There the field is physically infinite or undefined, and the gradient may
+be non-finite. Optimizers should keep observers off the singular set (as they must anyway for the
+field value to be meaningful). Hardening selected kernels with `custom_jvp` so that the singular
+set returns a defined (zero) tangent is a planned refinement (see `PLAN.md`, D5).
+
 ## Relevant source files
 
 - [`src/magpylib_jax/core/elliptic.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/core/elliptic.py)
 - [`src/magpylib_jax/core/geometry.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/core/geometry.py)
-- [`src/magpylib_jax/core/kernels.py`](https://github.com/uwplasma/magpylib_jax/tree/main/src/magpylib_jax/core/kernels)
 - [`src/magpylib_jax/core/kernels/`](https://github.com/uwplasma/magpylib_jax/tree/main/src/magpylib_jax/core/kernels)
-- [`src/magpylib_jax/functional.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/functional.py)
+- [`src/magpylib_jax/fields/`](https://github.com/uwplasma/magpylib_jax/tree/main/src/magpylib_jax/fields)
