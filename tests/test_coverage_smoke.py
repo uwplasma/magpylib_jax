@@ -462,13 +462,6 @@ def test_kernels_extended_smoke() -> None:
     with pytest.raises(ValueError):
         kext._broadcast_mesh(jnp.zeros((2, 2)), 1)
 
-    hits = kext._moller_trumbore_hits(
-        jnp.array([0.1, 0.1, 1.0]),
-        jnp.array([[[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]]),
-        jnp.array([0.0, 0.0, -1.0]),
-    )
-    assert hits.shape[0] == 1
-
     inside = kext._mask_inside_trimesh_jax(
         jnp.array([[0.1, 0.1, 0.1]]),
         jnp.array([[[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]]),

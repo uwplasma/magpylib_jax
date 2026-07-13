@@ -198,3 +198,105 @@ def test_unsupported_target_raises():
     cyl.meshing = 1
     with pytest.raises(NotImplementedError):
         mj.getFT(src, cyl)
+
+
+# --- extra target/pivot/meshing paths --------------------------------------
+def test_parity_multicell_cuboid_target():
+    """Multi-cell cuboid meshing (integer target elements) parity vs magpylib."""
+    src, msrc = _source_pair()
+    tgt = mj.magnet.Cuboid(
+        dimension=(0.6, 0.5, 0.4), polarization=(0.1, 0.2, -0.1), position=(1.5, 0.5, 1.0)
+    )
+    tgt.meshing = 8
+    mtgt = magpy.magnet.Cuboid(
+        dimension=(0.6, 0.5, 0.4),
+        polarization=(0.1, 0.2, -0.1),
+        position=(1.5, 0.5, 1.0),
+        meshing=8,
+    )
+    F, T = mj.getFT(src, tgt)
+    Fm, Tm = magpy.getFT(msrc, mtgt)
+    assert _rel(F, Fm) < 1e-4
+    assert _rel(T, Tm) < 1e-4
+
+
+def test_cuboid_tuple_meshing_runs():
+    src, _ = _source_pair()
+    tgt = mj.magnet.Cuboid(
+        dimension=(0.6, 0.5, 0.4), polarization=(0.1, 0.2, -0.1), position=(1.5, 0.5, 1.0)
+    )
+    tgt.meshing = (2, 2, 2)
+    F, T = mj.getFT(src, tgt)
+    assert np.asarray(F).shape == (3,)
+    assert np.all(np.isfinite(np.asarray(F)))
+
+
+def test_collection_target_sums_members():
+    """A Collection target flattens to its members and sums their F/T."""
+    src = mj.Dipole(moment=M1, position=P1)
+    t1 = mj.Dipole(moment=(300.0, -100.0, 50.0), position=(2.0, 1.0, 0.5))
+    t2 = mj.Dipole(moment=(-120.0, 200.0, 80.0), position=(1.0, -0.5, 1.2))
+    col = mj.Collection(t1, t2)
+
+    Fc, Tc = mj.getFT(src, col)
+    F1, T1 = mj.getFT(src, t1)
+    F2, T2 = mj.getFT(src, t2)
+    assert np.allclose(np.asarray(Fc), np.asarray(F1) + np.asarray(F2), atol=1e-12)
+    assert np.allclose(np.asarray(Tc), np.asarray(T1) + np.asarray(T2), atol=1e-12)
+
+
+def test_pivot_none_and_array_forms():
+    src = mj.Dipole(moment=M1, position=P1)
+    t1 = mj.Dipole(moment=M2, position=P2)
+    t2 = mj.Dipole(moment=(100.0, 50.0, -30.0), position=(1.0, -0.5, 1.2))
+
+    # pivot=None omits the (x - pivot) x F torque term.
+    _, T_none = mj.getFT(src, t1, pivot=None)
+    assert np.asarray(T_none).shape == (3,)
+
+    # Single (3,) pivot broadcast to all targets.
+    F_s, T_s = mj.getFT(src, [t1, t2], pivot=np.array([0.5, 0.5, 0.5]))
+    assert np.asarray(F_s).shape == (2, 3)
+
+    # Per-target (t,3) pivot.
+    piv = np.array([[0.5, 0.5, 0.5], [0.1, 0.2, 0.3]])
+    F_t, T_t = mj.getFT(src, [t1, t2], pivot=piv)
+    assert np.asarray(T_t).shape == (2, 3)
+
+    with pytest.raises(ValueError):
+        mj.getFT(src, [t1, t2], pivot=np.zeros((5, 2)))
+    with pytest.raises(ValueError):
+        mj.getFT(src, t1, pivot="middle")
+
+
+def test_circle_meshing_too_small_raises():
+    src = mj.Dipole(moment=M1, position=P1)
+    tgt = mj.current.Circle(diameter=1.0, current=10.0, position=(1, 0, 1))
+    tgt.meshing = 2
+    with pytest.raises(ValueError):
+        mj.getFT(src, tgt)
+
+
+def test_multiple_sources_and_squeeze_false():
+    s1 = mj.Dipole(moment=M1, position=P1)
+    s2 = mj.Dipole(moment=(200.0, 0.0, 100.0), position=(0.0, 0.0, 3.0))
+    tgt = mj.Dipole(moment=M2, position=P2)
+
+    F, T = mj.getFT([s1, s2], tgt, squeeze=False)
+    # Unsqueezed shape is (n_src, n_path, n_tgt, 3).
+    assert np.asarray(F).shape == (2, 1, 1, 3)
+    assert np.asarray(T).shape == (2, 1, 1, 3)
+
+    # Summing the per-source forces matches a single combined evaluation.
+    F_each, _ = mj.getFT([s1, s2], tgt)
+    F_s1, _ = mj.getFT(s1, tgt)
+    F_s2, _ = mj.getFT(s2, tgt)
+    assert np.allclose(np.asarray(F_each), np.stack([F_s1, F_s2]), atol=1e-12)
+
+
+def test_source_path_padding():
+    """A source with a longer position path pads shorter target paths."""
+    src = mj.Dipole(moment=M1, position=np.array([P1, P1 + 1.0, P1 + 2.0]))
+    tgt = mj.Dipole(moment=M2, position=P2)
+    F, T = mj.getFT(src, tgt)
+    assert np.asarray(F).shape == (3, 3)  # (n_path, 3)

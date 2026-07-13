@@ -35,28 +35,6 @@ _TRI_Q_L = jnp.asarray(
 )
 
 
-def _triangle_barycentric_mask(
-    points: jnp.ndarray,
-    tri: jnp.ndarray,
-    normal: jnp.ndarray,
-) -> jnp.ndarray:
-    a, b, c = tri
-    v0 = b - a
-    v1 = c - a
-    v2 = points - a[None, :]
-    d00 = jnp.dot(v0, v0)
-    d01 = jnp.dot(v0, v1)
-    d11 = jnp.dot(v1, v1)
-    d20 = jnp.sum(v2 * v0[None, :], axis=1)
-    d21 = jnp.sum(v2 * v1[None, :], axis=1)
-    denom = jnp.maximum(d00 * d11 - d01 * d01, 1e-30)
-    v = (d11 * d20 - d01 * d21) / denom
-    w = (d00 * d21 - d01 * d20) / denom
-    u = 1.0 - v - w
-    dist = jnp.abs(jnp.sum((points - a[None, :]) * normal[None, :], axis=1))
-    return (dist < 1e-10) & (u >= -1e-10) & (v >= -1e-10) & (w >= -1e-10)
-
-
 def _rot_x(theta: jnp.ndarray) -> jnp.ndarray:
     c = jnp.cos(theta)
     s = jnp.sin(theta)
