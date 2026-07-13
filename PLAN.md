@@ -45,8 +45,15 @@ A JAX-native, **end-to-end differentiable** reimplementation of [magpylib](https
 - ✅ D3 field mixin — 52 `getB/H/J/M` methods → one `BaseSource` mixin (−~1000 LOC).
 - ✅ D6 (kernels) `kernels.py` + `kernels_extended.py` → `core/kernels/` package (16 family
   modules + `_common`/`_safe`/`_raycast`); circle/broadcast de-duped; `cel` kept specialized.
-- ⏳ D2/D4 `functional.py` → `fields/` package (`api/prepare/cache/engine/eager`) + facade.
-- ☐ D5 safe-op custom_jvp; ☐ D11 getFT; ☐ D7 cache layer; ☐ D8 mypy; ☐ 95% cov; ☐ D9 CI; ☐ docs.
+- ✅ D2/D4 `functional.py` → `fields/` package (`api/prepare/cache/engine/eager`) + facade.
+- ✅ D11 `getFT` — autodiff force/torque (`fields/force.py`), exact ∇B via `jacfwd` (no eps),
+  dipole/sphere/cuboid/circle/polyline targets, analytic dipole parity < 1e-8.
+- ☐ D5 safe-op custom_jvp; ☐ D7 cache layer; ☐ D8 mypy; ☐ 95% cov; ☐ D9 CI; ☐ docs/README.
+
+**Follow-ups noted:** `getFT` compiles a fresh `jacfwd` graph per call (like the object-API
+`getB`, it is differentiable but not itself jit-cached); fine for correctness/grad, a perf tuning
+target. `engine.py`/`prepare.py` remain large (single big functions); the 32-arg `per_source`
+(D4) could later become a pytree.
 
 **Architecture note (pragmatic deviation):** the public namespaces `magnet/`, `current/`,
 `misc/` are kept (they already map cleanly to magpylib and are intuitive) rather than folded

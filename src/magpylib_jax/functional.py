@@ -53,6 +53,7 @@ from magpylib_jax.fields.engine import (
     _safe_static_bool,
     _segment_sum,
 )
+from magpylib_jax.fields.force import getFT
 from magpylib_jax.fields.prepare import (
     _MAX_SOURCE_CHUNK_SIZE,
     _build_source_specs,
@@ -73,6 +74,7 @@ __all__ = [
     "getH",
     "getJ",
     "getM",
+    "getFT",
     "_compute_field",
     "_compute_field_jit",
     "_compute_field_jit_core",
