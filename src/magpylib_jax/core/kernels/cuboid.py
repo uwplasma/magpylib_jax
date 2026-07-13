@@ -9,6 +9,7 @@ from magpylib_jax._types import ArrayLike
 from magpylib_jax.constants import MU0
 from magpylib_jax.core.geometry import ensure_observers
 from magpylib_jax.core.kernels._common import _broadcast_vector
+from magpylib_jax.core.kernels._safe import _safe_arctan2, _safe_logabs, _safe_sqrt
 
 
 @jax.jit
@@ -51,55 +52,55 @@ def magnet_cuboid_bfield(
     ymb2, ypb2 = ymb * ymb, ypb * ypb
     zmc2, zpc2 = zmc * zmc, zpc * zpc
 
-    mmm = jnp.sqrt(xma2 + ymb2 + zmc2)
-    pmp = jnp.sqrt(xpa2 + ymb2 + zpc2)
-    pmm = jnp.sqrt(xpa2 + ymb2 + zmc2)
-    mmp = jnp.sqrt(xma2 + ymb2 + zpc2)
-    mpm = jnp.sqrt(xma2 + ypb2 + zmc2)
-    ppp = jnp.sqrt(xpa2 + ypb2 + zpc2)
-    ppm = jnp.sqrt(xpa2 + ypb2 + zmc2)
-    mpp = jnp.sqrt(xma2 + ypb2 + zpc2)
+    mmm = _safe_sqrt(xma2 + ymb2 + zmc2)
+    pmp = _safe_sqrt(xpa2 + ymb2 + zpc2)
+    pmm = _safe_sqrt(xpa2 + ymb2 + zmc2)
+    mmp = _safe_sqrt(xma2 + ymb2 + zpc2)
+    mpm = _safe_sqrt(xma2 + ypb2 + zmc2)
+    ppp = _safe_sqrt(xpa2 + ypb2 + zpc2)
+    ppm = _safe_sqrt(xpa2 + ypb2 + zmc2)
+    mpp = _safe_sqrt(xma2 + ypb2 + zpc2)
 
-    ff2x = jnp.log((xma + mmm) * (xpa + ppm) * (xpa + pmp) * (xma + mpp))
-    ff2x = ff2x - jnp.log((xpa + pmm) * (xma + mpm) * (xma + mmp) * (xpa + ppp))
+    ff2x = _safe_logabs((xma + mmm) * (xpa + ppm) * (xpa + pmp) * (xma + mpp))
+    ff2x = ff2x - _safe_logabs((xpa + pmm) * (xma + mpm) * (xma + mmp) * (xpa + ppp))
 
-    ff2y = jnp.log((-ymb + mmm) * (-ypb + ppm) * (-ymb + pmp) * (-ypb + mpp))
-    ff2y = ff2y - jnp.log((-ymb + pmm) * (-ypb + mpm) * (ymb - mmp) * (ypb - ppp))
+    ff2y = _safe_logabs((-ymb + mmm) * (-ypb + ppm) * (-ymb + pmp) * (-ypb + mpp))
+    ff2y = ff2y - _safe_logabs((-ymb + pmm) * (-ypb + mpm) * (ymb - mmp) * (ypb - ppp))
 
-    ff2z = jnp.log((-zmc + mmm) * (-zmc + ppm) * (-zpc + pmp) * (-zpc + mpp))
-    ff2z = ff2z - jnp.log((-zmc + pmm) * (zmc - mpm) * (-zpc + mmp) * (zpc - ppp))
+    ff2z = _safe_logabs((-zmc + mmm) * (-zmc + ppm) * (-zpc + pmp) * (-zpc + mpp))
+    ff2z = ff2z - _safe_logabs((-zmc + pmm) * (zmc - mpm) * (-zpc + mmp) * (zpc - ppp))
 
     ff1x = (
-        jnp.arctan2(ymb * zmc, xma * mmm)
-        - jnp.arctan2(ymb * zmc, xpa * pmm)
-        - jnp.arctan2(ypb * zmc, xma * mpm)
-        + jnp.arctan2(ypb * zmc, xpa * ppm)
-        - jnp.arctan2(ymb * zpc, xma * mmp)
-        + jnp.arctan2(ymb * zpc, xpa * pmp)
-        + jnp.arctan2(ypb * zpc, xma * mpp)
-        - jnp.arctan2(ypb * zpc, xpa * ppp)
+        _safe_arctan2(ymb * zmc, xma * mmm)
+        - _safe_arctan2(ymb * zmc, xpa * pmm)
+        - _safe_arctan2(ypb * zmc, xma * mpm)
+        + _safe_arctan2(ypb * zmc, xpa * ppm)
+        - _safe_arctan2(ymb * zpc, xma * mmp)
+        + _safe_arctan2(ymb * zpc, xpa * pmp)
+        + _safe_arctan2(ypb * zpc, xma * mpp)
+        - _safe_arctan2(ypb * zpc, xpa * ppp)
     )
 
     ff1y = (
-        jnp.arctan2(xma * zmc, ymb * mmm)
-        - jnp.arctan2(xpa * zmc, ymb * pmm)
-        - jnp.arctan2(xma * zmc, ypb * mpm)
-        + jnp.arctan2(xpa * zmc, ypb * ppm)
-        - jnp.arctan2(xma * zpc, ymb * mmp)
-        + jnp.arctan2(xpa * zpc, ymb * pmp)
-        + jnp.arctan2(xma * zpc, ypb * mpp)
-        - jnp.arctan2(xpa * zpc, ypb * ppp)
+        _safe_arctan2(xma * zmc, ymb * mmm)
+        - _safe_arctan2(xpa * zmc, ymb * pmm)
+        - _safe_arctan2(xma * zmc, ypb * mpm)
+        + _safe_arctan2(xpa * zmc, ypb * ppm)
+        - _safe_arctan2(xma * zpc, ymb * mmp)
+        + _safe_arctan2(xpa * zpc, ymb * pmp)
+        + _safe_arctan2(xma * zpc, ypb * mpp)
+        - _safe_arctan2(xpa * zpc, ypb * ppp)
     )
 
     ff1z = (
-        jnp.arctan2(xma * ymb, zmc * mmm)
-        - jnp.arctan2(xpa * ymb, zmc * pmm)
-        - jnp.arctan2(xma * ypb, zmc * mpm)
-        + jnp.arctan2(xpa * ypb, zmc * ppm)
-        - jnp.arctan2(xma * ymb, zpc * mmp)
-        + jnp.arctan2(xpa * ymb, zpc * pmp)
-        + jnp.arctan2(xma * ypb, zpc * mpp)
-        - jnp.arctan2(xpa * ypb, zpc * ppp)
+        _safe_arctan2(xma * ymb, zmc * mmm)
+        - _safe_arctan2(xpa * ymb, zmc * pmm)
+        - _safe_arctan2(xma * ypb, zmc * mpm)
+        + _safe_arctan2(xpa * ypb, zmc * ppm)
+        - _safe_arctan2(xma * ymb, zpc * mmp)
+        + _safe_arctan2(xpa * ymb, zpc * pmp)
+        + _safe_arctan2(xma * ypb, zpc * mpp)
+        - _safe_arctan2(xpa * ypb, zpc * ppp)
     )
 
     bx_pol_x = pol_x * ff1x * qsigns[:, 0, 0]

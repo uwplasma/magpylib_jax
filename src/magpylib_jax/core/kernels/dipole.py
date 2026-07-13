@@ -18,14 +18,21 @@ def dipole_hfield(observers: ArrayLike, moments: ArrayLike) -> jnp.ndarray:
     mom = _broadcast_vector(jnp.asarray(moments, dtype=jnp.float64), obs.shape)
 
     r2 = jnp.sum(obs * obs, axis=-1)
-    inv_r3 = jnp.where(r2 > 0.0, r2 ** (-1.5), jnp.inf)
-    inv_r5 = jnp.where(r2 > 0.0, r2 ** (-2.5), jnp.inf)
+    origin_mask = r2 == 0.0
+    # Keep the r2 fed to the negative powers strictly positive so the general
+    # branch stays finite (primal *and* tangent) at r=0; the physical Inf is
+    # restored by the ``origin_mask`` overwrite below, so the primal for r>0 and
+    # the Inf at r=0 are both unchanged.
+    safe_r2 = jnp.where(origin_mask, 1.0, r2)
+    inv_r3 = safe_r2 ** (-1.5)
+    inv_r5 = safe_r2 ** (-2.5)
     mdotr = jnp.sum(mom * obs, axis=-1)
 
     h = (3.0 * mdotr[:, None] * obs * inv_r5[:, None] - mom * inv_r3[:, None]) / _FOUR_PI
 
-    origin_mask = r2 == 0.0
-    h_origin = jnp.where(mom == 0.0, 0.0, jnp.sign(mom) * jnp.inf)
+    # The singular value is a hard Inf; freeze its gradient so grad/jacfwd on the
+    # singular set are finite (0) instead of 0 * Inf = NaN. Primal is unchanged.
+    h_origin = jax.lax.stop_gradient(jnp.where(mom == 0.0, 0.0, jnp.sign(mom) * jnp.inf))
     return jnp.where(origin_mask[:, None], h_origin, h)
 
 
