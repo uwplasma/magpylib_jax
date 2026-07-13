@@ -1,6 +1,6 @@
 # Roadmap
 
-The active migration plan lives in the repository root at `MIGRATION_PLAN.md`.
+The active refactor The active migration plan lives in the repository root at `MIGRATION_PLAN.md`. roadmap plan lives in the repository root at `PLAN.md`.
 Parity tracking lives in `PARITY_MATRIX.md`.
 
 Post-1.0 priorities:

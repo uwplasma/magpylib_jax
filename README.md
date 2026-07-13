@@ -157,7 +157,7 @@ Nightly workflows additionally run the full validation suite and extended profil
 ## Key repository files
 
 - [`PARITY_MATRIX.md`](PARITY_MATRIX.md)
-- [`MIGRATION_PLAN.md`](MIGRATION_PLAN.md)
+- [`PLAN.md`](PLAN.md)
 - [`pyproject.toml`](pyproject.toml)
 - [`benchmarks/thresholds.json`](benchmarks/thresholds.json)
 - [`profiling/thresholds.json`](profiling/thresholds.json)

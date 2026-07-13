@@ -10,6 +10,6 @@
 
 Live tracking tables:
 - `PARITY_MATRIX.md`
-- `MIGRATION_PLAN.md`
+- `PLAN.md`
 
 For pending work, entries remain marked `Partial`/`Pending` until parity and CI gates are in place.
