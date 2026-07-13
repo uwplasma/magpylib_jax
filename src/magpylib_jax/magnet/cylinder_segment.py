@@ -28,7 +28,6 @@ class CylinderSegment(BaseSource):
         self.dimension = dimension
         self.polarization = polarization
         self.magnetization = magnetization
-        self.meshing = None
         if self.dimension is not None:
             dim = jnp.asarray(self.dimension, dtype=jnp.float64)
             if dim.shape != (5,):

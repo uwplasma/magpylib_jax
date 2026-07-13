@@ -39,7 +39,6 @@ class TriangularMesh(BaseSource):
         self.reorient_faces = reorient_faces
         self.check_open = check_open
         self.in_out = self._validate_in_out(in_out)
-        self.meshing = None
         self.status_open: bool | None = None
         self.status_open_data: list[tuple[int, int]] | None = None
         self.status_disconnected: bool | None = None

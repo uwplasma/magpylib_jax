@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **All sources accept a `meshing` constructor kwarg** (magpylib parity). In 2.0.0 only magnet
+  sources stored `meshing` and current/misc sources raised `TypeError` on `meshing=...`; `getFT`
+  reads `target.meshing`, so this now works uniformly (`meshing` is handled once in `BaseGeo`).
+  Found by smoke-testing the published wheel.
+
 ## 2.0.0 - 2026-07-13
 
 A major refactor for legibility, differentiability, and a new force/torque feature. The public

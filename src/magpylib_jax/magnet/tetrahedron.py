@@ -28,7 +28,6 @@ class Tetrahedron(BaseSource):
         self.vertices = vertices
         self.polarization = polarization
         self.magnetization = magnetization
-        self.meshing = None
         super().__init__(
             position=position,
             orientation=orientation,

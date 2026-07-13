@@ -505,6 +505,9 @@ class BaseGeo(BaseTransform, BaseDisplayRepr):
         style_label: str | None = None,
         **kwargs,
     ):
+        # `meshing` controls target discretization for getFT; every magpylib
+        # source accepts it, so accept and store it here for all objects.
+        self.meshing = kwargs.pop("meshing", None)
         self._style_kwargs: dict[str, Any] = {}
         self._style = None
         self._style_label = style_label

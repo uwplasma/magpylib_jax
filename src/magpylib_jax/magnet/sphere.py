@@ -28,7 +28,6 @@ class Sphere(BaseSource):
         self.diameter = diameter
         self.polarization = polarization
         self.magnetization = magnetization
-        self.meshing = None
         super().__init__(
             position=position,
             orientation=orientation,
