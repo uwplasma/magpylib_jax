@@ -24,7 +24,7 @@ jobs:
           python -m pip install -e '.[test]'
           python -m pip install ruff mypy
       - name: Ruff
-        run: ruff check src tests
+        run: ruff check src tests scripts examples
       - name: Mypy
         run: mypy
 
