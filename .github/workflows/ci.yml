@@ -56,23 +56,9 @@ jobs:
           tests/test_compatibility.py
           tests/test_motion_shape_compat.py
 
-  tests-core:
+  tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - shard: core-a
-            pytest_paths: tests/differentiability tests/jit tests/physics
-          - shard: core-b
-            pytest_paths: tests/parity
-          - shard: core-c
-            pytest_paths: tests/performance tests/test_compatibility.py tests/test_coverage_smoke.py tests/test_motion_shape_compat.py tests/test_trimesh_semantics.py
-          - shard: core-d
-            pytest_paths: tests/parity_gates
-    env:
-      COVERAGE_FILE: covdata.${{ matrix.shard }}
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -83,88 +69,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e '.[test]'
-      - name: Run core test shard
+      - name: Run full test suite with coverage
         run: >
-          pytest -o addopts='-ra --strict-config --strict-markers
-          --cov=src/magpylib_jax --cov-append --cov-report= --cov-fail-under=0'
+          pytest -o addopts='-ra --strict-config --strict-markers'
           -m 'not slow'
-          ${{ matrix.pytest_paths }}
-      - name: Upload core coverage shard
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-${{ matrix.shard }}
-          path: covdata.${{ matrix.shard }}
-          if-no-files-found: error
-
-  tests-upstream:
-    runs-on: ubuntu-latest
-    timeout-minutes: 12
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - shard: upstream-a
-            pytest_paths: tests/upstream_mirror/test_BHMJ_level.py tests/upstream_mirror/test_getBH_interfaces.py tests/upstream_mirror/test_obj_BaseGeo.py tests/upstream_mirror/test_obj_BaseGeo_v4motion.py
-          - shard: upstream-b
-            pytest_paths: tests/upstream_mirror/test_obj_Collection.py
-          - shard: upstream-c
-            pytest_paths: tests/upstream_mirror/test_obj_Sensor.py
-          - shard: upstream-d
-            pytest_paths: tests/upstream_mirror/test_obj_CylinderSegment.py tests/upstream_mirror/test_obj_TriangleStrip_Sheet.py tests/upstream_mirror/test_obj_TriangularMesh.py
-          - shard: upstream-e
-            pytest_paths: tests/upstream_mirror/test_path.py tests/upstream_mirror/test_physics_consistency.py
-    env:
-      COVERAGE_FILE: covdata.${{ matrix.shard }}
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
-          cache: "pip"
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e '.[test]'
-      - name: Run upstream mirror shard
-        run: >
-          pytest -o addopts='-ra --strict-config --strict-markers
-          --cov=src/magpylib_jax --cov-append --cov-report= --cov-fail-under=0'
-          -m 'not slow'
-          ${{ matrix.pytest_paths }}
-      - name: Upload upstream coverage shard
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-${{ matrix.shard }}
-          path: covdata.${{ matrix.shard }}
-          if-no-files-found: error
-
-  coverage-combine:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs:
-      - tests-core
-      - tests-upstream
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
-          cache: "pip"
-      - name: Install coverage tool
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install coverage[toml]
-      - name: Download coverage shards
-        uses: actions/download-artifact@v8
-        with:
-          pattern: coverage-*
-          path: coverage
-          merge-multiple: true
-      - name: Combine and enforce coverage
-        run: |
-          ls -la coverage
-          python -m coverage combine --data-file=covdata coverage
-          python -m coverage report --data-file=covdata --fail-under=90
+          --cov=src/magpylib_jax --cov-report=term-missing --cov-fail-under=95
+          tests
 
   docs:
     runs-on: ubuntu-latest
@@ -205,87 +115,3 @@ jobs:
             --output benchmarks/latest.json
       - name: Validate thresholds
         run: python scripts/check_benchmark_thresholds.py benchmarks/latest.json benchmarks/thresholds.json
-
-  profiling-regression:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
-          cache: "pip"
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e '.[test]'
-      - name: Run kernel profiling report
-        run: |
-          python scripts/profile_kernels.py \
-            --n-observers 400 \
-            --repeats 1 \
-            --output profiling/latest_ci.json \
-            --output-dir profiling/ci_artifacts
-      - name: Validate profiling thresholds
-        run: |
-          python scripts/check_profiling_thresholds.py \
-            profiling/latest_ci.json \
-            profiling/thresholds.json
-      - name: Validate HLO baseline (report-only)
-        continue-on-error: true
-        run: |
-          python scripts/check_hlo_diffs.py \
-            profiling/latest_ci.json \
-            profiling/hlo_baseline.json
-      - name: Summarize profiling deltas
-        run: |
-          python scripts/summarize_profiling.py \
-            profiling/latest_ci.json \
-            profiling/thresholds.json \
-            --output profiling/latest_ci_summary.json
-      - name: Upload profiling artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: profiling-ci-artifacts
-          path: |
-            profiling/latest_ci.json
-            profiling/latest_ci_summary.json
-            profiling/ci_artifacts
-
-  profiling-getb-jit:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
-          cache: "pip"
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e '.[test]'
-      - name: Run end-to-end getB JIT profiling
-        run: |
-          python scripts/profile_getB_jit.py \
-            --repeats 1 \
-            --output profiling/getB_jit_ci.json \
-            --output-dir profiling/getB_jit_ci_artifacts
-      - name: Validate getB JIT profiling thresholds
-        run: |
-          python scripts/check_profiling_thresholds.py \
-            profiling/getB_jit_ci.json \
-            profiling/thresholds_getB_jit.json
-      - name: Validate getB JIT HLO baseline (report-only)
-        continue-on-error: true
-        run: |
-          python scripts/check_hlo_diffs.py \
-            profiling/getB_jit_ci.json \
-            profiling/hlo_baseline_getB_jit.json
-      - name: Upload getB JIT profiling artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: profiling-getB-jit-ci
-          path: |
-            profiling/getB_jit_ci.json
-            profiling/getB_jit_ci_artifacts

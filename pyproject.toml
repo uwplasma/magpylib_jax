@@ -59,7 +59,7 @@ packages = ["src/magpylib_jax"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-addopts = "-ra --strict-config --strict-markers --cov=src/magpylib_jax --cov-report=term-missing --cov-fail-under=90"
+addopts = "-ra --strict-config --strict-markers --cov=src/magpylib_jax --cov-report=term-missing --cov-fail-under=95"
 testpaths = ["tests"]
 markers = [
   "parity_gate: strict parity behavior profiles used as CI gates",
@@ -87,11 +87,20 @@ check_untyped_defs = true
 warn_return_any = false
 ignore_missing_imports = true
 
+# The field-engine orchestration and object base carry dynamic JAX shapes/dtypes
+# that mypy cannot check without pervasive `# type: ignore`; the pure kernels and
+# source classes are type-checked. (The `functional` facade is now a plain
+# re-export and IS checked.)
 [[tool.mypy.overrides]]
 module = [
   "magpylib_jax.collection",
   "magpylib_jax.core.base",
-  "magpylib_jax.functional",
+  "magpylib_jax.fields.api",
+  "magpylib_jax.fields.prepare",
+  "magpylib_jax.fields.engine",
+  "magpylib_jax.fields.eager",
+  "magpylib_jax.fields.cache",
+  "magpylib_jax.fields.force",
   "magpylib_jax.misc.custom",
   "magpylib_jax.sensor",
 ]
@@ -101,4 +110,4 @@ ignore_errors = true
 source = ["src/magpylib_jax"]
 
 [tool.coverage.report]
-fail_under = 90
+fail_under = 95

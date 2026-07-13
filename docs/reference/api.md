@@ -4,8 +4,11 @@
 
 ```{eval-rst}
 .. automodule:: magpylib_jax
-   :members:
+   :no-members:
 ```
+
+The public names (`getB`, `getH`, `getJ`, `getM`, `getFT`, `Collection`, `Sensor`, and the
+source classes) are documented in the sections below.
 
 ## Functional API
 
