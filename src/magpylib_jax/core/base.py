@@ -808,6 +808,12 @@ class BaseGeo(BaseTransform, BaseDisplayRepr):
 
         return Collection(self, obj)
 
+    def show(self, **kwargs):
+        """Render this object in a 3D matplotlib scene (see :func:`magpylib_jax.show`)."""
+        from magpylib_jax.display import show
+
+        return show(self, **kwargs)
+
 
 class BaseSource(BaseGeo):
     """Base class for source objects, providing the shared field interface.

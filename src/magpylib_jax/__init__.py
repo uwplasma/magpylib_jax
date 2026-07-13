@@ -12,6 +12,7 @@ from magpylib_jax import current, magnet, misc
 from magpylib_jax.collection import Collection
 from magpylib_jax.core.base import MagpylibBadUserInput, MagpylibMissingInput
 from magpylib_jax.current import Circle, Polyline, TriangleSheet, TriangleStrip
+from magpylib_jax.display import show
 from magpylib_jax.functional import getB, getFT, getH, getJ, getM
 from magpylib_jax.magnet import (
     Cuboid,
@@ -53,4 +54,5 @@ __all__ = [
     "MagpylibMissingInput",
     "magnet",
     "misc",
+    "show",
 ]

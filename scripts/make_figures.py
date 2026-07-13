@@ -100,7 +100,9 @@ def fig_optimization() -> None:
            title="Inverse design via jax.grad\nrecovering a dipole moment")
     # inset: parameters converging to the true values
     axin = ax.inset_axes([0.5, 0.48, 0.46, 0.46])
-    for i, (c, lbl) in enumerate(zip([C_JAX, C_REF, C_ACCENT], ["mx", "my", "mz"])):
+    for i, (c, lbl) in enumerate(
+        zip([C_JAX, C_REF, C_ACCENT], ["mx", "my", "mz"], strict=False)
+    ):
         axin.plot(traj[:, i], color=c, lw=1.4, label=lbl)
         axin.axhline(float(true_moment[i]), color=c, ls=":", lw=1)
     axin.set_title("moment components", fontsize=8)
@@ -109,8 +111,8 @@ def fig_optimization() -> None:
     fig.tight_layout()
     fig.savefig(OUT / "optimization.png")
     plt.close(fig)
-    print("wrote optimization.png  final loss=%.2e  m_err=%.2e"
-          % (hist[-1], float(np.linalg.norm(traj[-1] - np.asarray(true_moment)))))
+    m_err = float(np.linalg.norm(traj[-1] - np.asarray(true_moment)))
+    print(f"wrote optimization.png  final loss={hist[-1]:.2e}  m_err={m_err:.2e}")
 
 
 def _time_call(fn, repeats=5):
@@ -164,28 +166,36 @@ def fig_benchmark() -> None:
         obs_j = jnp.asarray(obs)
 
         def scalar_jax(pol, o=obs_j):
-            return jnp.sum(mpj.magnet.Cuboid(polarization=pol, dimension=(1.0, 1.0, 1.0)).getB(o) ** 2)
+            src = mpj.magnet.Cuboid(polarization=pol, dimension=(1.0, 1.0, 1.0))
+            return jnp.sum(src.getB(o) ** 2)
 
         vg = jax.jit(jax.value_and_grad(scalar_jax))
-        t_grad_jax.append(_time_call(lambda: jax.block_until_ready(vg(jnp.array([0.1, 0.2, 0.3])))))
+        t_grad_jax.append(
+            _time_call(lambda vg=vg: jax.block_until_ready(vg(jnp.array([0.1, 0.2, 0.3]))))
+        )
 
         def scalar_ref(pol, o=obs):
-            return float(np.sum(magpy.magnet.Cuboid(polarization=tuple(pol), dimension=(1., 1., 1.)).getB(o) ** 2))
+            src = magpy.magnet.Cuboid(polarization=tuple(pol), dimension=(1.0, 1.0, 1.0))
+            return float(np.sum(src.getB(o) ** 2))
 
         def fd_grad():
             p0 = np.array([0.1, 0.2, 0.3])
             g = np.zeros(3)
             h = 1e-6
             for i in range(3):
-                pp = p0.copy(); pp[i] += h
-                pm = p0.copy(); pm[i] -= h
+                pp = p0.copy()
+                pp[i] += h
+                pm = p0.copy()
+                pm[i] -= h
                 g[i] = (scalar_ref(pp) - scalar_ref(pm)) / (2 * h)
             return g
         t_grad_fd.append(_time_call(fd_grad, repeats=3))
 
     xg = np.arange(len(gsizes))
-    ax2.bar(xg - w / 2, np.array(t_grad_fd) * 1e3, w, label="magpylib (6× FD, approx.)", color=C_REF)
-    ax2.bar(xg + w / 2, np.array(t_grad_jax) * 1e3, w, label="magpylib_jax (autodiff, exact)", color=C_JAX)
+    ax2.bar(xg - w / 2, np.array(t_grad_fd) * 1e3, w,
+            label="magpylib (6× FD, approx.)", color=C_REF)
+    ax2.bar(xg + w / 2, np.array(t_grad_jax) * 1e3, w,
+            label="magpylib_jax (autodiff, exact)", color=C_JAX)
     ax2.set(xticks=xg, xticklabels=[f"{s:,}" for s in gsizes], xlabel="observers",
             ylabel="field + ∇ time (ms)", title="Field + gradient w.r.t. polarization")
     ax2.set_yscale("log")
@@ -226,9 +236,27 @@ def fig_force_distance() -> None:
     print("wrote force_distance.png")
 
 
+def fig_show() -> None:
+    """3D scene rendered by ``magpylib_jax.show`` (a Cuboid, Circle, Dipole, Sensor)."""
+    cuboid = mpj.magnet.Cuboid(
+        polarization=(0.0, 0.0, 1.0), dimension=(1.0, 1.0, 1.0), position=(-1.5, 0.0, 0.0)
+    )
+    loop = mpj.current.Circle(current=100.0, diameter=2.0, position=(1.5, 0.0, 0.0))
+    dipole = mpj.misc.Dipole(moment=(0.0, 0.0, 1.0), position=(0.0, 1.5, 0.5))
+    sensor = mpj.Sensor(pixel=[[0, 0, 0], [0.2, 0.2, 0.0]], position=(0.0, -1.5, 0.0))
+    scene = mpj.Collection(cuboid, loop, dipole, sensor)
+
+    fig = scene.show(return_fig=True)
+    fig.set_size_inches(6.5, 6.0)
+    fig.savefig(OUT / "show.png")
+    plt.close(fig)
+    print("wrote show.png")
+
+
 if __name__ == "__main__":
     fig_field_map()
     fig_optimization()
     fig_force_distance()
     fig_benchmark()
+    fig_show()
     print("all figures written to", OUT)

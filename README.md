@@ -45,11 +45,13 @@ optimizer is slow and noisy. `magpylib_jax` closes that gap:
 | `jit` / `vmap` | ✗ | ✓ field core |
 | `getFT` force/torque | finite differences (step `eps`) | autodiff, exact, `eps`-free |
 | Precision | float64 | float64 (x64 enabled on import) |
-| 3-D `show()` display | ✓ (matplotlib/plotly/pyvista) | ✗ (out of scope) |
+| 3-D `show()` display | ✓ (matplotlib/plotly/pyvista) | ✓ (matplotlib) |
+| Force & torque `getFT` | ✓ (finite differences) | ✓ (autodiff, exact) |
 | Source families | all | all 12 (parity-tested) |
 
-`show()` and the interactive style system are intentionally out of scope; everything numerical is
-covered. See the [parity strategy](docs/parity.md) for details.
+magpylib_jax matches magpylib's numerical surface and adds exact gradients and `getFT`. It ships a
+matplotlib `show()` (below); the extra plotly/pyvista backends and the full interactive style
+system are the only display features left aside. See the [parity strategy](docs/parity.md).
 
 ## Installation
 
@@ -142,6 +144,29 @@ paid once (the intended usage inside an optimization loop):
 Two caveats worth knowing: **`jax.jit` your field function and reuse it** (the eager object API
 pays per-call dispatch overhead that dominates small problems), and for timing wrap results in
 `jax.block_until_ready(...)` so you measure compute, not async dispatch.
+
+## Visualize with `show()`
+
+```python
+import magpylib_jax as mpj
+
+scene = mpj.Collection(
+    mpj.magnet.Cuboid(polarization=(0, 0, 1.0), dimension=(1, 1, 1)),
+    mpj.current.Circle(diameter=2.0, current=100.0, position=(1.5, 0, -1)),
+    mpj.misc.Dipole(moment=(0, 0, 1.0), position=(1.5, 0, 1)),
+    mpj.Sensor(position=(0, 0, -1.2), pixel=[[0, 0, 0]]),
+)
+scene.show()   # or mpj.show(obj_a, obj_b, ...)
+```
+
+<p align="center">
+  <img src="docs/_static/show.png" width="62%" alt="3D show() of a magnet, current loop, dipole, and sensor"/>
+</p>
+
+Magnets render as shaded bodies with a polarization arrow, currents as loops/lines with a
+direction arrow, dipoles as moment arrows, and sensors as markers with their pixel grid and local
+axes; paths draw as faint trails. Pass an existing `ax` to compose with your own figure, or
+`return_fig=True` for headless use.
 
 ## Supported sources
 

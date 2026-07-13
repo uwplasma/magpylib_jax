@@ -24,6 +24,13 @@ source classes) are documented in the sections below.
    :members: getFT
 ```
 
+## Display
+
+```{eval-rst}
+.. automodule:: magpylib_jax.display
+   :members: show
+```
+
 ## Object containers
 
 ```{eval-rst}

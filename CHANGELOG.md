@@ -12,6 +12,11 @@ suite.
   via `jax.jacfwd` (exact, no finite-difference step `eps`), and current force as `(I dL)×B`.
   `getFT` is itself differentiable. Supports `Dipole`, `Sphere`, `Cuboid`, `Circle` and
   `Polyline` targets; validated against magpylib and an analytic dipole–dipole reference.
+- **`show()` — matplotlib 3-D visualization.** `mpj.show(*objects)` and every object's `.show()`
+  render magnets (shaded bodies + polarization arrow), currents (loops/lines + direction arrow),
+  dipoles, triangular meshes, sensors (with pixels and local axes), collections, and motion paths.
+- **Hardened gradients at singularities** via `custom_jvp` safe ops: fields near a source's
+  singular set now yield finite gradients instead of NaN, with the primal field unchanged.
 - README showcase with generated figures (`scripts/make_figures.py`): field map, inverse-design
   loss, `getFT` force curve, and an honest CPU benchmark (jitted forward and field+gradient).
 
