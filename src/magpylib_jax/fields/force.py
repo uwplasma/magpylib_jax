@@ -48,6 +48,231 @@ def _cuboid_cell_counts(meshing: Any, dimension: np.ndarray) -> tuple[int, int, 
     return n1, n2, n3
 
 
+# ---------------------------------------------------------------------------
+# NumPy replicas of magpylib's target_meshing (static geometry). These mirror
+# ``magpylib._src.obj_classes.target_meshing`` cell-for-cell so getFT matches
+# ``magpy.getFT``. Cell *centers* and per-cell *volumes/areas* are pure geometry
+# (computed in NumPy, static w.r.t. the integer ``target.meshing``); the caller
+# multiplies them by the JAX excitation (magnetization / current) to build the
+# differentiable per-cell moments or current-vectors.
+# ---------------------------------------------------------------------------
+def _apportion_triple(triple: np.ndarray, min_val: int = 1, max_iter: int = 30) -> np.ndarray:
+    """Apportion a triple so ``min_val`` is respected and the product is kept."""
+    triple = np.abs(np.array(triple, dtype=float))
+    count = 0
+    while any(n < min_val for n in triple) and count < max_iter:
+        count += 1
+        amin, amax = triple.argmin(), triple.argmax()
+        factor = min_val / triple[amin]
+        if triple[amax] >= factor * min_val:
+            triple /= factor**0.5
+            triple[amin] *= factor**1.5
+    return triple
+
+
+def _cells_from_dimension(dim: Any, target_elems: int, min_val: int = 1) -> np.ndarray:
+    """Divide a dimension triple into a near-cubic (n1, n2, n3) cell count."""
+    from itertools import product
+
+    elems = np.prod(target_elems)
+    funcs = [np.ceil, np.floor]
+    elems = max(min_val**3, elems)
+    x, y, z = np.abs(dim)
+    a = x ** (2 / 3) * (elems / y / z) ** (1 / 3)
+    b = y ** (2 / 3) * (elems / x / z) ** (1 / 3)
+    c = z ** (2 / 3) * (elems / x / y) ** (1 / 3)
+    a, b, c = _apportion_triple((a, b, c), min_val=min_val)
+    epsilon = elems
+    result = [funcs[0](k) for k in (a, b, c)]
+    for fn in product(*[funcs] * 3):
+        res = [f(k) for f, k in zip(fn, (a, b, c), strict=False)]
+        epsilon_new = elems - np.prod(res)
+        if np.abs(epsilon_new) <= epsilon and all(r >= min_val for r in res):
+            epsilon = np.abs(epsilon_new)
+            result = res
+    return np.array(result).astype(int)
+
+
+def _cylinder_cells(
+    r1: float, r2: float, h: float, phi1: float, phi2: float, n: int
+) -> tuple[np.ndarray, np.ndarray]:
+    """Cylinder(-segment) cell centers + volumes (mirrors _target_mesh_cylinder)."""
+    al = (r2 + r1) * 3.14 * (phi2 - phi1) / 360  # arclen = D*pi*arcratio
+    dim = al, r2 - r1, h
+    nphi, nr, nh = _cells_from_dimension(dim, n)
+    r = np.linspace(r1, r2, nr + 1)
+    dh = h / nh
+    cells: list = []
+    volumes: list = []
+    for r_ind in range(nr):
+        nphi_r = max(1, int(r[r_ind + 1] / ((r1 + r2) / 2) * nphi))
+        phi = np.linspace(phi1, phi2, nphi_r + 1)
+        for h_ind in range(nh):
+            pos_h = dh * h_ind - h / 2 + dh / 2
+            if nr >= 3 and r[r_ind] == 0 and phi2 - phi1 == 360:
+                cells.append((0.0, 0.0, pos_h))
+                volumes.append(np.pi * r[r_ind + 1] ** 2 * dh)
+            else:
+                for phi_ind in range(nphi_r):
+                    radial_coord = (r[r_ind] + r[r_ind + 1]) / 2
+                    angle_coord = (phi[phi_ind] + phi[phi_ind + 1]) / 2
+                    cells.append(
+                        (
+                            radial_coord * np.cos(np.deg2rad(angle_coord)),
+                            radial_coord * np.sin(np.deg2rad(angle_coord)),
+                            pos_h,
+                        )
+                    )
+                    volumes.append(
+                        np.pi
+                        * (r[r_ind + 1] ** 2 - r[r_ind] ** 2)
+                        * dh
+                        / nphi_r
+                        * (phi2 - phi1)
+                        / 360
+                    )
+    return np.array(cells, dtype=float), np.array(volumes, dtype=float)
+
+
+def _tetrahedron_cells(
+    n_points: int, vertices: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """Tetrahedron cell centers + volumes (mirrors _target_mesh_tetrahedron)."""
+    v1 = vertices[1] - vertices[0]
+    v2 = vertices[2] - vertices[0]
+    v3 = vertices[3] - vertices[0]
+    tet_volume = abs(np.linalg.det(np.column_stack([v1, v2, v3]))) / 6.0
+
+    if n_points == 1:
+        centroid = np.mean(vertices, axis=0)
+        return np.array([centroid]), np.array([tet_volume])
+
+    def points_for_n_div(n: int) -> int:
+        return (n + 1) * (n + 2) * (n + 3) // 6
+
+    n_div_estimate = max(1, int(np.round((6 * n_points) ** (1 / 3) - 1.5)))
+    best_n_div = n_div_estimate
+    best_diff = abs(points_for_n_div(n_div_estimate) - n_points)
+    for test_n_div in range(max(1, n_div_estimate - 2), n_div_estimate + 4):
+        diff = abs(points_for_n_div(test_n_div) - n_points)
+        if diff < best_diff:
+            best_diff = diff
+            best_n_div = test_n_div
+    n_div = best_n_div
+
+    pts_list = []
+    for i in range(n_div + 1):
+        for j in range(n_div + 1 - i):
+            for k in range(n_div + 1 - i - j):
+                latt = n_div - i - j - k
+                if latt >= 0:
+                    point = (
+                        (i / n_div) * vertices[0]
+                        + (j / n_div) * vertices[1]
+                        + (k / n_div) * vertices[2]
+                        + (latt / n_div) * vertices[3]
+                    )
+                    pts_list.append(point)
+    pts = np.array(pts_list)
+    volumes = np.full(len(pts), tet_volume / len(pts))
+    return pts, volumes
+
+
+def _subdiv(triangles: np.ndarray, splits: np.ndarray) -> np.ndarray:
+    """Subdivide triangles by longest-edge bisection (mirrors _subdiv)."""
+    n_sub = 2**splits
+    n_tot = int(np.sum(n_sub))
+    ends = np.cumsum(n_sub)
+    starts = np.r_[0, ends[:-1]]
+    TRIA = np.empty((n_tot, 3, 3))
+    TRIA[starts] = triangles
+    MASK = np.zeros((n_tot), dtype=bool)
+    MASK[starts] = True
+    for i in range(int(max(splits))):
+        mask_split = i == splits
+        for start in starts[mask_split]:
+            MASK[start : start + 2**i] = False
+        triangles = TRIA[MASK]
+        mask_split = i < splits
+        for start in starts[mask_split]:
+            MASK[start : start + 2 ** (i + 1)] = True
+        A = triangles[:, 0]
+        B = triangles[:, 1]
+        C = triangles[:, 2]
+        d2_AB = np.sum((B - A) ** 2, axis=1)
+        d2_BC = np.sum((C - B) ** 2, axis=1)
+        d2_CA = np.sum((A - C) ** 2, axis=1)
+        case1 = (d2_AB >= d2_BC) * (d2_AB >= d2_CA)
+        case2 = d2_BC >= d2_CA
+        case3 = ~(case1 | case2)
+        new_triangles = np.empty((len(triangles), 2, 3, 3), dtype=float)
+        if np.any(case1):
+            new_triangles[case1, 0, 0] = A[case1]
+            new_triangles[case1, 0, 1] = (A[case1] + B[case1]) / 2.0
+            new_triangles[case1, 0, 2] = C[case1]
+            new_triangles[case1, 1, 0] = (A[case1] + B[case1]) / 2.0
+            new_triangles[case1, 1, 1] = B[case1]
+            new_triangles[case1, 1, 2] = C[case1]
+        if np.any(case2):
+            new_triangles[case2, 0, 0] = B[case2]
+            new_triangles[case2, 0, 1] = (B[case2] + C[case2]) / 2.0
+            new_triangles[case2, 0, 2] = A[case2]
+            new_triangles[case2, 1, 0] = (B[case2] + C[case2]) / 2.0
+            new_triangles[case2, 1, 1] = C[case2]
+            new_triangles[case2, 1, 2] = A[case2]
+        if np.any(case3):
+            new_triangles[case3, 0, 0] = C[case3]
+            new_triangles[case3, 0, 1] = (C[case3] + A[case3]) / 2.0
+            new_triangles[case3, 0, 2] = B[case3]
+            new_triangles[case3, 1, 0] = (C[case3] + A[case3]) / 2.0
+            new_triangles[case3, 1, 1] = A[case3]
+            new_triangles[case3, 1, 2] = B[case3]
+        TRIA[MASK] = new_triangles.reshape(-1, 3, 3)
+    return TRIA
+
+
+def _triangle_current_cells(
+    triangles: np.ndarray, n_target: int
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Refine triangles; return (centroids, per-orig-tri splits, per-cell areas).
+
+    Mirrors ``_target_mesh_triangle_current`` geometry: current-vectors are then
+    ``repeat(cds, 2**splits) * areas`` (built with JAX by the caller).
+    """
+    n_tria = len(triangles)
+    surfaces = 0.5 * np.linalg.norm(
+        np.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0]),
+        axis=1,
+    )
+    splits = np.zeros(n_tria, dtype=int)
+    while n_tria < n_target:
+        idx = int(np.argmax(surfaces))
+        surfaces[idx] /= 2.0
+        splits[idx] += 1
+        n_tria = int(np.sum(2**splits))
+    surfaces = np.repeat(surfaces, 2**splits)
+    triangles = _subdiv(triangles, splits)
+    centroids = np.mean(triangles, axis=1)
+    return centroids, splits, surfaces
+
+
+def _create_regular_grid(
+    min_c: np.ndarray, max_c: np.ndarray, spacing: float
+) -> np.ndarray:
+    """Regular cubic grid covering a box (mirrors target_meshing._create_grid)."""
+    x0, y0, z0 = (float(v) for v in min_c)
+    x1, y1, z1 = (float(v) for v in max_c)
+    nx = int(np.ceil((x1 - x0) / spacing))
+    ny = int(np.ceil((y1 - y0) / spacing))
+    nz = int(np.ceil((z1 - z0) / spacing))
+    cx, cy, cz = (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2
+    x = cx + spacing * (np.arange(nx + 1) - nx // 2)
+    y = cy + spacing * (np.arange(ny + 1) - ny // 2)
+    z = cz + spacing * (np.arange(nz + 1) - nz // 2)
+    xx, yy, zz = np.meshgrid(x, y, z, indexing="ij")
+    return np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()])
+
+
 def _generate_ft_mesh(target: Any) -> tuple[jnp.ndarray, jnp.ndarray, str]:
     """Return ``(pts_local (n,3), weights (n,3), kind)`` in the target frame.
 
@@ -57,8 +282,20 @@ def _generate_ft_mesh(target: Any) -> tuple[jnp.ndarray, jnp.ndarray, str]:
     the target orientation and translates by the target position.
     """
     # Local imports avoid an import cycle at module load time.
-    from magpylib_jax.current import Circle, Polyline
-    from magpylib_jax.magnet import Cuboid, Sphere
+    from magpylib_jax.current import (
+        Circle,
+        Polyline,
+        TriangleSheet,
+        TriangleStrip,
+    )
+    from magpylib_jax.magnet import (
+        Cuboid,
+        Cylinder,
+        CylinderSegment,
+        Sphere,
+        Tetrahedron,
+        TriangularMesh,
+    )
     from magpylib_jax.misc import Dipole
 
     if isinstance(target, Dipole):
@@ -147,9 +384,115 @@ def _generate_ft_mesh(target: Any) -> tuple[jnp.ndarray, jnp.ndarray, str]:
         cvecs = jnp.stack(cvec_list, axis=0)
         return pts, cvecs, "current"
 
+    if isinstance(target, CylinderSegment):
+        meshing = int(getattr(target, "meshing", None) or 1)
+        r1, r2, h, phi1, phi2 = (float(v) for v in np.asarray(target.dimension, dtype=float))
+        pts_np, vols_np = _cylinder_cells(r1, r2, h, phi1, phi2, meshing)
+        pts = jnp.asarray(pts_np, dtype=jnp.float64)
+        magnetization = jnp.asarray(target._polarization, dtype=jnp.float64) / MU0
+        moments = jnp.asarray(vols_np, dtype=jnp.float64)[:, None] * magnetization
+        return pts, moments, "magnet"
+
+    if isinstance(target, Cylinder):
+        meshing = int(getattr(target, "meshing", None) or 1)
+        d, h = (float(v) for v in np.asarray(target.dimension, dtype=float))
+        pts_np, vols_np = _cylinder_cells(0.0, d / 2.0, h, 0.0, 360.0, meshing)
+        pts = jnp.asarray(pts_np, dtype=jnp.float64)
+        magnetization = jnp.asarray(target._polarization, dtype=jnp.float64) / MU0
+        moments = jnp.asarray(vols_np, dtype=jnp.float64)[:, None] * magnetization
+        return pts, moments, "magnet"
+
+    if isinstance(target, Tetrahedron):
+        meshing = int(getattr(target, "meshing", None) or 1)
+        verts_np = np.asarray(target.vertices, dtype=float)
+        pts_np, vols_np = _tetrahedron_cells(meshing, verts_np)
+        pts = jnp.asarray(pts_np, dtype=jnp.float64)
+        magnetization = jnp.asarray(target._polarization, dtype=jnp.float64) / MU0
+        moments = jnp.asarray(vols_np, dtype=jnp.float64)[:, None] * magnetization
+        return pts, moments, "magnet"
+
+    if isinstance(target, TriangularMesh):
+        meshing = int(getattr(target, "meshing", None) or 1)
+        mesh_np = np.asarray(target.mesh, dtype=float)  # (m,3,3) oriented triangles
+        volume = float(target.volume)
+        magnetization = jnp.asarray(target._polarization, dtype=jnp.float64) / MU0
+        if meshing == 1:
+            # area-weighted surface centroid (barycenter), single cell
+            ctri = mesh_np.mean(axis=1)
+            area = 0.5 * np.linalg.norm(
+                np.cross(mesh_np[:, 1] - mesh_np[:, 0], mesh_np[:, 2] - mesh_np[:, 0]),
+                axis=1,
+            )
+            bary = (ctri * area[:, None]).sum(axis=0) / area.sum()
+            pts = jnp.asarray(bary, dtype=jnp.float64).reshape(1, 3)
+            moments = (jnp.asarray(volume, dtype=jnp.float64) * magnetization).reshape(1, 3)
+            return pts, moments, "magnet"
+        from magpylib_jax.core.kernels import _mask_inside_trimesh_jax
+
+        spacing = (volume / meshing) ** (1 / 3)
+        min_c = mesh_np.reshape(-1, 3).min(axis=0)
+        max_c = mesh_np.reshape(-1, 3).max(axis=0)
+        pad = spacing * 0.5
+        grid = _create_regular_grid(min_c - pad, max_c + pad, spacing)
+        inside = np.asarray(
+            _mask_inside_trimesh_jax(
+                jnp.asarray(grid, dtype=jnp.float64), jnp.asarray(mesh_np, dtype=jnp.float64)
+            )
+        )
+        pts_np = grid[inside]
+        if len(pts_np) == 0:  # degenerate fallback: barycenter
+            ctri = mesh_np.mean(axis=1)
+            area = 0.5 * np.linalg.norm(
+                np.cross(mesh_np[:, 1] - mesh_np[:, 0], mesh_np[:, 2] - mesh_np[:, 0]),
+                axis=1,
+            )
+            pts_np = ((ctri * area[:, None]).sum(axis=0) / area.sum()).reshape(1, 3)
+        pts = jnp.asarray(pts_np, dtype=jnp.float64)
+        cell_vol = volume / pts.shape[0]
+        moments = (jnp.asarray(cell_vol, dtype=jnp.float64) * magnetization)
+        moments = jnp.broadcast_to(moments, (pts.shape[0], 3))
+        return pts, moments, "magnet"
+
+    if isinstance(target, TriangleStrip):
+        meshing = int(getattr(target, "meshing", None) or 1)
+        verts_np = np.asarray(target.vertices, dtype=float)
+        i0 = jnp.asarray(target.current, dtype=jnp.float64)
+        triangles = np.array([verts_np[i : i + 3] for i in range(len(verts_np) - 2)])
+        side_a = triangles[:, 1] - triangles[:, 0]
+        side_b = triangles[:, 2] - triangles[:, 0]
+        side_aa = np.sum(side_a * side_a, axis=1)
+        side_bb = np.sum(side_b * side_b, axis=1)
+        side_ab = np.sum(side_a * side_b, axis=1)
+        area2 = side_aa * side_bb - side_ab * side_ab
+        area2_rel = area2 / np.sum(area2)
+        mask_good = area2_rel >= 1e-19
+        triangles = triangles[mask_good]
+        base_length = np.linalg.norm(side_b[mask_good], axis=1)
+        height = np.sqrt(area2[mask_good]) / base_length
+        # current-density geometry factor (per triangle); excitation applied below
+        cds_geom = side_b[mask_good] / base_length[:, None] / height[:, None]
+        centroids, splits, surfaces = _triangle_current_cells(triangles, meshing)
+        cds_rep = np.repeat(cds_geom, 2**splits, axis=0) * surfaces[:, None]
+        pts = jnp.asarray(centroids, dtype=jnp.float64)
+        cvecs = jnp.asarray(cds_rep, dtype=jnp.float64) * i0
+        return pts, cvecs, "current"
+
+    if isinstance(target, TriangleSheet):
+        meshing = int(getattr(target, "meshing", None) or 1)
+        verts_np = np.asarray(target.vertices, dtype=float)
+        faces_np = np.asarray(target.faces, dtype=int)
+        cds = jnp.asarray(target.current_densities, dtype=jnp.float64)
+        triangles = verts_np[faces_np]
+        centroids, splits, surfaces = _triangle_current_cells(triangles, meshing)
+        reps = jnp.asarray(np.repeat(np.arange(len(faces_np)), 2**splits))
+        pts = jnp.asarray(centroids, dtype=jnp.float64)
+        cvecs = cds[reps] * jnp.asarray(surfaces, dtype=jnp.float64)[:, None]
+        return pts, cvecs, "current"
+
     raise NotImplementedError(
         f"getFT does not support target type {type(target).__name__!r}. "
-        "Supported targets: Dipole, Sphere, Cuboid, Circle, Polyline."
+        "Supported targets: Dipole, Sphere, Cuboid, Cylinder, CylinderSegment, "
+        "Tetrahedron, TriangularMesh, Circle, Polyline, TriangleStrip, TriangleSheet."
     )
 
 
@@ -258,14 +601,23 @@ def getFT(
     targets : Target | list[Target] | Collection
         Objects the field acts on. Supported target types:
 
-        - ``Dipole``   (magnet, single cell)
-        - ``Sphere``   (magnet, single cell)
-        - ``Cuboid``   (magnet, grid meshing via ``target.meshing``; default 1 cell)
-        - ``Circle``   (current, polygon meshing via ``target.meshing``; default 100)
-        - ``Polyline`` (current; ``target.meshing`` points, default 1 per segment)
+        - ``Dipole``          (magnet, single cell)
+        - ``Sphere``          (magnet, single cell)
+        - ``Cuboid``          (magnet, grid meshing via ``target.meshing``; default 1 cell)
+        - ``Cylinder``        (magnet, cylindrical meshing via ``target.meshing``)
+        - ``CylinderSegment`` (magnet, cylindrical-segment meshing via ``target.meshing``)
+        - ``Tetrahedron``     (magnet, barycentric meshing via ``target.meshing``)
+        - ``TriangularMesh``  (magnet, inside-mask grid meshing via ``target.meshing``)
+        - ``Circle``          (current, polygon meshing via ``target.meshing``; default 100)
+        - ``Polyline``        (current; ``target.meshing`` points, default 1 per segment)
+        - ``TriangleStrip``   (current, triangle-bisection meshing via ``target.meshing``)
+        - ``TriangleSheet``   (current, triangle-bisection meshing via ``target.meshing``)
 
-        Any other target type raises ``NotImplementedError``. ``Collection``
-        targets are flattened and their members summed into one target column.
+        Cell centers and per-cell moments/current-vectors replicate magpylib's
+        ``target_meshing`` exactly, so results match ``magpy.getFT`` for a matching
+        ``meshing``. Any other target type raises ``NotImplementedError``.
+        ``Collection`` targets are flattened and their members summed into one
+        target column.
     pivot : 'centroid' | None | array-like, default 'centroid'
         Point about which the force contributes to the torque via
         ``(x_cell - pivot) x F``. ``'centroid'`` uses each target's ``.centroid``

@@ -194,10 +194,11 @@ def test_grad_wrt_target_position_finite():
 
 def test_unsupported_target_raises():
     src = mj.Dipole(moment=M1, position=P1)
-    cyl = mj.magnet.Cylinder(polarization=(0.1, 0.0, 0.2), dimension=(1.0, 1.0))
-    cyl.meshing = 1
+    tri = mj.misc.Triangle(
+        polarization=(0.1, 0.0, 0.2), vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)]
+    )
     with pytest.raises(NotImplementedError):
-        mj.getFT(src, cyl)
+        mj.getFT(src, tri)
 
 
 # --- extra target/pivot/meshing paths --------------------------------------
@@ -300,3 +301,143 @@ def test_source_path_padding():
     tgt = mj.Dipole(moment=M2, position=P2)
     F, T = mj.getFT(src, tgt)
     assert np.asarray(F).shape == (3, 3)  # (n_path, 3)
+
+
+# --- broadened target coverage: parity vs magpylib --------------------------
+# All new targets replicate magpylib's ``target_meshing`` cell centers and
+# per-cell moments/current-vectors exactly, so with a matching ``meshing`` the
+# only residual difference for magnet targets is autodiff (exact) vs magpylib's
+# symmetric finite-difference gradient (observed ~1e-10 here); current targets
+# involve no gradient and match to machine precision.
+
+
+@pytest.mark.parametrize("meshing", [1, 20])
+def test_parity_cylinder_target(meshing):
+    src, msrc = _source_pair()
+    kw = dict(dimension=(0.6, 0.8), polarization=(0.1, 0.2, -0.1), position=(1.5, 0.5, 1.0))
+    tgt = mj.magnet.Cylinder(**kw)
+    tgt.meshing = meshing
+    mtgt = magpy.magnet.Cylinder(meshing=meshing, **kw)
+    F, T = mj.getFT(src, tgt)
+    Fm, Tm = magpy.getFT(msrc, mtgt)
+    assert _rel(F, Fm) < 1e-6
+    assert _rel(T, Tm) < 1e-6
+
+
+@pytest.mark.parametrize("meshing", [1, 30])
+def test_parity_cylinder_segment_target(meshing):
+    src, msrc = _source_pair()
+    kw = dict(
+        dimension=(0.2, 0.6, 0.8, 30, 200),
+        polarization=(0.1, 0.2, -0.1),
+        position=(1.5, 0.5, 1.0),
+    )
+    tgt = mj.magnet.CylinderSegment(**kw)
+    tgt.meshing = meshing
+    mtgt = magpy.magnet.CylinderSegment(meshing=meshing, **kw)
+    F, T = mj.getFT(src, tgt)
+    Fm, Tm = magpy.getFT(msrc, mtgt)
+    assert _rel(F, Fm) < 1e-6
+    assert _rel(T, Tm) < 1e-6
+
+
+@pytest.mark.parametrize("meshing", [1, 20])
+def test_parity_tetrahedron_target(meshing):
+    src, msrc = _source_pair()
+    verts = [(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)]
+    kw = dict(vertices=verts, polarization=(0.1, 0.2, -0.1), position=(1.5, 0.5, 1.0))
+    tgt = mj.magnet.Tetrahedron(**kw)
+    tgt.meshing = meshing
+    mtgt = magpy.magnet.Tetrahedron(meshing=meshing, **kw)
+    F, T = mj.getFT(src, tgt)
+    Fm, Tm = magpy.getFT(msrc, mtgt)
+    assert _rel(F, Fm) < 1e-6
+    assert _rel(T, Tm) < 1e-6
+
+
+@pytest.mark.parametrize("meshing", [1, 20])
+def test_parity_triangularmesh_target(meshing):
+    src, msrc = _source_pair()
+    cube = np.array(
+        [(x, y, z) for x in (0, 0.5) for y in (0, 0.5) for z in (0, 0.5)], dtype=float
+    )
+    tgt = mj.magnet.TriangularMesh.from_ConvexHull(points=cube)
+    tgt.polarization = (0.1, 0.2, -0.1)
+    tgt.position = (1.5, 0.5, 1.0)
+    tgt.meshing = meshing
+    mtgt = magpy.magnet.TriangularMesh.from_ConvexHull(
+        points=cube, polarization=(0.1, 0.2, -0.1), position=(1.5, 0.5, 1.0), meshing=meshing
+    )
+    F, T = mj.getFT(src, tgt)
+    Fm, Tm = magpy.getFT(msrc, mtgt)
+    assert _rel(F, Fm) < 1e-6
+    assert _rel(T, Tm) < 1e-6
+
+
+@pytest.mark.parametrize("meshing", [3, 20])
+def test_parity_trianglestrip_target(meshing):
+    src, msrc = _source_pair()
+    verts = [(0, 0, 0), (1, 0, 0), (0.5, 1, 0), (1.5, 1, 0), (1.0, 2, 0)]
+    kw = dict(current=100.0, vertices=verts, position=(0.5, 0.5, 1.0))
+    tgt = mj.current.TriangleStrip(**kw)
+    tgt.meshing = meshing
+    mtgt = magpy.current.TriangleStrip(meshing=meshing, **kw)
+    F, T = mj.getFT(src, tgt)
+    Fm, Tm = magpy.getFT(msrc, mtgt)
+    # Identical triangle meshing, Laplace force -> machine precision.
+    assert _rel(F, Fm) < 1e-8
+    assert _rel(T, Tm) < 1e-8
+
+
+@pytest.mark.parametrize("meshing", [2, 16])
+def test_parity_trianglesheet_target(meshing):
+    src, msrc = _source_pair()
+    verts = np.array([(0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 0)], dtype=float)
+    faces = np.array([(0, 1, 2), (1, 3, 2)])
+    cds = np.array([(10.0, 5.0, 0.0), (0.0, 8.0, 0.0)])
+    kw = dict(
+        vertices=verts, faces=faces, current_densities=cds, position=(0.5, 0.5, 1.0)
+    )
+    tgt = mj.current.TriangleSheet(**kw)
+    tgt.meshing = meshing
+    mtgt = magpy.current.TriangleSheet(meshing=meshing, **kw)
+    F, T = mj.getFT(src, tgt)
+    Fm, Tm = magpy.getFT(msrc, mtgt)
+    assert _rel(F, Fm) < 1e-8
+    assert _rel(T, Tm) < 1e-8
+
+
+def test_grad_wrt_cylinder_polarization_finite():
+    """Autodiff through a multi-cell Cylinder magnet target is finite/non-zero."""
+    src, _ = _source_pair()
+
+    def loss(pol):
+        tgt = mj.magnet.Cylinder(
+            dimension=(0.6, 0.8), polarization=pol, position=(1.5, 0.5, 1.0)
+        )
+        tgt.meshing = 20
+        F, _ = mj.getFT(src, tgt)
+        return jnp.sum(F**2)
+
+    g = jax.grad(loss)(jnp.asarray([0.1, 0.2, -0.1]))
+    assert g.shape == (3,)
+    assert jnp.all(jnp.isfinite(g))
+    assert jnp.linalg.norm(g) > 0
+
+
+def test_grad_wrt_trianglestrip_current_finite():
+    """Autodiff through a TriangleStrip current target w.r.t. current is finite."""
+    src, _ = _source_pair()
+    verts = [(0, 0, 0), (1, 0, 0), (0.5, 1, 0), (1.5, 1, 0), (1.0, 2, 0)]
+
+    def loss(current):
+        tgt = mj.current.TriangleStrip(
+            current=current, vertices=verts, position=(0.5, 0.5, 1.0)
+        )
+        tgt.meshing = 12
+        F, _ = mj.getFT(src, tgt)
+        return jnp.sum(F**2)
+
+    g = jax.grad(loss)(jnp.asarray(100.0))
+    assert jnp.isfinite(g)
+    assert jnp.abs(g) > 0
