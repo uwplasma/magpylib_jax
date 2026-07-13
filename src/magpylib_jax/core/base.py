@@ -505,9 +505,6 @@ class BaseGeo(BaseTransform, BaseDisplayRepr):
         style_label: str | None = None,
         **kwargs,
     ):
-        # `meshing` controls target discretization for getFT; every magpylib
-        # source accepts it, so accept and store it here for all objects.
-        self.meshing = kwargs.pop("meshing", None)
         self._style_kwargs: dict[str, Any] = {}
         self._style = None
         self._style_label = style_label
@@ -753,6 +750,12 @@ class BaseSource(BaseGeo):
 
     _is_source = True
     _source_type: str = ""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        # `meshing` controls target discretization for getFT; every magpylib
+        # source accepts it (sensors/collections do not), so consume it here.
+        self.meshing = kwargs.pop("meshing", None)
+        super().__init__(*args, **kwargs)
 
     def _field_kwargs(self) -> dict[str, Any]:
         """Geometry + excitation kwargs forwarded to the field engine."""
