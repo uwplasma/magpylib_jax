@@ -142,7 +142,13 @@ paid once (the intended usage inside an optimization loop):
 
 Two caveats worth knowing: **`jax.jit` your field function and reuse it** (the eager object API
 pays per-call dispatch overhead that dominates small problems), and for timing wrap results in
-`jax.block_until_ready(...)` so you measure compute, not async dispatch.
+`jax.block_until_ready(...)` so you measure compute, not async dispatch. This applies to `getFT`
+too — it is jittable and differentiable when the geometry and `meshing` are static (only the
+excitation/pose are traced), so `jax.jit(jax.grad(loss))` over a `getFT`-based loss compiles once.
+
+> The benchmark is CPU. The panel titles report the active backend, so re-running
+> `python scripts/make_figures.py` on a GPU/TPU host regenerates the figure with that device's
+> numbers, where the batched, fused kernels parallelize much further.
 
 ## Visualize with `show()`
 

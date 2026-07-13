@@ -3,10 +3,14 @@
 Outputs PNGs into ``docs/_static/``:
 - ``field_map.png``       B-field streamlines around a cuboid magnet.
 - ``optimization.png``    Differentiable inverse-design: fit a dipole to a target field.
-- ``benchmark.png``       Batched getB runtime vs magpylib, and gradient timing.
+- ``benchmark.png``       Batched getB runtime vs magpylib, and gradient timing. The panel
+                          titles report the active JAX backend (CPU/GPU/TPU), so running this
+                          on a GPU host self-documents the device.
 - ``force_distance.png``  Autodiff getFT force between two magnets vs separation.
+- ``show.png``            3-D ``show()`` of a small scene.
 
-Run: ``python scripts/make_figures.py``  (needs matplotlib + magpylib).
+Run: ``python scripts/make_figures.py``  (needs matplotlib + magpylib). Run it on a GPU host to
+regenerate ``benchmark.png`` with GPU numbers.
 """
 
 from __future__ import annotations
@@ -137,6 +141,7 @@ def fig_benchmark() -> None:
     """
     import magpylib as magpy
 
+    dev = jax.default_backend().upper()  # CPU / GPU / TPU — self-documents the run
     sizes = [100, 1000, 10000, 100000]
     t_jax, t_ref = [], []
     for n in sizes:
@@ -154,7 +159,7 @@ def fig_benchmark() -> None:
     ax1.bar(x - w / 2, np.array(t_ref) * 1e3, w, label="magpylib (NumPy)", color=C_REF)
     ax1.bar(x + w / 2, np.array(t_jax) * 1e3, w, label="magpylib_jax (XLA-CPU)", color=C_JAX)
     ax1.set(xticks=x, xticklabels=[f"{s:,}" for s in sizes], xlabel="observers",
-            ylabel="getB time (ms)", title="Forward field, CPU")
+            ylabel="getB time (ms)", title=f"Forward field ({dev})")
     ax1.set_yscale("log")
     ax1.legend(frameon=False, fontsize=9)
 
@@ -197,7 +202,7 @@ def fig_benchmark() -> None:
     ax2.bar(xg + w / 2, np.array(t_grad_jax) * 1e3, w,
             label="magpylib_jax (autodiff, exact)", color=C_JAX)
     ax2.set(xticks=xg, xticklabels=[f"{s:,}" for s in gsizes], xlabel="observers",
-            ylabel="field + ∇ time (ms)", title="Field + gradient w.r.t. polarization")
+            ylabel="field + ∇ time (ms)", title=f"Field + gradient, {dev}")
     ax2.set_yscale("log")
     ax2.legend(frameon=False, fontsize=9)
     fig.tight_layout()

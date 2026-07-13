@@ -61,10 +61,11 @@ A JAX-native, **end-to-end differentiable** reimplementation of [magpylib](https
 - ✅ **`show()`** — matplotlib 3-D visualization of all sources/sensors/collections/paths;
   display is no longer out of scope.
 
-**Follow-ups noted:** `getFT` compiles a fresh `jacfwd` graph per call (like the object-API
-`getB`, it is differentiable but not itself jit-cached); fine for correctness/grad, a perf tuning
-target. `engine.py`/`prepare.py` remain large (single big functions); the 32-arg `per_source`
-(D4) could later become a pytree.
+**Follow-ups noted:** `getFT` re-traces on each *eager* call, but is jittable and differentiable
+when geometry/`meshing` are static (only excitation/pose traced) — `jax.jit(jax.grad(loss))`
+compiles once, same as `getB`. `engine.py`/`prepare.py` remain large (single big functions); the
+32-arg `per_source` (D4) could later become a pytree. GPU/TPU throughput numbers still need a run
+on such a host (`scripts/make_figures.py` is device-aware).
 
 **Architecture note (pragmatic deviation):** the public namespaces `magnet/`, `current/`,
 `misc/` are kept (they already map cleanly to magpylib and are intuitive) rather than folded

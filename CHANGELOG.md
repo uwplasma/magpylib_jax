@@ -1,6 +1,18 @@
 # Changelog
 
-## Unreleased
+## 2.1.0 - 2026-07-13
+
+### Added
+
+- **`getFT` now supports all magnet and triangle-current targets** — Cylinder, CylinderSegment,
+  Tetrahedron, TriangularMesh, TriangleStrip, and TriangleSheet, in addition to Dipole/Sphere/
+  Cuboid/Circle/Polyline. Meshing replicates magpylib's `target_meshing`; parity vs `magpy.getFT`
+  is ~1e-10 (magnets) and ~1e-16 (currents). Only `Triangle` (surface charge) and `CustomSource`
+  remain unsupported targets.
+- **getFT tutorial and show() gallery** docs pages, and per-kernel citations plus a force/torque
+  derivation in the equations reference.
+- **Device-aware benchmark** — `scripts/make_figures.py` labels the benchmark panels with the
+  active JAX backend (CPU/GPU/TPU), so re-running on a GPU host self-documents the device.
 
 ### Fixed
 
@@ -8,6 +20,11 @@
   sources stored `meshing` and current/misc sources raised `TypeError` on `meshing=...`; `getFT`
   reads `target.meshing`, so this now works uniformly (`meshing` is handled once in `BaseGeo`).
   Found by smoke-testing the published wheel.
+
+### Notes
+
+- `getFT` is jittable and differentiable when geometry/`meshing` are static (only excitation/pose
+  traced): `jax.jit(jax.grad(loss))` over a `getFT`-based loss compiles once.
 
 ## 2.0.0 - 2026-07-13
 
