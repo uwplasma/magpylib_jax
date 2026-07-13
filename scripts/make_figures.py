@@ -63,39 +63,54 @@ def fig_field_map() -> None:
 
 
 def fig_optimization() -> None:
-    """Differentiable inverse design: recover a dipole moment from field samples."""
-    obs = jnp.asarray(np.random.default_rng(0).normal(scale=0.8, size=(40, 3)) + np.array([2.0, 0, 0]))
-    true_moment = jnp.array([0.5, -0.3, 0.8])
+    """Differentiable inverse design: recover a dipole moment from field samples.
+
+    The field is linear in the moment, so the (normalized) loss is convex and
+    plain gradient descent drives it to machine precision — a clean showcase of
+    exact, composable gradients.
+    """
+    rng = np.random.default_rng(0)
+    obs = jnp.asarray(rng.normal(scale=0.6, size=(60, 3)) + np.array([1.5, 0.3, -0.2]))
+    true_moment = jnp.array([0.4, -0.3, 0.7])
+    src_pos = (0.1, -0.1, 0.05)
 
     def field(moment):
-        return mpj.misc.Dipole(moment=moment).getB(obs)
+        return mpj.misc.Dipole(moment=moment, position=src_pos).getB(obs)
 
     target = field(true_moment)
+    scale = jnp.sqrt(jnp.mean(target ** 2))  # normalize the tiny SI field to O(1)
 
     def loss(moment):
-        return jnp.mean((field(moment) - target) ** 2)
+        return jnp.mean(((field(moment) - target) / scale) ** 2)
 
     grad = jax.jit(jax.grad(loss))
     m = jnp.array([0.0, 0.0, 0.0])
     hist = [float(loss(m))]
-    lr = 5.0
-    for _ in range(60):
+    traj = [np.asarray(m)]
+    lr = 0.2
+    for _ in range(40):
         m = m - lr * grad(m)
         hist.append(float(loss(m)))
+        traj.append(np.asarray(m))
+    traj = np.array(traj)
 
     fig, ax = plt.subplots(figsize=(5.2, 4.0))
-    ax.semilogy(hist, color=C_JAX, lw=2)
-    ax.set(xlabel="gradient step", ylabel="MSE loss (T$^2$)",
-           title="Inverse design via jax.grad\n(recovering a dipole moment)")
-    rec = ", ".join(f"{v:.2f}" for v in np.asarray(m))
-    tru = ", ".join(f"{v:.2f}" for v in np.asarray(true_moment))
-    ax.text(0.96, 0.94, f"true:  ({tru})\nfit:   ({rec})", transform=ax.transAxes,
-            ha="right", va="top", family="monospace", fontsize=9,
-            bbox=dict(boxstyle="round", fc="white", ec="#ccc"))
+    ax.semilogy(hist, color=C_JAX, lw=2.2)
+    ax.set(xlabel="gradient step", ylabel="normalized MSE loss",
+           title="Inverse design via jax.grad\nrecovering a dipole moment")
+    # inset: parameters converging to the true values
+    axin = ax.inset_axes([0.5, 0.48, 0.46, 0.46])
+    for i, (c, lbl) in enumerate(zip([C_JAX, C_REF, C_ACCENT], ["mx", "my", "mz"])):
+        axin.plot(traj[:, i], color=c, lw=1.4, label=lbl)
+        axin.axhline(float(true_moment[i]), color=c, ls=":", lw=1)
+    axin.set_title("moment components", fontsize=8)
+    axin.tick_params(labelsize=7)
+    axin.legend(fontsize=6, frameon=False, ncol=3, loc="lower right")
     fig.tight_layout()
     fig.savefig(OUT / "optimization.png")
     plt.close(fig)
-    print("wrote optimization.png")
+    print("wrote optimization.png  final loss=%.2e  m_err=%.2e"
+          % (hist[-1], float(np.linalg.norm(traj[-1] - np.asarray(true_moment)))))
 
 
 def _time_call(fn, repeats=5):
