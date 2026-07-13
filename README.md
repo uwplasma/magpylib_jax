@@ -1,50 +1,55 @@
 # magpylib_jax
 
 [![CI](https://github.com/uwplasma/magpylib_jax/actions/workflows/ci.yml/badge.svg)](https://github.com/uwplasma/magpylib_jax/actions/workflows/ci.yml)
-[![Full Validation](https://github.com/uwplasma/magpylib_jax/actions/workflows/full-validation.yml/badge.svg)](https://github.com/uwplasma/magpylib_jax/actions/workflows/full-validation.yml)
-[![Publish Release](https://github.com/uwplasma/magpylib_jax/actions/workflows/publish-pypi.yml/badge.svg)](https://github.com/uwplasma/magpylib_jax/actions/workflows/publish-pypi.yml)
-[![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen.svg)](https://github.com/uwplasma/magpylib_jax/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen.svg)](https://github.com/uwplasma/magpylib_jax/actions/workflows/ci.yml)
 [![PyPI version](https://img.shields.io/pypi/v/magpylib-jax.svg)](https://pypi.org/project/magpylib-jax/)
 [![Python versions](https://img.shields.io/pypi/pyversions/magpylib-jax.svg)](https://pypi.org/project/magpylib-jax/)
 [![Docs](https://readthedocs.org/projects/magpylib-jax/badge/?version=latest)](https://magpylib-jax.readthedocs.io/)
 [![License](https://img.shields.io/github/license/uwplasma/magpylib_jax.svg)](LICENSE)
 
-Differentiable magnetic field modeling in JAX with Magpylib-compatible APIs, parity gates, and profiling/benchmark CI. `magpylib_jax` is designed for optimization, inverse design, and simulation pipelines that need Magpylib-style ergonomics together with `jax.jit`, `jax.grad`, `jax.jacrev`, and XLA compilation.
+**Analytic magnetic fields that you can differentiate, compile, and optimize through.**
 
-## Why this project exists
+`magpylib_jax` is a clean-room, [JAX](https://github.com/jax-ml/jax)-native reimplementation of
+[Magpylib](https://github.com/magpylib/magpylib). It keeps Magpylib's ergonomic object and
+functional APIs and its analytic field models, but replaces the numerical core with a
+differentiable, JIT-compilable, `vmap`-friendly implementation — so the same field computation
+you use for analysis can sit inside a `jax.grad` optimization loop.
 
-`magpylib_jax` targets the gap between two requirements that are usually in tension:
+<p align="center">
+  <img src="docs/_static/field_map.png" width="46%" alt="B-field streamlines of a cuboid magnet"/>
+  <img src="docs/_static/optimization.png" width="46%" alt="Inverse design with jax.grad"/>
+</p>
 
-- you want the closed-form, geometry-specific magnetic field models that make Magpylib useful,
-- you also want a field pipeline that can be differentiated, compiled, and embedded in outer optimization loops.
+## Why magpylib_jax?
 
-This repository keeps the high-level user model close to upstream Magpylib while replacing the numerical core with JAX-first implementations and a JIT-safe field path.
+Magpylib gives you fast closed-form fields but no derivatives. Finite-differencing it through an
+optimizer is slow and noisy. `magpylib_jax` closes that gap:
 
-## What you get
+- **End-to-end differentiable** — `jax.grad`, `jacfwd`, `jacrev` through `getB/getH/getJ/getM`
+  and through geometry, pose, and excitation. Exact gradients, no finite differences.
+- **Compiled & vectorized** — the field core runs under `jax.jit`/`vmap`/XLA on CPU/GPU/TPU.
+- **Exact force & torque** — `getFT` computes magnetic force and torque by autodiff (`∇(m·B)`),
+  so — unlike Magpylib's finite-difference `getFT` — the magnet result is independent of a step
+  size `eps` and exact to machine precision.
+- **Magpylib-compatible** — same source classes, `Collection`, `Sensor`, path/orientation motion,
+  squeeze/`pixel_agg` semantics, and SI units, validated against upstream in CI.
+- **Lean & readable** — the numerical core is split into small, well-named modules
+  (`core/kernels/`, `fields/`) with one obvious way to compute each field.
 
-- End-to-end differentiable `getB/getH/getJ/getM`
-- JIT-safe high-level field evaluation by default
-- Magpylib-style object API: `Collection`, `Sensor`, path/orientation semantics, squeeze behavior
-- Analytical kernels for dipoles, loops, line currents, polygonal current sheets, and permanent magnets
-- Parity gates against upstream Magpylib, including mirrored upstream test categories
-- CI/CD coverage for lint, typing, docs, parity, benchmarks, profiling, and PyPI release builds
-- Python support from `3.10` onward
-- Unpinned core package dependencies in `pyproject.toml`
+## Differences from Magpylib
 
-## Implemented source families
+| | Magpylib 5.x | magpylib_jax |
+|---|---|---|
+| Backend | NumPy | JAX (CPU/GPU/TPU, XLA) |
+| Gradients | ✗ (finite-diff by hand) | ✓ `grad`/`jacfwd`/`jacrev`, exact |
+| `jit` / `vmap` | ✗ | ✓ field core |
+| `getFT` force/torque | finite differences (step `eps`) | autodiff, exact, `eps`-free |
+| Precision | float64 | float64 (x64 enabled on import) |
+| 3-D `show()` display | ✓ (matplotlib/plotly/pyvista) | ✗ (out of scope) |
+| Source families | all | all 12 (parity-tested) |
 
-- `misc.Dipole`
-- `current.Circle`
-- `current.Polyline`
-- `current.TriangleSheet`
-- `current.TriangleStrip`
-- `misc.Triangle`
-- `magnet.Cuboid`
-- `magnet.Cylinder`
-- `magnet.CylinderSegment`
-- `magnet.Sphere`
-- `magnet.Tetrahedron`
-- `magnet.TriangularMesh`
+`show()` and the interactive style system are intentionally out of scope; everything numerical is
+covered. See the [parity strategy](docs/parity.md) for details.
 
 ## Installation
 
@@ -52,119 +57,114 @@ This repository keeps the high-level user model close to upstream Magpylib while
 pip install magpylib-jax
 ```
 
-For local development, tests, and docs:
+For GPU/TPU, install the matching `jax`/`jaxlib` build first, then `magpylib-jax`.
+Development install:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
 pip install -e '.[test,docs]'
 pytest
 ```
 
-For GPU-backed environments, install the appropriate `jax`/`jaxlib` build for your platform first, then install `magpylib-jax`.
-
-## Quick example
+## Quickstart
 
 ```python
-import jax
-import jax.numpy as jnp
-import magpylib_jax as mpj
+import jax, jax.numpy as jnp
+import magpylib_jax as mpj                     # enables float64 on import
 
-jax.config.update("jax_enable_x64", True)
+# Object API — identical feel to magpylib
+src = mpj.magnet.Cuboid(polarization=(0, 0, 1.0), dimension=(1.0, 1.0, 1.0))
+B = src.getB([(2.0, 0.0, 0.0), (0.0, 0.0, 2.0)])   # tesla, shape (2, 3)
 
-src = mpj.magnet.CylinderSegment(
-    polarization=(0.1, -0.2, 0.3),
-    dimension=(0.4, 1.2, 1.1, -30.0, 110.0),
-)
-obs = jnp.array([1.2, 0.2, 0.4])
-
-B = src.getB(obs)
-
-
-def bz(r2):
-    trial = mpj.magnet.CylinderSegment(
-        polarization=(0.1, -0.2, 0.3),
-        dimension=(0.4, r2, 1.1, -30.0, 110.0),
-    )
-    return trial.getB(obs)[2]
-
-print(B)
-print(jax.grad(bz)(1.2))
+# Differentiate the field w.r.t. any parameter
+def bz(height):
+    return mpj.magnet.Cuboid(polarization=(0, 0, 1.0),
+                             dimension=(1.0, 1.0, height)).getB((2.0, 0, 0))[2]
+print(jax.grad(bz)(1.0))                            # dB_z / d(height)
 ```
 
-## Documentation map
+## Inverse design in a few lines
 
-- [Overview](docs/overview.md): scope, supported objects, validation strategy, architectural intent
-- [Quickstart](docs/quickstart.md): install, first field computation, first gradient, troubleshooting
-- [Equation Models](docs/equations.md): field conventions, model equations, geometric reductions, derivation notes
-- [Numerics](docs/numerics.md): stability, masking, singular behavior, precision, differentiation notes
-- [Examples](docs/examples/index.md): object API, functional API, optimization loops, performance workflows
-- [Architecture and Source Map](docs/architecture.md): clickable source-code guide to the repository internals
-- [Testing and Validation](docs/testing.md): CI/CD gates, parity strategy, coverage, compatibility matrix
-- [Performance](docs/performance.md): profiling workflow, hotspot kernels, JIT entrypoints, memory behavior
-- [Parity Strategy](docs/parity.md)
-- [Parity Checklist](docs/parity_checklist.md)
-- [API Reference](docs/reference/api.md)
-- [Changelog](CHANGELOG.md)
-
-## JIT-safe `getB`
-
-`magpylib_jax.getB/getH/getJ/getM` runs through a JIT-safe core by default. That path preserves Magpylib-style behavior while making the computational graph usable inside larger JAX programs.
-
-Important notes:
-
-- `output="dataframe"` is supported for compatibility, but is intentionally outside JIT.
-- `pixel_agg` reducers support `mean`, `sum`, `min`, and `max` on the JIT-safe path.
-- Repeated object evaluations reuse preparation caches for sources, sensors, orientation matrices, collection flattening, `TriangularMesh` geometry, and `CylinderSegment` face geometry.
-- Circle-heavy workloads use a dedicated fast path to reduce host overhead and memory pressure.
-- For benchmark-quality timing, use `jax.block_until_ready(...)` around the result.
-
-## Differentiable fitting example
+Because the field is differentiable, fitting geometry or excitation to a target is just gradient
+descent — no finite differences, no wrappers:
 
 ```python
-import jax
-import jax.numpy as jnp
+import jax, jax.numpy as jnp
 import magpylib_jax as mpj
 
 obs = jnp.array([[0.2, 0.1, 0.4], [0.5, 0.0, 0.7]])
 target = jnp.array([[2.0e-4, 0.0, 3.0e-4], [1.0e-4, 0.0, 2.0e-4]])
 
-
-def loss_fn(pol):
-    src = mpj.magnet.Cuboid(dimension=(1.0, 0.8, 1.2), polarization=pol)
-    pred = src.getB(obs)
+def loss(pol):
+    pred = mpj.magnet.Cuboid(dimension=(1.0, 0.8, 1.2), polarization=pol).getB(obs)
     return jnp.mean((pred - target) ** 2)
 
+grad = jax.jit(jax.grad(loss))
 pol = jnp.array([0.05, -0.02, 0.08])
-for _ in range(50):
-    pol = pol - 1e-1 * jax.grad(loss_fn)(pol)
+for _ in range(100):
+    pol = pol - 1e-1 * grad(pol)
 ```
 
-## Validation and release gates
+The plot on the right above shows the loss for recovering a dipole moment this way.
 
-CI enforces:
+## Force & torque by autodiff — `getFT`
 
-- lint and type checks,
-- docs build,
-- `>=90%` coverage,
-- sharded `pytest -m 'not slow'` test coverage,
-- benchmark regression thresholds,
-- profiling regression thresholds,
-- Python compatibility checks on `3.10`, `3.12`, and `3.13`.
+```python
+import magpylib_jax as mpj
+from magpylib_jax import getFT
 
-Nightly workflows additionally run the full validation suite and extended profiling artifact generation.
+magnet = mpj.magnet.Cuboid(polarization=(0, 0, 1.0), dimension=(1., 1., 1.))
+loop   = mpj.current.Circle(diameter=2.0, current=1e3, position=(0, 0, 1.0), meshing=50)
+F, T = getFT(magnet, loop)          # force (N) and torque (N·m)
+```
 
-## Key repository files
+Force on a magnet is `F = ∇(m·B)` obtained with `jax.jacfwd`, and current force is `(I dL)×B`.
+The magnet result carries no finite-difference step, so it is exact and `eps`-independent —
+and `getFT` is itself differentiable.
 
-- [`PARITY_MATRIX.md`](PARITY_MATRIX.md)
-- [`PLAN.md`](PLAN.md)
-- [`pyproject.toml`](pyproject.toml)
-- [`benchmarks/thresholds.json`](benchmarks/thresholds.json)
-- [`profiling/thresholds.json`](profiling/thresholds.json)
-- [`profiling/hlo_baseline.json`](profiling/hlo_baseline.json)
-- [`.readthedocs.yaml`](.readthedocs.yaml)
-- [`.github/workflows/publish-pypi.yml`](.github/workflows/publish-pypi.yml)
+<p align="center">
+  <img src="docs/_static/force_distance.png" width="46%" alt="getFT force vs separation"/>
+  <img src="docs/_static/benchmark.png" width="52%" alt="Benchmark vs magpylib and gradient timing"/>
+</p>
+
+## Performance
+
+The benchmark above is measured on **CPU**, with the field wrapped in `jax.jit` and compilation
+paid once (the intended usage inside an optimization loop):
+
+- **Forward field (left):** once jitted, magpylib_jax's XLA kernel is competitive with — and here
+  several times faster than — Magpylib's NumPy core on large observer batches. On GPU/TPU the same
+  kernel parallelizes further.
+- **Field + gradient (right):** Magpylib has no autodiff, so a gradient of a field-derived quantity
+  w.r.t. source parameters needs finite differences — 6 extra forward evaluations for a 3-component
+  polarization, and only approximate. magpylib_jax returns the **exact** gradient from one reverse
+  pass (`value_and_grad`), roughly an order of magnitude faster here and machine-precise.
+
+Two caveats worth knowing: **`jax.jit` your field function and reuse it** (the eager object API
+pays per-call dispatch overhead that dominates small problems), and for timing wrap results in
+`jax.block_until_ready(...)` so you measure compute, not async dispatch.
+
+## Supported sources
+
+`magnet.Cuboid`, `magnet.Cylinder`, `magnet.CylinderSegment`, `magnet.Sphere`,
+`magnet.Tetrahedron`, `magnet.TriangularMesh`, `current.Circle`, `current.Polyline`,
+`current.TriangleSheet`, `current.TriangleStrip`, `misc.Dipole`, `misc.Triangle`,
+`misc.CustomSource` — plus `Collection` and `Sensor`.
+
+## Documentation
+
+- [Overview](docs/overview.md) · [Quickstart](docs/quickstart.md)
+- [Equation models & derivations](docs/equations.md) · [Numerics & differentiability](docs/numerics.md)
+- [Examples](docs/examples/index.md): object API, functional API, optimization, performance
+- [Architecture & source map](docs/architecture.md) · [Testing & validation](docs/testing.md)
+- [Performance](docs/performance.md) · [Parity strategy](docs/parity.md) · [API reference](docs/reference/api.md)
+- [Refactor & roadmap plan](PLAN.md) · [Changelog](CHANGELOG.md)
+
+## Citing
+
+If `magpylib_jax` supports your research, please cite this repository and the upstream Magpylib
+papers it builds on (see [docs/equations.md](docs/equations.md) for the model references).
 
 ## License
 
-BSD-2-Clause.
+BSD-2-Clause. Built by the [UW-Madison plasma group](https://github.com/uwplasma) as a
+differentiable companion to Magpylib.
