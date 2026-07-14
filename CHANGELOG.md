@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Docs math now renders on Read the Docs.** Enabled the MyST `dollarmath`/`amsmath` extensions
+  and `sphinx.ext.mathjax`, so `$...$` / `$$...$$` equations render instead of showing as raw
+  LaTeX source. Verified across all built pages (math nodes + MathJax; no literal `$$` remains).
+
 ## 2.2.0 - 2026-07-13
 
 ### Added
