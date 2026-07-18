@@ -105,6 +105,25 @@ JAX's one-time compilation cost. The takeaways are practical rather than triumph
 Regenerate the figure with
 [`scripts/make_figures.py`](https://github.com/uwplasma/magpylib_jax/blob/main/scripts/make_figures.py).
 
+### Reproduce on GPU / TPU
+
+[`scripts/benchmark_gpu.py`](https://github.com/uwplasma/magpylib_jax/blob/main/scripts/benchmark_gpu.py)
+is a self-contained micro-benchmark (needs only `magpylib-jax`) that prints a device-aware table of
+forward `getB` and field-plus-gradient timings. Run it on whatever backend JAX picks up — the report
+names the active device, so a run on a GPU/TPU host self-documents. In Google Colab with a GPU
+runtime:
+
+```bash
+pip install -q magpylib-jax
+wget -q https://raw.githubusercontent.com/uwplasma/magpylib_jax/main/scripts/benchmark_gpu.py
+python benchmark_gpu.py            # add --x64 for float64
+```
+
+```{note}
+The published figures are measured on CPU. On a GPU the batched, fused kernels parallelize much
+further; drop the numbers from `benchmark_gpu.py` into a PR if you would like them added here.
+```
+
 ## Under the hood: high-level optimizations
 
 The JIT-safe `getB` path avoids redundant host-side work through caching:
