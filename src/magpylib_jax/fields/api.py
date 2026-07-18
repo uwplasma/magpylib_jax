@@ -188,6 +188,71 @@ def _apply_squeeze(
     return arr
 
 
+# Cache of jitted field evaluations, keyed on the static call structure. Passing
+# params/pose/observers as *traced* arguments lets the Python-side preparation run
+# once per (source type, shapes); repeated eager calls and parameter-varying loops
+# then reuse the compiled function instead of re-preparing every call.
+_FIELD_JIT_CACHE: dict = {}
+
+
+def _orientation_to_matrix(orientation: object) -> jnp.ndarray:
+    if orientation is None:
+        return jnp.eye(3)
+    if hasattr(orientation, "as_matrix"):
+        return jnp.asarray(orientation.as_matrix(), dtype=float)
+    return jnp.asarray(orientation, dtype=float)
+
+
+def _cached_field(
+    source: str,
+    observers: object,
+    field: str,
+    *,
+    position: ArrayLike,
+    orientation: object,
+    squeeze: bool,
+    sumup: bool,
+    pixel_agg: str | None,
+    in_out: str,
+    kwargs: dict,
+) -> jnp.ndarray | None:
+    """Fast path: a cached, jitted wrapper around ``_compute_field_jit``.
+
+    Returns ``None`` when the fast path does not apply (the caller then uses the
+    standard path). Numerically identical to the standard path — it is the same
+    computation under ``jax.jit`` — but the preparation is traced once per shape.
+    """
+    from magpylib_jax.fields.engine import _compute_field_jit
+
+    obs = jnp.asarray(observers, dtype=float)
+    if obs.ndim < 1 or obs.shape[-1] != 3:
+        return None
+    pos = jnp.asarray(position, dtype=float)
+    ori = _orientation_to_matrix(orientation)
+    names = tuple(sorted(kwargs))
+    vals = tuple(jnp.asarray(kwargs[n]) for n in names)
+
+    key = (
+        source, field, squeeze, sumup, pixel_agg, in_out,
+        obs.shape, pos.shape, ori.shape, names,
+        tuple(v.shape for v in vals), tuple(str(v.dtype) for v in vals),
+    )
+    fn = _FIELD_JIT_CACHE.get(key)
+    if fn is None:
+
+        def _core(obs, pos, ori, *pvals, _n=names, _s=source, _f=field,
+                  _sq=squeeze, _su=sumup, _pa=pixel_agg, _io=in_out):
+            return _compute_field_jit(
+                _s, obs, _f, position=pos, orientation=ori,
+                squeeze=_sq, sumup=_su, pixel_agg=_pa, output="ndarray", in_out=_io,
+                **dict(zip(_n, pvals, strict=True)),
+            )
+
+        fn = jax.jit(_core)
+        _FIELD_JIT_CACHE[key] = fn
+    return fn(obs, pos, ori, *vals)
+
+
 def _compute_field(
     source: str | object,
     observers: object,
@@ -253,6 +318,34 @@ def _compute_field(
             in_out=in_out,
             **kwargs,
         )
+
+    # Fast path: a string source with array observers and no tracers can reuse a
+    # cached jitted evaluation (params/pose traced), avoiding per-call preparation.
+    if (
+        isinstance(source, str)
+        and output == "ndarray"
+        and not _has_tracer(observers)
+        and not _has_tracer(position)
+        and not _has_tracer(orientation)
+        and not _has_tracer(kwargs)
+    ):
+        try:
+            cached = _cached_field(
+                _normalize_source_type(source),
+                observers,
+                field,
+                position=position,
+                orientation=orientation,
+                squeeze=squeeze,
+                sumup=sumup,
+                pixel_agg=pixel_agg,
+                in_out=in_out,
+                kwargs=kwargs,
+            )
+        except (ValueError, TypeError):
+            cached = None
+        if cached is not None:
+            return cached
 
     return _compute_field_jit(
         source,
