@@ -110,7 +110,8 @@ def movie_optimization() -> None:
     fig, (axL, axR) = plt.subplots(1, 2, figsize=(8.2, 3.8))
 
     def frame(k: int):
-        axL.clear(); axR.clear()
+        axL.clear()
+        axR.clear()
         axL.semilogy(hist[: k + 1], color=C_JAX, lw=2)
         axL.set(xlim=(0, 40), ylim=(1e-23, 2), xlabel="gradient step",
                 ylabel="normalized loss", title="Differentiable inverse design")

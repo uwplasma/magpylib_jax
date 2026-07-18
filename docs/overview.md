@@ -1,83 +1,119 @@
 # Overview
 
-`magpylib_jax` is a JAX-native magnetic field library for optimization, inverse design, and differentiable physics workflows that still need a Magpylib-like object and functional API.
+`magpylib_jax` is a JAX-native library for **analytic magnetic fields you can differentiate,
+compile, and optimize through**. It is a clean-room reimplementation of
+[Magpylib](https://github.com/magpylib/magpylib): it keeps Magpylib's ergonomic object and
+functional APIs and its closed-form source models, but replaces the numerical core with a
+differentiable, JIT-compilable, `vmap`-friendly one that runs on CPU, GPU, and TPU.
 
-## Design goals
+The result is that the *same* field call you use for analysis drops straight into a `jax.grad`
+optimization loop — no finite differences, no wrappers, no separate solver.
 
-The project is built around a narrow but demanding set of requirements:
+```python
+import jax
+jax.config.update("jax_enable_x64", True)   # float64, for magpylib parity
+import magpylib_jax as mpj
 
-1. Closed-form source models instead of a generic field solver.
-2. Full compatibility with JAX transforms where the physics is smooth.
-3. High-level API parity with Magpylib where users already have object graphs, sensors, and path semantics.
-4. Explicit validation against upstream Magpylib, not only local unit tests.
-5. Performance observability through benchmark and profiling gates.
+src = mpj.magnet.Cuboid(polarization=(0, 0, 1.0), dimension=(1, 1, 1))
+B = src.getB((2.0, 0.0, 0.0))                # tesla, a JAX array
+```
 
-## What 1.0 ships
+## Why a differentiable field library
 
-- Functional API: `getB`, `getH`, `getJ`, `getM`
-- Object API: `Collection`, `Sensor`, and implemented source classes
-- JIT-safe high-level field evaluation by default
-- End-to-end differentiability through JAX
-- Parity-oriented behavior for source shaping, path/orientation handling, pixel aggregation, and squeeze semantics
+Classical field toolkits give you a number; `magpylib_jax` gives you a number *and* its exact
+derivative with respect to anything the field depends on — geometry, pose, and excitation. Because
+every source model is a closed-form (analytic) expression rather than a mesh or FEM solve, the
+whole computation is a smooth function that JAX can transform.
 
-## Implemented source families
+::::{grid} 1 2 2 2
+:gutter: 3
 
-## Current-driven objects
+:::{grid-item-card} 🎯 Inverse design
+Recover an unknown polarization, current, or geometry from measured field samples by minimizing a
+mean-squared error with `jax.grad`.
+:::
 
-- `current.Circle`
-- `current.Polyline`
-- `current.TriangleSheet`
-- `current.TriangleStrip`
+:::{grid-item-card} ⚙️ Force & torque
+`getFT` returns exact force and torque from an autodiff of the field — no `eps` step size to tune,
+unlike a finite-difference estimate.
+:::
 
-## Permanent-magnet objects
+:::{grid-item-card} 🚀 Batched sweeps
+`jax.vmap` evaluates one field function over thousands of source parameters or observer points with
+no Python loop, then XLA fuses and compiles it.
+:::
 
-- `magnet.Cuboid`
-- `magnet.Cylinder`
-- `magnet.CylinderSegment`
-- `magnet.Sphere`
-- `magnet.Tetrahedron`
-- `magnet.TriangularMesh`
-- `misc.Triangle`
-- `misc.Dipole`
+:::{grid-item-card} 🔁 Drop-in migration
+`import magpylib_jax as magpy` gives you the Magpylib source classes, `Collection`, `Sensor`,
+motion, and `getB/…/show/mu_0`. Often you only swap the import.
+:::
 
-## API model
+::::
 
-The library supports two complementary ways to work:
+## Scope
 
-- Object API: construct sources, sensors, and collections, then call methods such as `src.getB(obs)` or `sens.getB(collection)`.
-- Functional API: call top-level functions such as `magpylib_jax.getB(...)` directly with source descriptors and arrays.
+All 12 source families ship, in three sub-namespaces, plus the high-level object types and the
+functional/visualization entry points.
 
-The object API is the compatibility layer. The functional and kernel layers are where performance and differentiation are concentrated.
+```{list-table}
+:header-rows: 1
+:widths: 22 78
 
-## Validation model
+* - Namespace
+  - Sources
+* - `mpj.magnet`
+  - `Cuboid`, `Cylinder`, `CylinderSegment`, `Sphere`, `Tetrahedron`, `TriangularMesh`
+* - `mpj.current`
+  - `Circle`, `Polyline`, `TriangleSheet`, `TriangleStrip`
+* - `mpj.misc`
+  - `Dipole`, `Triangle`, `CustomSource`
+```
 
-Releases are gated by:
+On top of the sources sit the composition and observer types and the entry points:
 
-- direct numeric parity tests against upstream Magpylib,
-- mirrored upstream object/API tests,
-- physics-based consistency tests,
-- differentiability tests,
-- CI coverage enforcement,
-- benchmark regression checks,
-- profiling regression checks with HLO and memory snapshots.
+- **Objects** — `mpj.Collection` groups sources (and nests), `mpj.Sensor` is a movable observer
+  with a pixel grid.
+- **Fields** — `getB` (flux density, T), `getH` (field strength, A/m), `getJ` (polarization, T),
+  and `getM` (magnetization, A/m), available both as top-level functions and as object methods.
+- **Force & torque** — `getFT` returns the force and torque on a target object in an external field.
+- **Visualization** — `show` renders geometry and paths in 3D with Matplotlib.
+- **Constants** — `mpj.mu_0`, the vacuum permeability.
 
-See [Testing and Validation](testing.md) and [Parity Strategy](parity.md).
+### Non-goals
 
-## Performance model
+`magpylib_jax` deliberately does **not** reimplement everything in upstream Magpylib:
 
-The implementation is optimized for repeated evaluations and differentiable outer loops:
+```{admonition} What is intentionally out of scope
+:class: note
 
-- cached source and sensor preparation,
-- cached collection flattening and orientation matrices,
-- fast paths for large static circle collections,
-- reusable `TriangularMesh` and `CylinderSegment` geometry preparation,
-- kernel-level JIT entrypoints for hotspot source families.
+- The **Plotly** and **PyVista** display backends. Visualization is Matplotlib-only; `show`
+  covers static 3D geometry and paths. See [Parity strategy](parity.md).
+- Magpylib's `output="dataframe"` mode exists as a *compatibility* convenience, not as part of the
+  jittable field graph — it returns pandas objects and cannot be traced.
+- Generic numerical field solvers (FEM/BEM). Every source is an exact closed-form model; that is
+  what makes the library differentiable.
+```
 
-See [Performance](performance.md).
+## How it fits together
+
+The library is organized in layers, from the friendly object API down to the pure analytic
+kernels:
+
+1. **Objects** (`Cuboid`, `Collection`, `Sensor`, …) carry position, orientation, paths, and style,
+   and expose `getB/getH/getJ/getM/getFT/show`.
+2. The **fields engine** (`fields/`) normalizes sources and observers, batches homogeneous source
+   families, and runs the vectorized, JIT-compiled evaluation.
+3. The **kernels** (`core/kernels/`) hold the closed-form field formula for each source family as a
+   pure, differentiable JAX function.
+
+To go deeper, follow the map in [Architecture](architecture.md), read the closed-form
+derivations in [Equation models](equations.md), or jump to a task in the
+[Examples gallery](examples/index.md). If you care about numerical precision and float32-vs-float64
+behavior, start with [Precision](precision.md).
 
 ## Source code entry points
 
-- High-level API: [`src/magpylib_jax/functional.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/functional.py)
-- Object base classes: [`src/magpylib_jax/core/base.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/core/base.py)
-- Analytical kernels: [`src/magpylib_jax/core/kernels.py`](https://github.com/uwplasma/magpylib_jax/tree/main/src/magpylib_jax/core/kernels)
-- Extended kernels and hotspot JIT wrappers: [`src/magpylib_jax/core/kernels/`](https://github.com/uwplasma/magpylib_jax/tree/main/src/magpylib_jax/core/kernels)
+- Public functional API — [`functional.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/functional.py)
+- Fields engine — [`fields/`](https://github.com/uwplasma/magpylib_jax/tree/main/src/magpylib_jax/fields)
+- Analytic kernels — [`core/kernels/`](https://github.com/uwplasma/magpylib_jax/tree/main/src/magpylib_jax/core/kernels)
+- Runnable examples — [`examples/`](https://github.com/uwplasma/magpylib_jax/tree/main/examples)

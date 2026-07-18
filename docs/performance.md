@@ -1,92 +1,176 @@
 # Performance
 
-This page covers both how the library is optimized and how performance is measured.
+`magpylib_jax` is built for repeated evaluations and differentiable outer loops. This page has two
+halves: **how to make your own code fast** (JIT, `vmap`, accelerators, honest timing), and **how the
+library measures itself** (benchmarks and the profiling pipeline).
 
-## Performance model
+## Make your code fast
 
-The repository has two distinct performance layers:
+### JIT your function, not just the field
 
-- kernel performance: analytical source-family implementations,
-- high-level orchestration performance: source/sensor preparation, path handling, batching, and field assembly.
+The public `getB/getH/getJ/getM` path already runs through a JIT-safe core, but the big wins come
+from compiling *your whole computation* — loss, field, and reduction together — so XLA can fuse it
+and you pay the tracing cost only once.
 
-Both matter. A fast kernel can still produce a slow user-facing `getB` if host-side preparation dominates.
+```python
+import jax
+import jax.numpy as jnp
+import magpylib_jax as mpj
 
-## High-level `getB` optimizations
+obs = jnp.array([[0.2, 0.1, 0.4], [0.5, 0.0, 0.7]])
 
-The JIT-safe `getB/getH/getJ/getM` path includes:
+@jax.jit
+def loss(pol):
+    B = mpj.magnet.Cuboid(dimension=(1.0, 0.8, 1.2), polarization=pol).getB(obs)
+    return jnp.sum(B ** 2)
 
-- generalized source preparation caches keyed by object cache tokens,
+grad = jax.jit(jax.grad(loss))     # compiled forward + backward pass
+```
+
+```{admonition} Keep shapes static
+:class: tip
+JAX recompiles when array *shapes* change. Keep your observer layout, pixel grid, and number of
+sources fixed across iterations so a compiled function is reused instead of re-traced.
+```
+
+### Batch with `vmap`
+
+To sweep a parameter — many polarizations, many geometries, many observer clouds — write the
+single-case function once and map it. No Python loop, and the batch compiles to one fused kernel:
+
+```python
+import jax
+import jax.numpy as jnp
+import magpylib_jax as mpj
+
+OBS = jnp.array([[0.2, 0.1, 0.4], [0.5, 0.0, 0.7], [-0.3, 0.2, 0.5]])
+
+def field(pol):
+    return mpj.magnet.Cuboid(dimension=(1.0, 0.8, 1.2), polarization=pol).getB(OBS)
+
+pols = jax.random.normal(jax.random.PRNGKey(0), (256, 3)) * 0.5
+batched = jax.jit(jax.vmap(field))
+out = batched(pols)     # shape (256, 3, 3): 256 sources x 3 observers x 3 components
+```
+
+Full script:
+[`examples/differentiable/jit_vmap_batching.py`](https://github.com/uwplasma/magpylib_jax/blob/main/examples/differentiable/jit_vmap_batching.py),
+and the walkthrough in [Performance examples](examples/performance.md).
+
+### GPU and TPU
+
+The field core is plain JAX/XLA, so the same code runs on GPU and TPU with no changes — install the
+accelerator `jax`/`jaxlib` build for your platform and JAX places arrays on the device
+automatically. Accelerators shine on large batched workloads (big `vmap` sweeps, dense observer
+grids); for a handful of points on a small source, host-side preparation can dominate and CPU may
+be faster.
+
+### Time it honestly
+
+JAX is asynchronous: an operation returns a future immediately and only blocks when you read the
+result. Two rules give trustworthy numbers:
+
+1. **Never time the first call** — it includes tracing and compilation. Warm up once, then measure.
+2. **Call `block_until_ready`** so you time the compute, not just the dispatch.
+
+```python
+import time, jax
+
+warm = jax.block_until_ready(batched(pols))     # compile + warm up (not timed)
+
+t0 = time.perf_counter()
+for _ in range(20):
+    out = jax.block_until_ready(batched(pols))
+per_call_ms = (time.perf_counter() - t0) / 20 * 1e3
+```
+
+## The honest CPU benchmark
+
+```{image} _static/benchmark.png
+:alt: Per-source-family CPU runtime, magpylib_jax vs magpylib
+:width: 90%
+:align: center
+```
+
+The figure above compares steady-state CPU runtime per source family against upstream Magpylib.
+Read it with the async caveats in mind: it reports **compiled, warmed-up** runtime, so it excludes
+JAX's one-time compilation cost. The takeaways are practical rather than triumphal:
+
+- After compilation the analytic kernels are competitive on CPU and pull ahead as work is batched.
+- The first call to any new shape pays a compile cost — amortize it across an optimization loop.
+- The real advantage is not raw CPU speed but that the *same* call is differentiable, vectorizable,
+  and portable to GPU/TPU. Converting the JAX result back to NumPy has a cost too, and the benchmark
+  scripts record it.
+
+Regenerate the figure with
+[`scripts/make_figures.py`](https://github.com/uwplasma/magpylib_jax/blob/main/scripts/make_figures.py).
+
+## Under the hood: high-level optimizations
+
+The JIT-safe `getB` path avoids redundant host-side work through caching:
+
+- source preparation caches keyed by object cache tokens,
 - sensor preparation caches keyed by identity, path, pixel layout, and handedness,
-- cached orientation matrices on `BaseGeo`,
+- cached orientation matrices on the object base,
 - cached `Collection` flatten/source/sensor lists with dirty propagation,
-- cached `TriangularMesh` oriented faces and face geometry reuse,
-- precomputed `CylinderSegment` face geometry inside the high-level JIT path,
-- circle-heavy collection fast paths,
-- singleton-path caching for tiny observer batches.
+- reused `TriangularMesh` oriented faces and `CylinderSegment` face geometry,
+- fast paths for circle-heavy collections and tiny observer batches.
 
-## Kernel-level profiling pipeline
+A fast kernel can still yield a slow `getB` if this preparation dominates, which is why both layers
+are profiled.
 
-Scripts:
+## Profiling pipeline
 
-- [`scripts/profile_kernels.py`](https://github.com/uwplasma/magpylib_jax/blob/main/scripts/profile_kernels.py)
-- [`scripts/check_profiling_thresholds.py`](https://github.com/uwplasma/magpylib_jax/blob/main/scripts/check_profiling_thresholds.py)
-- [`scripts/check_hlo_diffs.py`](https://github.com/uwplasma/magpylib_jax/blob/main/scripts/check_hlo_diffs.py)
-- [`scripts/profile_getB_jit.py`](https://github.com/uwplasma/magpylib_jax/blob/main/scripts/profile_getB_jit.py)
-- [`scripts/profile_wham_workload.py`](https://github.com/uwplasma/magpylib_jax/blob/main/scripts/profile_wham_workload.py)
+The repository profiles kernels and the high-level path separately and gates on the results.
 
-Artifacts produced per source family:
+```{list-table}
+:header-rows: 1
+:widths: 46 54
 
-- JAX trace (`jax.profiler.trace`)
-- HLO dump (`compiler_ir(..., dialect="hlo")`)
-- device memory profile snapshot (`jax.profiler.save_device_memory_profile`)
+* - Script
+  - Purpose
+* - [`profile_kernels.py`](https://github.com/uwplasma/magpylib_jax/blob/main/scripts/profile_kernels.py)
+  - Per-family compile time, runtime, memory, HLO.
+* - [`profile_getB_jit.py`](https://github.com/uwplasma/magpylib_jax/blob/main/scripts/profile_getB_jit.py)
+  - High-level `getB` overhead.
+* - [`profile_wham_workload.py`](https://github.com/uwplasma/magpylib_jax/blob/main/scripts/profile_wham_workload.py)
+  - A representative double-coil workload vs. upstream.
+* - [`check_profiling_thresholds.py`](https://github.com/uwplasma/magpylib_jax/blob/main/scripts/check_profiling_thresholds.py)
+  - Enforce compile/runtime/memory thresholds.
+* - [`check_hlo_diffs.py`](https://github.com/uwplasma/magpylib_jax/blob/main/scripts/check_hlo_diffs.py)
+  - Track HLO structure (report-only).
+```
 
-## Fixed-observer-count JIT entrypoints
+Each family run produces a JAX trace (`jax.profiler.trace`), an HLO dump
+(`compiler_ir(..., dialect="hlo")`), and a device-memory snapshot
+(`jax.profiler.save_device_memory_profile`).
 
-Hotspot wrappers live in [`core/kernels/`](https://github.com/uwplasma/magpylib_jax/tree/main/src/magpylib_jax/core/kernels) and cache compilation by observer count.
+### What is gated, and what is not
 
-Representative examples:
+Hard CI gates are **parity error**, **compile/runtime thresholds**, **memory thresholds**,
+**benchmark thresholds**, and the test/docs builds. Exact HLO hashes are useful for trend tracking
+but are intentionally **report-only**: unpinned JAX/XLA versions can restructure compiler output
+without changing correctness.
 
-- `current_circle_bfield_jit`
-- `current_polyline_bfield_jit`
-- `triangle_bfield_jit`
-- `current_trisheet_bfield_jit`
-- `current_tristrip_bfield_jit`
-- `tetrahedron_bfield_jit`
-- `magnet_trimesh_bfield_jit_faces_precomp`
-- `magnet_cylinder_segment_bfield_jit`
-
-These are mainly for profiling and specialized high-throughput workloads. They are not the default user entry point.
-
-## What is measured
-
-- JAX compile time per source type
-- steady-state runtime (median over repeated runs)
-- max absolute parity error
-- peak process memory
-- HLO size and hash for inspection
-
-## HLO hash checks
-
-Exact HLO hashes are useful for inspection and trend tracking, but they are intentionally treated as report-only in CI/nightly because unpinned JAX/XLA versions can change compiler output structure without changing correctness.
-
-The hard gating remains on:
-
-- parity error,
-- compile/runtime thresholds,
-- memory thresholds,
-- benchmark thresholds,
-- tests and docs.
-
-## Threshold files
+Threshold files:
 
 - [`benchmarks/thresholds.json`](https://github.com/uwplasma/magpylib_jax/blob/main/benchmarks/thresholds.json)
 - [`profiling/thresholds.json`](https://github.com/uwplasma/magpylib_jax/blob/main/profiling/thresholds.json)
 - [`profiling/thresholds_getB_jit.json`](https://github.com/uwplasma/magpylib_jax/blob/main/profiling/thresholds_getB_jit.json)
 
-## Typical workflow after a kernel change
+### Fixed-observer-count JIT entrypoints
 
-1. Run `profile_kernels.py` and inspect compile/runtime/memory deltas.
-2. Run `profile_getB_jit.py` if the change can affect the high-level path.
+For specialized high-throughput workloads with a fixed observer count and a single source family,
+[`core/kernels/`](https://github.com/uwplasma/magpylib_jax/tree/main/src/magpylib_jax/core/kernels)
+exposes wrappers that cache compilation by observer count (`current_circle_bfield_jit`,
+`current_polyline_bfield_jit`, `triangle_bfield_jit`, `tetrahedron_bfield_jit`,
+`magnet_cylinder_segment_bfield_jit`, …). These exist mainly for profiling and isolating
+compile/runtime behavior — for everyday use, the high-level `getB` path is the right default.
+
+## Workflow after a kernel change
+
+1. Run `profile_kernels.py`; inspect compile/runtime/memory deltas.
+2. Run `profile_getB_jit.py` if the change can touch the high-level path.
 3. Compare parity outputs.
 4. Update thresholds only when the change is intentional and justified.
-5. Keep HLO baselines as observability aids, not as the only regression signal.
+5. Keep HLO baselines as observability aids, not the sole regression signal.
