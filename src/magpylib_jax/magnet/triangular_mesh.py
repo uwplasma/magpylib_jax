@@ -27,6 +27,8 @@ class TriangularMesh(BaseSource):
         orientation: ArrayLike | None = None,
         reorient_faces: bool = True,
         check_open: bool | str = "warn",
+        check_disconnected: bool | str = "warn",
+        check_selfintersecting: bool | str = "warn",
         in_out: str = "auto",
         style=None,
         style_label: str | None = None,
@@ -38,11 +40,13 @@ class TriangularMesh(BaseSource):
         self.magnetization = magnetization
         self.reorient_faces = reorient_faces
         self.check_open = check_open
+        self.check_disconnected = check_disconnected
+        self.check_selfintersecting = check_selfintersecting
         self.in_out = self._validate_in_out(in_out)
         self.status_open: bool | None = None
         self.status_open_data: list[tuple[int, int]] | None = None
         self.status_disconnected: bool | None = None
-        self.status_disconnected_data: list[object] | None = None
+        self.status_disconnected_data: list[np.ndarray] | None = None
         self.status_reoriented: bool | None = bool(reorient_faces)
         self.status_selfintersecting: bool | None = None
         self.status_selfintersecting_data: object | None = None
@@ -57,13 +61,14 @@ class TriangularMesh(BaseSource):
             if jnp.any(facs < 0) or jnp.any(facs >= verts.shape[0]):
                 raise ValueError("TriangularMesh `faces` contain indices outside `vertices`.")
 
+            verts_np = np.asarray(self.vertices)
+            faces_np = np.asarray(self.faces)
+
             mode = self._validate_mode_arg(self.check_open, arg_name="check_open")
             if mode != "skip":
-                open_edges = self._get_open_edges(np.asarray(self.vertices), np.asarray(self.faces))
+                open_edges = self._get_open_edges(verts_np, faces_np)
                 self.status_open = len(open_edges) > 0
                 self.status_open_data = [tuple(e) for e in open_edges.tolist()]
-                self.status_disconnected = False
-                self.status_disconnected_data = [None]
                 if self.status_open:
                     msg = (
                         "Open mesh detected in TriangularMesh. Inside-outside checks and "
@@ -74,6 +79,29 @@ class TriangularMesh(BaseSource):
                         warnings.warn(msg, stacklevel=2)
                     elif mode == "raise":
                         raise ValueError(msg)
+
+            mode = self._validate_mode_arg(self.check_disconnected, arg_name="check_disconnected")
+            if mode != "skip":
+                subsets = self._get_faces_subsets(faces_np)
+                self.status_disconnected = len(subsets) > 1
+                self.status_disconnected_data = subsets
+                if self.status_disconnected:
+                    msg = (
+                        "Disconnected mesh detected in TriangularMesh. The magnet consists of "
+                        "multiple individual parts. This check can be disabled at initialization "
+                        "with check_disconnected='skip'. Parts are stored in the "
+                        "status_disconnected_data property."
+                    )
+                    if mode == "warn":
+                        warnings.warn(msg, stacklevel=2)
+                    elif mode == "raise":
+                        raise ValueError(msg)
+
+            # Lightweight self-intersecting check: the mode argument is validated
+            # and accepted, but no full triangle-triangle intersection test is
+            # performed, so ``status_selfintersecting`` stays ``None`` (unchecked)
+            # rather than falsely claiming the mesh is intersection-free.
+            self._validate_mode_arg(self.check_selfintersecting, arg_name="check_selfintersecting")
 
         super().__init__(
             position=position,
@@ -150,13 +178,45 @@ class TriangularMesh(BaseSource):
         uniq, counts = np.unique(edges, axis=0, return_counts=True)
         return uniq[counts == 1]
 
+    @staticmethod
+    def _get_faces_subsets(faces: np.ndarray) -> list[np.ndarray]:
+        """Split faces into connected components via shared vertices (union-find).
+
+        Two faces belong to the same subset if they can be linked by a chain of
+        faces sharing at least one vertex. Mirrors magpylib's
+        ``get_faces_subsets`` so a disconnected magnet yields more than one part.
+        """
+        faces_arr = np.asarray(faces, dtype=int)
+        parent: dict[int, int] = {}
+
+        def find(x: int) -> int:
+            parent.setdefault(x, x)
+            root = x
+            while parent[root] != root:
+                root = parent[root]
+            while parent[x] != root:
+                parent[x], x = root, parent[x]
+            return root
+
+        def union(a: int, b: int) -> None:
+            ra, rb = find(a), find(b)
+            if ra != rb:
+                parent[ra] = rb
+
+        for face in faces_arr:
+            union(int(face[0]), int(face[1]))
+            union(int(face[1]), int(face[2]))
+
+        groups: dict[int, list[np.ndarray]] = {}
+        for face in faces_arr:
+            groups.setdefault(find(int(face[0])), []).append(face)
+        return [np.asarray(g, dtype=int) for g in groups.values()]
+
     @classmethod
     def from_ConvexHull(cls, points: ArrayLike, **kwargs) -> TriangularMesh:
         from scipy.spatial import ConvexHull
 
         opts = dict(kwargs)
-        opts.pop("check_selfintersecting", None)
-        opts.pop("check_disconnected", None)
         pts = np.asarray(points, dtype=float)
         hull = ConvexHull(pts)
         return cls(vertices=hull.points, faces=hull.simplices, **opts)

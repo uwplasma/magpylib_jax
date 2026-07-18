@@ -602,7 +602,9 @@ def getFT(
     pivot: Any = "centroid",
     eps: float = 1e-5,  # noqa: ARG001 - kept for API parity; result is eps-free
     squeeze: bool = True,
-) -> tuple[jnp.ndarray, jnp.ndarray]:
+    meshreport: bool = False,
+    return_mesh: bool = False,
+) -> tuple[jnp.ndarray, jnp.ndarray] | list[dict[str, jnp.ndarray]]:
     """Differentiable magnetic force and torque on targets from sources.
 
     Computes the force ``F`` (N) and torque ``T`` (N.m) exerted on each target by
@@ -647,13 +649,24 @@ def getFT(
         and exact (an advantage over magpylib's finite differences).
     squeeze : bool, default True
         If ``True``, remove length-1 dimensions from the outputs.
+    meshreport : bool, default False
+        If ``True``, print a short per-target report of the number of mesh cells
+        used, then continue with the force/torque computation.
+    return_mesh : bool, default False
+        If ``True``, skip the force/torque computation and instead return the
+        per-target meshes as a list of dictionaries (one per flattened target).
+        Each dict has key ``"pts"`` (cell centers in the target local frame,
+        shape ``(n, 3)``) and either ``"moments"`` (magnet targets, cell magnetic
+        moments in A.m^2) or ``"cvecs"`` (current targets, current vectors
+        ``I . dL`` in A.m).
 
     Returns
     -------
     tuple[jax.Array, jax.Array]
         ``(F, T)`` with shape ``(s, p, t, 3)`` before squeezing, where ``s`` is
         the number of sources, ``p`` the path length and ``t`` the number of
-        targets.
+        targets. If ``return_mesh`` is ``True``, a list of per-target mesh
+        dictionaries is returned instead.
     """
     src_list, src_group_starts = _as_source_list(sources)
     flat_targets, coll_idx = _flatten_targets(targets)
@@ -677,6 +690,19 @@ def getFT(
 
     # Pre-compute per-target meshes and padded target motion.
     meshes = [_generate_ft_mesh(t) for t in flat_targets]
+
+    # Optional mesh report / mesh return (mirrors magpy.getFT).
+    if meshreport:
+        print("getFT mesh report:")
+        for tgt, (pts_local, _weights, kind) in zip(flat_targets, meshes, strict=False):
+            print(f"  {type(tgt).__name__}: {int(pts_local.shape[0])} cells ({kind})")
+    if return_mesh:
+        mesh_dicts: list[dict[str, jnp.ndarray]] = []
+        for pts_local, weights, kind in meshes:
+            weight_key = "moments" if kind == "magnet" else "cvecs"
+            mesh_dicts.append({"pts": pts_local, weight_key: weights})
+        return mesh_dicts
+
     tgt_pos = [_pad_edge(t._position, n_path) for t in flat_targets]
     tgt_mat = [_pad_edge(t._orientation.as_matrix(), n_path) for t in flat_targets]
 

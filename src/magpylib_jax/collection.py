@@ -30,6 +30,7 @@ class Collection(BaseGeo):
         *children: object,
         position: ArrayLike = (0.0, 0.0, 0.0),
         orientation: ArrayLike | None = None,
+        override_parent: bool = False,
         style_label: str | None = None,
         **_kwargs,
     ) -> None:
@@ -39,7 +40,7 @@ class Collection(BaseGeo):
         self._sources_cache: list[BaseSource] | None = None
         self._sensors_cache: list[Sensor] | None = None
         if children:
-            self.add(*children)
+            self.add(*children, override_parent=override_parent)
 
     def _mark_structure_dirty(self) -> None:
         self._flat_children_cache = None

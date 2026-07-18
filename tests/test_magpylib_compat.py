@@ -7,6 +7,8 @@ that changing ``import magpylib as magpy`` to ``import magpylib_jax as magpy`` k
 common field-computation code working.
 """
 
+import warnings
+
 import matplotlib
 
 matplotlib.use("Agg")
@@ -134,6 +136,158 @@ def test_getFT_accepts_collection_source():
     np.testing.assert_allclose(
         np.asarray(F_coll), np.asarray(F_list).sum(axis=0), rtol=1e-9, atol=1e-14
     )
+
+
+# --- core capitalized kernel aliases (magpylib parity) -----------------------
+def test_core_capitalized_aliases():
+    obs = np.array([[0.2, 0.3, 0.4], [1.0, -0.5, 0.2]])
+    # importable and identical to the lowercase kernel
+    assert magpy.core.magnet_cuboid_Bfield is magpy.core.magnet_cuboid_bfield
+    b_cap = np.asarray(magpy.core.magnet_cuboid_Bfield(obs, (1.0, 1.0, 1.0), (0, 0, 1.0)))
+    b_low = np.asarray(magpy.core.magnet_cuboid_bfield(obs, (1.0, 1.0, 1.0), (0, 0, 1.0)))
+    np.testing.assert_array_equal(b_cap, b_low)
+    # the full set of magpylib-compatible names exists
+    for name in [
+        "magnet_cuboid_Bfield",
+        "magnet_sphere_Bfield",
+        "dipole_Hfield",
+        "current_circle_Hfield",
+        "current_polyline_Hfield",
+        "triangle_Bfield",
+        "magnet_cylinder_axial_Bfield",
+        "magnet_cylinder_diametral_Hfield",
+        "magnet_cylinder_segment_Hfield",
+        "current_sheet_Hfield",
+    ]:
+        assert callable(getattr(magpy.core, name)), name
+
+
+# --- Triangle magnetization kwarg (magpylib parity) --------------------------
+def test_triangle_magnetization_kwarg():
+    verts = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
+    tri_pol = magpy.misc.Triangle(polarization=(0, 0, 1.0), vertices=verts)
+    tri_mag = magpy.misc.Triangle(magnetization=(0, 0, 1.0 / magpy.mu_0), vertices=verts)
+    obs = np.array([2.0, 0.5, 0.3])
+    np.testing.assert_allclose(
+        np.asarray(tri_mag.getB(obs)), np.asarray(tri_pol.getB(obs)), rtol=1e-9, atol=1e-14
+    )
+
+
+# --- Collection override_parent constructor param ----------------------------
+def test_collection_override_parent():
+    src = magpy.magnet.Cuboid(polarization=(0, 0, 1), dimension=(1, 1, 1))
+    first = magpy.Collection(src)
+    assert src in first.sources
+    # re-adopting into a new collection without override_parent raises
+    with pytest.raises(magpy.MagpylibBadUserInput):
+        magpy.Collection(src)
+    # override_parent=True steals the child from the first collection
+    second = magpy.Collection(src, override_parent=True)
+    assert src in second.sources
+    assert src not in first.sources
+
+
+# --- getFT return_mesh / meshreport (magpylib parity) ------------------------
+def test_getFT_return_mesh_and_meshreport(capsys):
+    src = magpy.magnet.Cuboid(polarization=(0, 0, 1), dimension=(1, 1, 1))
+    tgt = magpy.magnet.Cuboid(polarization=(0, 0, 1), dimension=(1, 1, 1), position=(2, 0, 0))
+    tgt.meshing = 8
+    meshes = magpy.getFT(src, tgt, return_mesh=True)
+    assert isinstance(meshes, list) and len(meshes) == 1
+    assert "pts" in meshes[0] and "moments" in meshes[0]
+    assert np.asarray(meshes[0]["pts"]).shape[1] == 3
+    assert np.asarray(meshes[0]["pts"]).shape[0] >= 1
+
+    # current target -> cvecs key
+    coil = magpy.current.Circle(current=1.0, diameter=2.0, position=(0, 0, 1))
+    coil.meshing = 20
+    cmesh = magpy.getFT(src, coil, return_mesh=True)
+    assert "cvecs" in cmesh[0]
+
+    # meshreport prints a per-target line; default return stays (F, T)
+    F, T = magpy.getFT(src, tgt, meshreport=True)
+    out = capsys.readouterr().out
+    assert "Cuboid" in out
+    assert np.asarray(F).shape == (3,) and np.asarray(T).shape == (3,)
+
+
+# --- TriangularMesh check_disconnected / check_selfintersecting ---------------
+def _two_tetrahedra():
+    v1 = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=float)
+    v2 = v1 + np.array([5.0, 0.0, 0.0])
+    verts = np.vstack([v1, v2])
+    faces1 = np.array([[0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]])
+    faces = np.vstack([faces1, faces1 + 4])
+    return verts, faces
+
+
+def test_trimesh_check_disconnected_warns():
+    verts, faces = _two_tetrahedra()
+    with pytest.warns(UserWarning, match="Disconnected"):
+        mesh = magpy.magnet.TriangularMesh(
+            vertices=verts, faces=faces, polarization=(0, 0, 1), check_open="skip"
+        )
+    assert mesh.status_disconnected is True
+    assert len(mesh.status_disconnected_data) == 2
+
+
+def test_trimesh_check_disconnected_connected_ok():
+    # single closed tetrahedron: connected, no disconnected warning
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=float)
+    faces = np.array([[0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        mesh = magpy.magnet.TriangularMesh(vertices=verts, faces=faces, polarization=(0, 0, 1))
+    assert mesh.status_disconnected is False
+
+
+def test_trimesh_check_kwargs_accept_modes():
+    verts, faces = _two_tetrahedra()
+    # 'raise' turns the disconnected detection into an error
+    with pytest.raises(ValueError, match="Disconnected"):
+        magpy.magnet.TriangularMesh(
+            vertices=verts,
+            faces=faces,
+            polarization=(0, 0, 1),
+            check_open="skip",
+            check_disconnected="raise",
+        )
+    # check_selfintersecting kwarg is accepted; invalid mode is rejected
+    magpy.magnet.TriangularMesh(
+        vertices=verts,
+        faces=faces,
+        polarization=(0, 0, 1),
+        check_open="skip",
+        check_disconnected="skip",
+        check_selfintersecting="warn",
+    )
+    with pytest.raises(ValueError, match="check_selfintersecting"):
+        magpy.magnet.TriangularMesh(
+            vertices=verts,
+            faces=faces,
+            polarization=(0, 0, 1),
+            check_open="skip",
+            check_disconnected="skip",
+            check_selfintersecting="nonsense",
+        )
+
+
+# --- func subpackage surface -------------------------------------------------
+def test_func_subpackage_surface():
+    assert hasattr(magpy, "func")
+    for name in [
+        "circle_field",
+        "polyline_field",
+        "cuboid_field",
+        "cylinder_field",
+        "cylinder_segment_field",
+        "sphere_field",
+        "tetrahedron_field",
+        "dipole_field",
+        "triangle_charge_field",
+        "triangle_current_field",
+    ]:
+        assert callable(getattr(magpy.func, name)), name
 
 
 # --- show (matplotlib) --------------------------------------------------------

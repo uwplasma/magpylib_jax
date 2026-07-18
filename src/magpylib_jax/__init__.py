@@ -11,7 +11,7 @@ float64), enable double precision **before** using the library::
 This package never mutates the global JAX config on import.
 """
 
-from magpylib_jax import current, magnet, misc
+from magpylib_jax import core, current, func, magnet, misc
 from magpylib_jax.collection import Collection
 from magpylib_jax.compat import (
     SUPPORTED_PLOTTING_BACKENDS,
@@ -62,7 +62,9 @@ __all__ = [
     "MagpylibBadUserInput",
     "MagpylibMissingInput",
     "SUPPORTED_PLOTTING_BACKENDS",
+    "core",
     "defaults",
+    "func",
     "magnet",
     "misc",
     "mu_0",
