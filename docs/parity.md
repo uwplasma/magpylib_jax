@@ -72,8 +72,10 @@ The following keep the same names and semantics:
 - **Fields** — `getB/getH/getJ/getM` as both functions and methods, plus `getFT`.
 - **Motion** — `position`, `orientation`, `move`, `rotate`, `rotate_from_*`, and path/edge-padding
   semantics.
-- **Utilities** — `show`, `mu_0`, `defaults`, and the `MagpylibBadUserInput` /
-  `MagpylibMissingInput` exceptions.
+- **Functional & low-level** — the high-level `func.*_field` interface and the `core.*` field
+  functions (magpylib's capitalized names such as `magnet_cuboid_Bfield` are provided as aliases).
+- **Utilities** — `show`, `mu_0`, `defaults`, `SUPPORTED_PLOTTING_BACKENDS`, and the
+  `MagpylibBadUserInput` / `MagpylibMissingInput` exceptions.
 
 ```{admonition} One difference to keep in mind
 :class: note

@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### Added — closing the last magpylib API gaps
+
+An audit against magpylib main confirmed full field/force parity; these close the remaining
+API-surface gaps so magpylib_jax covers essentially all of magpylib except the interactive display
+backends:
+
+- **`magpylib_jax.func`** — the high-level functional interface (`circle_field`, `cuboid_field`,
+  `cylinder_field`, `cylinder_segment_field`, `dipole_field`, `polyline_field`, `sphere_field`,
+  `tetrahedron_field`, `triangle_charge_field`, `triangle_current_field`), matching magpylib's
+  `magpy.func` signatures and values.
+- **`magpylib_jax.core`** now also exports magpylib's capitalized field-function names
+  (`magnet_cuboid_Bfield`, `dipole_Hfield`, `current_circle_Hfield`, …) alongside the lowercase
+  kernels, and is part of the public API.
+- **`misc.Triangle`** accepts a `magnetization` kwarg (alias of `polarization`, like the magnets).
+- **`Collection(..., override_parent=...)`** constructor parameter.
+- **`getFT(..., return_mesh=..., meshreport=...)`** parameters.
+- **`TriangularMesh`** accepts `check_disconnected` and `check_selfintersecting` kwargs.
+
 ## 3.0.0 - 2026-07-18
 
 ### Changed (BREAKING)

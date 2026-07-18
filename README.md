@@ -47,6 +47,7 @@ accelerators, and exact force/torque on top.
 | `getB` / `getH` / `getJ` / `getM` | ✅ | ✅ |
 | `Collection` · `Sensor` · motion & paths | ✅ | ✅ |
 | `sumup` / `squeeze` / `pixel_agg` / `output="dataframe"` | ✅ | ✅ |
+| Functional (`func`) & low-level (`core`) interfaces | ✅ | ✅ |
 | Force & torque — `getFT` | ✅ &nbsp;autodiff, exact | ✅ &nbsp;finite differences |
 | 3-D `show()` | ✅ &nbsp;matplotlib | ✅ &nbsp;matplotlib · plotly · pyvista |
 | Drop-in API (`import magpylib_jax as magpy`) | ✅ | — |
@@ -71,10 +72,11 @@ import magpylib_jax as magpy   # same source classes, Collection, Sensor,
 ```
 
 The source classes, `Collection`, `Sensor`, motion (`move`/`rotate*`), `getB/getH/getJ/getM`,
-`getFT`, `show`, `mu_0`, and `SUPPORTED_PLOTTING_BACKENDS` all match. Fields come back as JAX arrays
-(use `np.asarray(...)` if a downstream call needs NumPy). Not shimmed: the plotly/pyvista `show`
-backends, the full `defaults`/`graphics` style trees, and the `magpy.func`/`magpy.core` low-level
-interfaces. A compatibility test suite (`tests/test_magpylib_compat.py`) exercises the shared API.
+`getFT`, `show`, `mu_0`, the `func` (high-level) and `core` (low-level) field interfaces, and
+`SUPPORTED_PLOTTING_BACKENDS` all match. Fields come back as JAX arrays (use `np.asarray(...)` if a
+downstream call needs NumPy). Only the interactive plotly/pyvista `show` backends and the full
+graphical style system (`defaults`/`graphics`) are left aside. A compatibility test suite
+(`tests/test_magpylib_compat.py`) exercises the shared API.
 
 ## Installation
 
