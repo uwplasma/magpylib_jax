@@ -39,21 +39,21 @@ class Cuboid(BaseSource):
     @property
     def _polarization(self) -> jnp.ndarray:
         if self.polarization is not None:
-            return jnp.asarray(self.polarization, dtype=jnp.float64)
+            return jnp.asarray(self.polarization, dtype=float)
         if self.magnetization is not None:
-            return MU0 * jnp.asarray(self.magnetization, dtype=jnp.float64)
+            return MU0 * jnp.asarray(self.magnetization, dtype=float)
         raise MagpylibMissingInput("Input polarization of Cuboid must be set.")
 
     @property
     def volume(self) -> float:
         if self.dimension is None:
             return 0.0
-        a, b, c = jnp.asarray(self.dimension, dtype=jnp.float64)
+        a, b, c = jnp.asarray(self.dimension, dtype=float)
         return float(a * b * c)
 
     @property
     def centroid(self) -> jnp.ndarray:
-        return jnp.asarray(self.position, dtype=jnp.float64)
+        return jnp.asarray(self.position, dtype=float)
 
     def _require_inputs(self) -> None:
         if self.dimension is None:

@@ -44,7 +44,7 @@ optimizer is slow and noisy. `magpylib_jax` closes that gap:
 | Gradients | ✗ (finite-diff by hand) | ✓ `grad`/`jacfwd`/`jacrev`, exact |
 | `jit` / `vmap` | ✗ | ✓ field core |
 | `getFT` force/torque | finite differences (step `eps`) | autodiff, exact, `eps`-free |
-| Precision | float64 | float64 (x64 enabled on import) |
+| Precision | float64 | follows your JAX config (float32 by default; float64 with x64) |
 | 3-D `show()` display | ✓ (matplotlib/plotly/pyvista) | ✓ (matplotlib) |
 | Source families | all | all 12 (parity-tested) |
 
@@ -82,11 +82,29 @@ pip install -e '.[test,docs]'
 pytest
 ```
 
+## Precision (float32 vs float64)
+
+magpylib_jax follows **your** JAX precision setting and never changes the global JAX config on
+import. By default JAX runs in **float32** — fast, and the right default on GPU/TPU. magpylib is
+float64, so for bit-level parity (and the tightest gradients) enable double precision **before**
+using the library:
+
+```python
+import jax
+jax.config.update("jax_enable_x64", True)
+import magpylib_jax as mpj
+```
+
+Float32 is perfectly usable for many workloads (and much faster on accelerators); use float64 when
+you need magpylib-level accuracy. The tests run with x64 enabled.
+
 ## Quickstart
 
 ```python
-import jax, jax.numpy as jnp
-import magpylib_jax as mpj                     # enables float64 on import
+import jax
+jax.config.update("jax_enable_x64", True)     # float64, for parity with magpylib
+import jax.numpy as jnp
+import magpylib_jax as mpj
 
 # Object API — identical feel to magpylib
 src = mpj.magnet.Cuboid(polarization=(0, 0, 1.0), dimension=(1.0, 1.0, 1.0))

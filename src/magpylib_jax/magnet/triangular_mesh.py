@@ -48,7 +48,7 @@ class TriangularMesh(BaseSource):
         self.status_selfintersecting_data: object | None = None
 
         if self.vertices is not None and self.faces is not None:
-            verts = jnp.asarray(self.vertices, dtype=jnp.float64)
+            verts = jnp.asarray(self.vertices, dtype=float)
             facs = jnp.asarray(self.faces, dtype=jnp.int32)
             if verts.ndim != 2 or verts.shape[1] != 3:
                 raise ValueError("TriangularMesh `vertices` must have shape (n,3).")
@@ -84,7 +84,7 @@ class TriangularMesh(BaseSource):
         )
         self._mesh_cache_key: tuple[object, ...] | None = None
         self._faces_oriented_cache = jnp.zeros((0, 3), dtype=jnp.int32)
-        self._mesh_cache = jnp.zeros((0, 3, 3), dtype=jnp.float64)
+        self._mesh_cache = jnp.zeros((0, 3, 3), dtype=float)
 
     def _geometry_cache_key(self) -> tuple[object, ...]:
         return (
@@ -96,7 +96,7 @@ class TriangularMesh(BaseSource):
     def _geometry_cache(self) -> tuple[jnp.ndarray, jnp.ndarray]:
         if self.vertices is None or self.faces is None:
             empty_faces = jnp.zeros((0, 3), dtype=jnp.int32)
-            empty_mesh = jnp.zeros((0, 3, 3), dtype=jnp.float64)
+            empty_mesh = jnp.zeros((0, 3, 3), dtype=float)
             self._mesh_cache_key = None
             self._faces_oriented_cache = empty_faces
             self._mesh_cache = empty_mesh
@@ -108,7 +108,7 @@ class TriangularMesh(BaseSource):
 
         faces = jnp.asarray(self.faces, dtype=jnp.int32)
         if self.reorient_faces:
-            verts = jnp.asarray(self.vertices, dtype=jnp.float64)
+            verts = jnp.asarray(self.vertices, dtype=float)
             tri = verts[faces]
             center = jnp.mean(verts, axis=0)
             ctri = jnp.mean(tri, axis=1)
@@ -116,7 +116,7 @@ class TriangularMesh(BaseSource):
             inward = jnp.sum(nvec * (ctri - center), axis=1) < 0
             faces = jnp.where(inward[:, None], faces[:, (0, 2, 1)], faces)
 
-        verts = jnp.asarray(self.vertices, dtype=jnp.float64)
+        verts = jnp.asarray(self.vertices, dtype=float)
         mesh = verts[faces]
         self._mesh_cache_key = cache_key
         self._faces_oriented_cache = faces
@@ -164,9 +164,9 @@ class TriangularMesh(BaseSource):
     @property
     def _polarization(self) -> jnp.ndarray:
         if self.polarization is not None:
-            return jnp.asarray(self.polarization, dtype=jnp.float64)
+            return jnp.asarray(self.polarization, dtype=float)
         if self.magnetization is not None:
-            return MU0 * jnp.asarray(self.magnetization, dtype=jnp.float64)
+            return MU0 * jnp.asarray(self.magnetization, dtype=float)
         raise MagpylibMissingInput("Input polarization of TriangularMesh must be set.")
 
     @property
@@ -182,7 +182,7 @@ class TriangularMesh(BaseSource):
     @property
     def barycenter(self) -> jnp.ndarray:
         if self.vertices is None or self.faces is None:
-            return jnp.zeros((3,), dtype=jnp.float64)
+            return jnp.zeros((3,), dtype=float)
         tri = self.mesh
         ctri = jnp.mean(tri, axis=1)
         area = 0.5 * jnp.linalg.norm(
@@ -194,7 +194,7 @@ class TriangularMesh(BaseSource):
 
     @property
     def centroid(self) -> jnp.ndarray:
-        return self.barycenter + jnp.asarray(self.position, dtype=jnp.float64)
+        return self.barycenter + jnp.asarray(self.position, dtype=float)
 
     @property
     def volume(self) -> float:

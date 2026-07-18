@@ -41,9 +41,9 @@ def _build_cylinder_segment_mesh(
     phi1 = jnp.deg2rad(phi1_deg)
     phi2 = jnp.deg2rad(phi2_deg)
 
-    phis = jnp.linspace(phi1, phi2, n_phi + 1, dtype=jnp.float64)
-    rs = jnp.linspace(r1, r2, n_r + 1, dtype=jnp.float64)
-    zs = jnp.linspace(zmin, zmax, n_z + 1, dtype=jnp.float64)
+    phis = jnp.linspace(phi1, phi2, n_phi + 1, dtype=float)
+    rs = jnp.linspace(r1, r2, n_r + 1, dtype=float)
+    zs = jnp.linspace(zmin, zmax, n_z + 1, dtype=float)
 
     cos_p = jnp.cos(phis)
     sin_p = jnp.sin(phis)
@@ -124,14 +124,14 @@ def precompute_cylinder_segment_geometry(
     n_z: int = 1,
 ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Precompute cylinder segment mesh + geometry terms."""
-    dim = jnp.asarray(dimension, dtype=jnp.float64)
+    dim = jnp.asarray(dimension, dtype=float)
     mesh = _build_cylinder_segment_mesh(dim, n_phi=n_phi, n_r=n_r, n_z=n_z)
     mesh_arr, nvec, L, l1, l2 = precompute_trimesh_geometry(mesh)
     return mesh_arr, nvec, L, l1, l2
 
 
 def _ensure_dim5(dimensions: ArrayLike, n: int) -> jnp.ndarray:
-    dim = jnp.asarray(dimensions, dtype=jnp.float64)
+    dim = jnp.asarray(dimensions, dtype=float)
     if dim.ndim == 1:
         if dim.shape[0] != 5:
             raise ValueError(f"CylinderSegment dimension must have shape (5,), got {dim.shape}.")
@@ -207,7 +207,7 @@ def magnet_cylinder_segment_jfield(
     obs = ensure_observers(observers)
     dim = _ensure_dim5(dimensions, obs.shape[0])
 
-    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), obs.shape[0])
+    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=float), obs.shape[0])
     r1, r2, h, phi1_deg, phi2_deg = dim
     phi1 = jnp.deg2rad(phi1_deg)
     phi2 = jnp.deg2rad(phi2_deg)

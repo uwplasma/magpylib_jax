@@ -18,13 +18,13 @@ def magnet_sphere_bfield(
     """B-field of homogeneously polarized spheres centered at the origin."""
     obs = ensure_observers(observers)
     n = obs.shape[0]
-    dia = jnp.asarray(diameters, dtype=jnp.float64)
+    dia = jnp.asarray(diameters, dtype=float)
     if dia.ndim == 0:
         dia = jnp.broadcast_to(dia, (n,))
     else:
         dia = jnp.broadcast_to(dia.reshape((-1,)), (n,))
 
-    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), n)
+    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=float), n)
 
     r = _safe_norm(obs, axis=1)
     rs = jnp.abs(dia) / 2.0
@@ -50,13 +50,13 @@ def magnet_sphere_hfield(
 ) -> jnp.ndarray:
     obs = ensure_observers(observers)
     n = obs.shape[0]
-    dia = jnp.asarray(diameters, dtype=jnp.float64)
+    dia = jnp.asarray(diameters, dtype=float)
     if dia.ndim == 0:
         dia = jnp.broadcast_to(dia, (n,))
     else:
         dia = jnp.broadcast_to(dia.reshape((-1,)), (n,))
 
-    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), n)
+    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=float), n)
     r = _safe_norm(obs, axis=1)
     rs = jnp.abs(dia) / 2.0
     outside = r > rs
@@ -73,13 +73,13 @@ def magnet_sphere_jfield(
 ) -> jnp.ndarray:
     obs = ensure_observers(observers)
     n = obs.shape[0]
-    dia = jnp.asarray(diameters, dtype=jnp.float64)
+    dia = jnp.asarray(diameters, dtype=float)
     if dia.ndim == 0:
         dia = jnp.broadcast_to(dia, (n,))
     else:
         dia = jnp.broadcast_to(dia.reshape((-1,)), (n,))
 
-    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), n)
+    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=float), n)
     r = _safe_norm(obs, axis=1)
     rs = jnp.abs(dia) / 2.0
     inside = r <= rs

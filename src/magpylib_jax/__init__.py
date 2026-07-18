@@ -1,12 +1,15 @@
-"""Differentiable JAX-native magnetic field toolkit."""
+"""Differentiable JAX-native magnetic field toolkit.
 
-import jax as _jax
+Precision follows your JAX configuration: arrays use JAX's default float dtype
+(``float32`` unless you enable x64). For bit-level parity with magpylib (which is
+float64), enable double precision **before** using the library::
 
-# magpylib works in SI double precision; enable JAX x64 on import so field
-# values and gradients match upstream out of the box. Must run before any
-# submodule builds arrays. Users who prefer single precision can set
-# ``jax.config.update("jax_enable_x64", False)`` after importing this package.
-_jax.config.update("jax_enable_x64", True)
+    import jax
+    jax.config.update("jax_enable_x64", True)
+    import magpylib_jax as mpj
+
+This package never mutates the global JAX config on import.
+"""
 
 from magpylib_jax import current, magnet, misc
 from magpylib_jax.collection import Collection

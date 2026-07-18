@@ -208,10 +208,10 @@ class Collection(BaseGeo):
             vol = float(getattr(obj, "volume", 0.0))
             if vol > 0:
                 vols.append(vol)
-                cents.append(jnp.asarray(getattr(obj, "centroid", obj.position), dtype=jnp.float64))
+                cents.append(jnp.asarray(getattr(obj, "centroid", obj.position), dtype=float))
         if not vols:
-            return jnp.asarray(self.position, dtype=jnp.float64)
-        vols_arr = jnp.asarray(vols, dtype=jnp.float64)
+            return jnp.asarray(self.position, dtype=float)
+        vols_arr = jnp.asarray(vols, dtype=float)
         cents_arr = jnp.stack(cents, axis=0)
         return jnp.sum(cents_arr * vols_arr[:, None], axis=0) / jnp.sum(vols_arr)
 
@@ -350,15 +350,15 @@ class Collection(BaseGeo):
         from magpylib_jax.constants import MU0
 
         def fmt_vec(val) -> str:
-            return str(jax.device_get(jnp.asarray(val, dtype=jnp.float64)))
+            return str(jax.device_get(jnp.asarray(val, dtype=float)))
 
         props: list[str] = []
         props.append(f"position: {fmt_vec(getattr(obj, 'position', (0, 0, 0)))} m")
         ori = getattr(obj, "orientation", None)
         if hasattr(ori, "as_rotvec"):
-            rotvec = jnp.asarray(ori.as_rotvec(), dtype=jnp.float64)
+            rotvec = jnp.asarray(ori.as_rotvec(), dtype=float)
         else:
-            rotvec = jnp.zeros(3, dtype=jnp.float64)
+            rotvec = jnp.zeros(3, dtype=float)
         props.append(f"orientation: {fmt_vec(jnp.rad2deg(rotvec))} deg")
 
         dip = None
@@ -368,11 +368,11 @@ class Collection(BaseGeo):
             pol = getattr(obj, "polarization", None)
             mag = getattr(obj, "magnetization", None)
             if mag is None and pol is not None:
-                mag = jnp.asarray(pol, dtype=jnp.float64) / MU0
+                mag = jnp.asarray(pol, dtype=float) / MU0
             if mag is not None:
-                dip = jnp.asarray(mag, dtype=jnp.float64) * float(getattr(obj, "volume", 0.0))
+                dip = jnp.asarray(mag, dtype=float) * float(getattr(obj, "volume", 0.0))
         if dip is None:
-            dip = jnp.zeros(3, dtype=jnp.float64)
+            dip = jnp.zeros(3, dtype=float)
         centroid = getattr(obj, "centroid", getattr(obj, "position", (0, 0, 0)))
         props.append(f"centroid: {fmt_vec(centroid)}")
         props.append(f"dipole_moment: {fmt_vec(dip)}")
@@ -382,7 +382,7 @@ class Collection(BaseGeo):
             props.insert(2, f"dimension: {dim if dim is None else fmt_vec(dim)} m")
             mag = getattr(obj, "magnetization", None)
             if mag is None and getattr(obj, "polarization", None) is not None:
-                mag = jnp.asarray(obj.polarization, dtype=jnp.float64) / MU0
+                mag = jnp.asarray(obj.polarization, dtype=float) / MU0
             props.insert(
                 3,
                 f"magnetization: {mag if mag is None else fmt_vec(mag)} A/m",

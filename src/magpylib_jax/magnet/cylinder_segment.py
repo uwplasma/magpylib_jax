@@ -29,7 +29,7 @@ class CylinderSegment(BaseSource):
         self.polarization = polarization
         self.magnetization = magnetization
         if self.dimension is not None:
-            dim = jnp.asarray(self.dimension, dtype=jnp.float64)
+            dim = jnp.asarray(self.dimension, dtype=float)
             if dim.shape != (5,):
                 raise ValueError(
                     f"CylinderSegment `dimension` must have shape (5,), got {dim.shape}."
@@ -48,23 +48,23 @@ class CylinderSegment(BaseSource):
     @property
     def _polarization(self) -> jnp.ndarray:
         if self.polarization is not None:
-            return jnp.asarray(self.polarization, dtype=jnp.float64)
+            return jnp.asarray(self.polarization, dtype=float)
         if self.magnetization is not None:
-            return MU0 * jnp.asarray(self.magnetization, dtype=jnp.float64)
+            return MU0 * jnp.asarray(self.magnetization, dtype=float)
         raise MagpylibMissingInput("Input polarization of CylinderSegment must be set.")
 
     @property
     def volume(self) -> float:
         if self.dimension is None:
             return 0.0
-        r1, r2, h, phi1, phi2 = jnp.asarray(self.dimension, dtype=jnp.float64)
+        r1, r2, h, phi1, phi2 = jnp.asarray(self.dimension, dtype=float)
         return float((r2 * r2 - r1 * r1) * jnp.pi * h * (phi2 - phi1) / 360.0)
 
     @property
     def barycenter(self) -> jnp.ndarray:
         if self.dimension is None:
-            return jnp.zeros((3,), dtype=jnp.float64)
-        r1, r2, _, phi1, phi2 = jnp.asarray(self.dimension, dtype=jnp.float64)
+            return jnp.zeros((3,), dtype=float)
+        r1, r2, _, phi1, phi2 = jnp.asarray(self.dimension, dtype=float)
         alpha = jnp.deg2rad((phi2 - phi1) / 2.0)
         phi = jnp.deg2rad((phi1 + phi2) / 2.0)
         centroid_x = (2.0 / 3.0) * jnp.sin(alpha) / alpha * (r2**3 - r1**3) / (r2**2 - r1**2)
@@ -73,7 +73,7 @@ class CylinderSegment(BaseSource):
 
     @property
     def centroid(self) -> jnp.ndarray:
-        return self.barycenter + jnp.asarray(self.position, dtype=jnp.float64)
+        return self.barycenter + jnp.asarray(self.position, dtype=float)
 
     def _require_inputs(self) -> None:
         if self.dimension is None:

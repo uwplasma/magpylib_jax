@@ -154,12 +154,12 @@ def _compute_field_jit_core(
                 else:
                     fields = jnp.zeros(
                         (chunk_size, obs_flat.shape[0], 3),
-                        dtype=jnp.float64,
+                        dtype=float,
                     )
                 fields = fields * _slice_chunk(source_mask, start)[:, None, None]
                 return carry + jnp.sum(fields, axis=0), None
 
-            init = jnp.zeros((obs_flat.shape[0], 3), dtype=jnp.float64)
+            init = jnp.zeros((obs_flat.shape[0], 3), dtype=float)
             out, _ = jax.lax.scan(_chunk_step, init, jnp.arange(n_chunks))
             return None, out
 
@@ -220,14 +220,14 @@ def _compute_field_jit_core(
                 return dipole_bfield(obs_local, moment)
             if field == "H":
                 return dipole_hfield(obs_local, moment)
-            return jnp.zeros_like(obs_local, dtype=jnp.float64)
+            return jnp.zeros_like(obs_local, dtype=float)
 
         def _circle(_):
             if field == "B":
                 return current_circle_bfield(obs_local, diameter, current)
             if field == "H":
                 return current_circle_hfield(obs_local, diameter, current)
-            return jnp.zeros_like(obs_local, dtype=jnp.float64)
+            return jnp.zeros_like(obs_local, dtype=float)
 
         def _cuboid(_):
             if field == "B":
@@ -306,7 +306,7 @@ def _compute_field_jit_core(
                     current_polyline_bfield_masked(obs_local, seg_start, seg_end, current, seg_mask)
                     / MU0
                 )
-            return jnp.zeros_like(obs_local, dtype=jnp.float64)
+            return jnp.zeros_like(obs_local, dtype=float)
 
         def _trianglesheet(_):
             if field == "B":
@@ -316,7 +316,7 @@ def _compute_field_jit_core(
                     current_trisheet_bfield_masked(obs_local, sheet_tris, sheet_cd, sheet_mask)
                     / MU0
                 )
-            return jnp.zeros_like(obs_local, dtype=jnp.float64)
+            return jnp.zeros_like(obs_local, dtype=float)
 
         def _trianglestrip(_):
             if field == "B":
@@ -326,7 +326,7 @@ def _compute_field_jit_core(
                     current_trisheet_bfield_masked(obs_local, sheet_tris, sheet_cd, sheet_mask)
                     / MU0
                 )
-            return jnp.zeros_like(obs_local, dtype=jnp.float64)
+            return jnp.zeros_like(obs_local, dtype=float)
 
         def _triangularmesh(_):
             if field == "B":
@@ -409,7 +409,7 @@ def _compute_field_jit_core(
         elif field == "H":
             field_local = current_circle_hfield(obs_local, diameter, current)
         else:
-            field_local = jnp.zeros_like(obs_local, dtype=jnp.float64)
+            field_local = jnp.zeros_like(obs_local, dtype=float)
         field_global = field_local @ rot_t.T
         field_global = field_global.reshape((n_sensors, max_pix, 3))
         field_sens = jnp.einsum("spc,sdc->spd", field_global, rot_s)
@@ -527,7 +527,7 @@ def _compute_field_jit_core(
                 )
             return carry + chunk_group_fields, None
 
-        init = jnp.zeros((n_groups, n_sensors, max_pix, 3), dtype=jnp.float64)
+        init = jnp.zeros((n_groups, n_sensors, max_pix, 3), dtype=float)
         group_fields, _ = jax.lax.scan(_chunk_step, init, jnp.arange(n_chunks))
         return None, group_fields
 

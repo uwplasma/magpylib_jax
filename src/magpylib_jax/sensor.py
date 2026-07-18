@@ -74,17 +74,17 @@ class Sensor(BaseGeo):
     def observers(self) -> jnp.ndarray:
         pix = self._pixel
         if pix is None:
-            pix = jnp.zeros((1, 3), dtype=jnp.float64)
+            pix = jnp.zeros((1, 3), dtype=float)
             pix_shape = (1, 3)
         else:
-            pix = jnp.asarray(pix, dtype=jnp.float64)
+            pix = jnp.asarray(pix, dtype=float)
             if pix.shape == (3,):
                 pix = pix[None, :]
             pix_shape = pix.shape
         pix_flat = pix.reshape((-1, 3))
 
-        pos_path = jnp.asarray(self._position, dtype=jnp.float64)
-        rot_mats = jnp.asarray(self._orientation_matrix, dtype=jnp.float64)
+        pos_path = jnp.asarray(self._position, dtype=float)
+        rot_mats = jnp.asarray(self._orientation_matrix, dtype=float)
         obs_path = []
         for idx in range(pos_path.shape[0]):
             rot = rot_mats[min(idx, rot_mats.shape[0] - 1)]
@@ -99,9 +99,9 @@ class Sensor(BaseGeo):
     @property
     def centroid(self) -> jnp.ndarray:
         if self._pixel is None:
-            return jnp.asarray(self.position, dtype=jnp.float64)
-        pix_mean = jnp.mean(jnp.asarray(self._pixel, dtype=jnp.float64).reshape(-1, 3), axis=0)
-        centroid = jnp.asarray(self._position, dtype=jnp.float64) + pix_mean
+            return jnp.asarray(self.position, dtype=float)
+        pix_mean = jnp.mean(jnp.asarray(self._pixel, dtype=float).reshape(-1, 3), axis=0)
+        centroid = jnp.asarray(self._position, dtype=float) + pix_mean
         if centroid.shape[0] == 1:
             centroid = centroid[0]
         return centroid

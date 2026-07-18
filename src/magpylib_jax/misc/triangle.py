@@ -36,13 +36,13 @@ class Triangle(BaseSource):
     @property
     def barycenter(self) -> jnp.ndarray:
         if self.vertices is None:
-            return jnp.zeros((3,), dtype=jnp.float64)
-        verts = jnp.asarray(self.vertices, dtype=jnp.float64)
+            return jnp.zeros((3,), dtype=float)
+        verts = jnp.asarray(self.vertices, dtype=float)
         return jnp.mean(verts, axis=0)
 
     @property
     def centroid(self) -> jnp.ndarray:
-        return self.barycenter + jnp.asarray(self.position, dtype=jnp.float64)
+        return self.barycenter + jnp.asarray(self.position, dtype=float)
 
     @property
     def volume(self) -> float:

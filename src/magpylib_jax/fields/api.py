@@ -110,7 +110,7 @@ def _has_tracer(obj: object) -> bool:
 
 
 def _pad_path(arr: ArrayLike, target_len: int) -> jnp.ndarray:
-    arr_jnp = jnp.asarray(arr, dtype=jnp.float64)
+    arr_jnp = jnp.asarray(arr, dtype=float)
     if arr_jnp.shape[0] == target_len:
         return arr_jnp
     if arr_jnp.shape[0] == 1:
@@ -121,7 +121,7 @@ def _pad_path(arr: ArrayLike, target_len: int) -> jnp.ndarray:
 
 
 def _pad_axis0(arr: ArrayLike, target_len: int, pad_value: float = 0.0) -> jnp.ndarray:
-    arr_jnp = jnp.asarray(arr, dtype=jnp.float64)
+    arr_jnp = jnp.asarray(arr, dtype=float)
     if arr_jnp.shape[0] == target_len:
         return arr_jnp
     pad_shape = (target_len - arr_jnp.shape[0],) + arr_jnp.shape[1:]

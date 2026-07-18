@@ -40,10 +40,10 @@ def magnet_trimesh_bfield(
     """B-field of uniformly polarized closed triangular meshes."""
     obs = ensure_observers(observers)
     n = obs.shape[0]
-    mesh_arr = jnp.asarray(mesh, dtype=jnp.float64)
+    mesh_arr = jnp.asarray(mesh, dtype=float)
     if mesh_arr.ndim == 4:
         mesh_arr = _broadcast_mesh(mesh_arr, n)
-    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), n)
+    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=float), n)
 
     # Evaluate each face as a batched triangle field and reduce over faces.
     # This avoids flatten+repeat expansions and lowers peak memory pressure.
@@ -80,7 +80,7 @@ def _magnet_trimesh_bfield_const_impl(
                 obs, mesh_arr[i], pol, nvec[i], L[i], l1[i], l2[i]
             )
 
-        init = jnp.zeros((obs.shape[0], 3), dtype=jnp.float64)
+        init = jnp.zeros((obs.shape[0], 3), dtype=float)
         return jax.lax.fori_loop(0, mesh_arr.shape[0], body, init)
 
     if mesh_arr.shape[0] <= 64:
@@ -105,7 +105,7 @@ def precompute_trimesh_geometry(
     mesh: ArrayLike,
 ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Precompute triangle mesh geometry terms for reuse."""
-    mesh_arr = jnp.asarray(mesh, dtype=jnp.float64)
+    mesh_arr = jnp.asarray(mesh, dtype=float)
     if mesh_arr.ndim != 3 or mesh_arr.shape[1:] != (3, 3):
         raise ValueError("Mesh must have shape (n_faces,3,3).")
     nvec, L, l1, l2 = _triangle_geom_terms(mesh_arr)
@@ -130,7 +130,7 @@ def _magnet_trimesh_bfield_precomp_impl(
                 obs, mesh_arr[i], pol, nvec[i], L[i], l1[i], l2[i]
             )
 
-        init = jnp.zeros((obs.shape[0], 3), dtype=jnp.float64)
+        init = jnp.zeros((obs.shape[0], 3), dtype=float)
         return jax.lax.fori_loop(0, n_faces, body, init)
 
     if n_faces <= 64:
@@ -164,12 +164,12 @@ def magnet_trimesh_bfield_precomp_masked(
 ) -> jnp.ndarray:
     """B-field of triangular mesh using precomputed geometry with face masking."""
     obs = ensure_observers(observers)
-    mesh_arr = jnp.asarray(mesh, dtype=jnp.float64)
-    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), obs.shape[0])
-    nvec_arr = jnp.asarray(nvec, dtype=jnp.float64)
-    L_arr = jnp.asarray(L, dtype=jnp.float64)
-    l1_arr = jnp.asarray(l1, dtype=jnp.float64)
-    l2_arr = jnp.asarray(l2, dtype=jnp.float64)
+    mesh_arr = jnp.asarray(mesh, dtype=float)
+    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=float), obs.shape[0])
+    nvec_arr = jnp.asarray(nvec, dtype=float)
+    L_arr = jnp.asarray(L, dtype=float)
+    l1_arr = jnp.asarray(l1, dtype=float)
+    l2_arr = jnp.asarray(l2, dtype=float)
     mask = jnp.asarray(face_mask, dtype=bool).reshape((-1,))
     n_faces = mesh_arr.shape[0]
 
@@ -181,7 +181,7 @@ def magnet_trimesh_bfield_precomp_masked(
             term = jnp.where(mask[i], term, 0.0)
             return acc + term
 
-        init = jnp.zeros((obs.shape[0], 3), dtype=jnp.float64)
+        init = jnp.zeros((obs.shape[0], 3), dtype=float)
         return jax.lax.fori_loop(0, n_faces, body, init)
 
     if n_faces <= 64:
@@ -224,8 +224,8 @@ def magnet_trimesh_bfield_jit(
 ) -> jnp.ndarray:
     """JIT-specialized triangular mesh B-field for fixed observer counts."""
     obs = ensure_observers(observers)
-    mesh_arr = jnp.asarray(mesh, dtype=jnp.float64)
-    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), obs.shape[0])
+    mesh_arr = jnp.asarray(mesh, dtype=float)
+    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=float), obs.shape[0])
     if mesh_arr.ndim == 3:
         return magnet_trimesh_bfield_jit_faces(obs, mesh_arr, pol, in_out=in_out)
     flag = _in_out_flag(in_out)
@@ -246,10 +246,10 @@ def magnet_trimesh_bfield_jit_faces(
 ) -> jnp.ndarray:
     """JIT-specialized triangular mesh B-field for fixed observer + face counts."""
     obs = ensure_observers(observers)
-    mesh_arr = jnp.asarray(mesh, dtype=jnp.float64)
+    mesh_arr = jnp.asarray(mesh, dtype=float)
     if mesh_arr.ndim != 3:
         raise ValueError("TriangularMesh JIT expects mesh with shape (n_faces,3,3).")
-    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), obs.shape[0])
+    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=float), obs.shape[0])
     flag = _in_out_flag(in_out)
     n_faces = int(mesh_arr.shape[0])
     jit_fn = _jit_kernel_mesh(
@@ -274,10 +274,10 @@ def magnet_trimesh_bfield_jit_faces_precomp(
 ) -> jnp.ndarray:
     """JIT-specialized triangular mesh B-field using precomputed geometry."""
     obs = ensure_observers(observers)
-    mesh_arr = jnp.asarray(mesh, dtype=jnp.float64)
+    mesh_arr = jnp.asarray(mesh, dtype=float)
     if mesh_arr.ndim != 3:
         raise ValueError("TriangularMesh JIT expects mesh with shape (n_faces,3,3).")
-    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), obs.shape[0])
+    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=float), obs.shape[0])
     n_faces = int(mesh_arr.shape[0])
     flag = _in_out_flag(in_out)
     jit_fn = _jit_kernel_mesh(
@@ -291,10 +291,10 @@ def magnet_trimesh_bfield_jit_faces_precomp(
         obs,
         mesh_arr,
         pol,
-        jnp.asarray(nvec, dtype=jnp.float64),
-        jnp.asarray(L, dtype=jnp.float64),
-        jnp.asarray(l1, dtype=jnp.float64),
-        jnp.asarray(l2, dtype=jnp.float64),
+        jnp.asarray(nvec, dtype=float),
+        jnp.asarray(L, dtype=float),
+        jnp.asarray(l1, dtype=float),
+        jnp.asarray(l2, dtype=float),
         in_out_flag=flag,
         n_faces=n_faces,
     )
@@ -319,10 +319,10 @@ def magnet_trimesh_jfield(
 ) -> jnp.ndarray:
     obs = ensure_observers(observers)
     n = obs.shape[0]
-    mesh_arr = jnp.asarray(mesh, dtype=jnp.float64)
+    mesh_arr = jnp.asarray(mesh, dtype=float)
     if mesh_arr.ndim == 4:
         mesh_arr = _broadcast_mesh(mesh_arr, n)
-    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), n)
+    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=float), n)
 
     if in_out == "outside":
         inside = jnp.zeros((n,), dtype=bool)

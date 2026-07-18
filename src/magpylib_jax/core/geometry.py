@@ -8,7 +8,7 @@ from magpylib_jax._types import ArrayLike
 
 
 def _as_array3(x: ArrayLike) -> jnp.ndarray:
-    arr = jnp.asarray(x, dtype=jnp.float64)
+    arr = jnp.asarray(x, dtype=float)
     if arr.shape[-1] != 3:
         raise ValueError(f"Expected trailing dimension 3, got shape {arr.shape}.")
     return arr
@@ -25,9 +25,9 @@ def ensure_observers(observers: ArrayLike) -> jnp.ndarray:
 def normalize_orientation(orientation: ArrayLike | None) -> jnp.ndarray:
     """Return a 3x3 rotation matrix."""
     if orientation is None:
-        return jnp.eye(3, dtype=jnp.float64)
+        return jnp.eye(3, dtype=float)
     if hasattr(orientation, "as_matrix"):
-        mat = jnp.asarray(orientation.as_matrix(), dtype=jnp.float64)
+        mat = jnp.asarray(orientation.as_matrix(), dtype=float)
         if mat.ndim == 3:
             if mat.shape[0] != 1:
                 raise ValueError(
@@ -39,7 +39,7 @@ def normalize_orientation(orientation: ArrayLike | None) -> jnp.ndarray:
             raise ValueError(f"Expected orientation matrix with shape (3, 3), got {mat.shape}.")
         return mat
 
-    ori = jnp.asarray(orientation, dtype=jnp.float64)
+    ori = jnp.asarray(orientation, dtype=float)
     if ori.ndim == 3:
         if ori.shape[0] != 1 or ori.shape[1:] != (3, 3):
             raise ValueError(
@@ -64,11 +64,11 @@ def normalize_positions(position: ArrayLike = (0.0, 0.0, 0.0)) -> jnp.ndarray:
 def normalize_orientations(orientation: ArrayLike | None = None) -> jnp.ndarray:
     """Return orientations as shape (p, 3, 3)."""
     if orientation is None:
-        return jnp.eye(3, dtype=jnp.float64)[None, :, :]
+        return jnp.eye(3, dtype=float)[None, :, :]
     if hasattr(orientation, "as_matrix"):
-        mat = jnp.asarray(orientation.as_matrix(), dtype=jnp.float64)
+        mat = jnp.asarray(orientation.as_matrix(), dtype=float)
     else:
-        mat = jnp.asarray(orientation, dtype=jnp.float64)
+        mat = jnp.asarray(orientation, dtype=float)
     if mat.ndim == 2:
         if mat.shape != (3, 3):
             raise ValueError(f"Expected orientation matrix with shape (3, 3), got {mat.shape}.")

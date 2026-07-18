@@ -38,8 +38,8 @@ class Dipole(BaseSource):
     @property
     def dipole_moment(self) -> jnp.ndarray:
         if self.moment is None:
-            return jnp.zeros((3,), dtype=jnp.float64)
-        return jnp.asarray(self.moment, dtype=jnp.float64)
+            return jnp.zeros((3,), dtype=float)
+        return jnp.asarray(self.moment, dtype=float)
 
     def _require_inputs(self) -> None:
         if self.moment is None:

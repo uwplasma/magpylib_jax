@@ -39,27 +39,27 @@ class Tetrahedron(BaseSource):
     @property
     def _polarization(self) -> jnp.ndarray:
         if self.polarization is not None:
-            return jnp.asarray(self.polarization, dtype=jnp.float64)
+            return jnp.asarray(self.polarization, dtype=float)
         if self.magnetization is not None:
-            return MU0 * jnp.asarray(self.magnetization, dtype=jnp.float64)
+            return MU0 * jnp.asarray(self.magnetization, dtype=float)
         raise MagpylibMissingInput("Input polarization of Tetrahedron must be set.")
 
     @property
     def barycenter(self) -> jnp.ndarray:
         if self.vertices is None:
-            return jnp.zeros((3,), dtype=jnp.float64)
-        verts = jnp.asarray(self.vertices, dtype=jnp.float64)
+            return jnp.zeros((3,), dtype=float)
+        verts = jnp.asarray(self.vertices, dtype=float)
         return jnp.mean(verts, axis=0)
 
     @property
     def centroid(self) -> jnp.ndarray:
-        return self.barycenter + jnp.asarray(self.position, dtype=jnp.float64)
+        return self.barycenter + jnp.asarray(self.position, dtype=float)
 
     @property
     def volume(self) -> float:
         if self.vertices is None:
             return 0.0
-        verts = jnp.asarray(self.vertices, dtype=jnp.float64)
+        verts = jnp.asarray(self.vertices, dtype=float)
         a = verts[1] - verts[0]
         b = verts[2] - verts[0]
         c = verts[3] - verts[0]

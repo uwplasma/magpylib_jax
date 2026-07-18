@@ -8,7 +8,7 @@ The repository is organized in layers.
 
 ## Public API layer
 
-- [`src/magpylib_jax/__init__.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/__init__.py) — package surface; enables JAX x64 on import.
+- [`src/magpylib_jax/__init__.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/__init__.py) — package surface (does not mutate the global JAX config).
 - [`src/magpylib_jax/functional.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/functional.py) — thin re-export facade over the `fields/` package (`getB/getH/getJ/getM/getFT`).
 - [`src/magpylib_jax/collection.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/collection.py)
 - [`src/magpylib_jax/sensor.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/sensor.py)
@@ -28,7 +28,6 @@ This layer handles:
 - [`fields/prepare.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/fields/prepare.py) — source/sensor/observer preparation and padding.
 - [`fields/engine.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/fields/engine.py) — the vectorized JIT evaluation engine (default path).
 - [`fields/eager.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/fields/eager.py) — eager reference evaluator for output modes outside JIT.
-- [`fields/cache.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/fields/cache.py) — preparation caches.
 - [`fields/force.py`](https://github.com/uwplasma/magpylib_jax/blob/main/src/magpylib_jax/fields/force.py) — `getFT`, autodiff force and torque.
 
 ## Object base layer

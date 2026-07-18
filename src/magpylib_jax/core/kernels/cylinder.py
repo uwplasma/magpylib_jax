@@ -192,8 +192,8 @@ def magnet_cylinder_jfield(
 ) -> jnp.ndarray:
     """J-field for homogeneously polarized cylinders."""
     obs = ensure_observers(observers)
-    dim = _broadcast_vector(jnp.asarray(dimensions, dtype=jnp.float64), (obs.shape[0], 2))
-    pol = _broadcast_vector(jnp.asarray(polarizations, dtype=jnp.float64), obs.shape)
+    dim = _broadcast_vector(jnp.asarray(dimensions, dtype=float), (obs.shape[0], 2))
+    pol = _broadcast_vector(jnp.asarray(polarizations, dtype=float), obs.shape)
 
     r, _, z = cart_to_cyl(obs)
     r0, z0 = (dim / 2.0).T
@@ -225,8 +225,8 @@ def magnet_cylinder_bfield(
 ) -> jnp.ndarray:
     """B-field of homogeneously polarized cylinders centered at the origin."""
     obs = ensure_observers(observers)
-    dim = _broadcast_vector(jnp.asarray(dimensions, dtype=jnp.float64), (obs.shape[0], 2))
-    pol = _broadcast_vector(jnp.asarray(polarizations, dtype=jnp.float64), obs.shape)
+    dim = _broadcast_vector(jnp.asarray(dimensions, dtype=float), (obs.shape[0], 2))
+    pol = _broadcast_vector(jnp.asarray(polarizations, dtype=float), obs.shape)
 
     r, phi, z = cart_to_cyl(obs)
     r0, z0 = (dim / 2.0).T
@@ -266,8 +266,8 @@ def magnet_cylinder_hfield(
 ) -> jnp.ndarray:
     """H-field of homogeneously polarized cylinders centered at the origin."""
     obs = ensure_observers(observers)
-    dim = _broadcast_vector(jnp.asarray(dimensions, dtype=jnp.float64), (obs.shape[0], 2))
-    pol = _broadcast_vector(jnp.asarray(polarizations, dtype=jnp.float64), obs.shape)
+    dim = _broadcast_vector(jnp.asarray(dimensions, dtype=float), (obs.shape[0], 2))
+    pol = _broadcast_vector(jnp.asarray(polarizations, dtype=float), obs.shape)
 
     r, phi, z = cart_to_cyl(obs)
     r0, z0 = (dim / 2.0).T

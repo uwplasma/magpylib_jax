@@ -32,9 +32,9 @@ class TriangleSheet(BaseSource):
             and self.faces is not None
             and self.current_densities is not None
         ):
-            verts = jnp.asarray(self.vertices, dtype=jnp.float64)
+            verts = jnp.asarray(self.vertices, dtype=float)
             facs = jnp.asarray(self.faces, dtype=jnp.int32)
-            cds = jnp.asarray(self.current_densities, dtype=jnp.float64)
+            cds = jnp.asarray(self.current_densities, dtype=float)
             if verts.ndim != 2 or verts.shape[1] != 3:
                 raise ValueError("TriangleSheet `vertices` must have shape (n,3).")
             if facs.ndim != 2 or facs.shape[1] != 3:
@@ -58,9 +58,9 @@ class TriangleSheet(BaseSource):
     @property
     def centroid(self) -> jnp.ndarray:
         if self.vertices is None:
-            return jnp.asarray(self.position, dtype=jnp.float64)
-        verts = jnp.asarray(self.vertices, dtype=jnp.float64)
-        return jnp.mean(verts, axis=0) + jnp.asarray(self.position, dtype=jnp.float64)
+            return jnp.asarray(self.position, dtype=float)
+        verts = jnp.asarray(self.vertices, dtype=float)
+        return jnp.mean(verts, axis=0) + jnp.asarray(self.position, dtype=float)
 
     @property
     def volume(self) -> float:

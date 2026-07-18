@@ -62,8 +62,8 @@ def current_circle_hfield(
     obs = ensure_observers(observers)
     r, phi, z = cart_to_cyl(obs)
 
-    radius = jnp.abs(jnp.asarray(diameter, dtype=jnp.float64) / 2.0)
-    cur = jnp.asarray(current, dtype=jnp.float64)
+    radius = jnp.abs(jnp.asarray(diameter, dtype=float) / 2.0)
+    cur = jnp.asarray(current, dtype=float)
     radius = jnp.broadcast_to(radius, r.shape)
     cur = jnp.broadcast_to(cur, r.shape)
 
@@ -106,7 +106,7 @@ def current_circle_bfield(
     current: ArrayLike,
 ) -> jnp.ndarray:
     """B-field of a current circle (Tesla)."""
-    return jnp.asarray(MU0 * current_circle_hfield(observers, diameter, current), dtype=jnp.float64)
+    return jnp.asarray(MU0 * current_circle_hfield(observers, diameter, current), dtype=float)
 
 
 def current_circle_bfield_jit(
@@ -116,7 +116,7 @@ def current_circle_bfield_jit(
 ) -> jnp.ndarray:
     """JIT-specialized circle B-field for fixed observer counts."""
     obs = ensure_observers(observers)
-    dia = jnp.asarray(diameter, dtype=jnp.float64)
-    cur = jnp.asarray(current, dtype=jnp.float64)
+    dia = jnp.asarray(diameter, dtype=float)
+    cur = jnp.asarray(current, dtype=float)
     jit_fn = _jit_kernel_simple("circle_bfield", current_circle_bfield, obs.shape[0])
     return jit_fn(obs, dia, cur)

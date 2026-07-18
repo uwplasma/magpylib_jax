@@ -38,9 +38,9 @@ class CustomSource(BaseSource):
     def getB(self, *observers: ArrayLike, **_kwargs) -> jnp.ndarray:
         if callable(self.field_func):
             obs = observers[0] if len(observers) == 1 else list(observers)
-            return jnp.asarray(self.field_func(obs), dtype=jnp.float64)
+            return jnp.asarray(self.field_func(obs), dtype=float)
         obs = observers[0] if len(observers) == 1 else list(observers)
-        obs = jnp.asarray(obs, dtype=jnp.float64)
+        obs = jnp.asarray(obs, dtype=float)
         return jnp.zeros_like(obs)
 
     def getH(self, observers: ArrayLike, **kwargs) -> jnp.ndarray:

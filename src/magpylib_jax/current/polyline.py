@@ -37,7 +37,7 @@ class Polyline(BaseSource):
     def _segments(self) -> tuple[jnp.ndarray, jnp.ndarray]:
         if self.vertices is None:
             raise MagpylibMissingInput("Input vertices of Polyline must be set.")
-        verts = jnp.asarray(self.vertices, dtype=jnp.float64)
+        verts = jnp.asarray(self.vertices, dtype=float)
         if verts.ndim != 2 or verts.shape[0] < 2 or verts.shape[1] != 3:
             raise ValueError("`vertices` must have shape (n>=2, 3).")
         return verts[:-1], verts[1:]
@@ -45,9 +45,9 @@ class Polyline(BaseSource):
     @property
     def centroid(self) -> jnp.ndarray:
         if self.vertices is None:
-            return jnp.asarray(self.position, dtype=jnp.float64)
-        verts = jnp.asarray(self.vertices, dtype=jnp.float64)
-        return jnp.mean(verts, axis=0) + jnp.asarray(self.position, dtype=jnp.float64)
+            return jnp.asarray(self.position, dtype=float)
+        verts = jnp.asarray(self.vertices, dtype=float)
+        return jnp.mean(verts, axis=0) + jnp.asarray(self.position, dtype=float)
 
     @property
     def volume(self) -> float:

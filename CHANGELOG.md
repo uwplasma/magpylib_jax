@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Changed (BREAKING)
+
+- **Precision now follows your JAX config; the library no longer enables x64 on import.** magpylib_jax
+  previously called `jax.config.update("jax_enable_x64", True)` at import, which mutates global JAX
+  state process-wide (slowing GPU/TPU work and surprising other libraries). It no longer does. The
+  kernels no longer hard-code `float64` (all `dtype=jnp.float64` → `dtype=float`), so precision tracks
+  JAX's default: **float32 unless you enable x64**.
+
+  **Migration:** for magpylib parity (float64), enable double precision yourself *before* using the
+  library:
+
+  ```python
+  import jax
+  jax.config.update("jax_enable_x64", True)
+  import magpylib_jax as mpj
+  ```
+
+  This follows standard JAX library conventions. Thanks to the collaborator who flagged it.
+
 ### Fixed
 
 - **Docs math now renders on Read the Docs.** Enabled the MyST `dollarmath`/`amsmath` extensions

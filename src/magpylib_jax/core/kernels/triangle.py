@@ -99,8 +99,8 @@ def triangle_bfield(
     obs = ensure_observers(observers)
     n = obs.shape[0]
 
-    tri = jnp.asarray(vertices, dtype=jnp.float64)
-    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), n)
+    tri = jnp.asarray(vertices, dtype=float)
+    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=float), n)
 
     if tri.ndim == 2:
         tri_const = tri
@@ -176,8 +176,8 @@ def triangle_bfield_jit(
 ) -> jnp.ndarray:
     """JIT-specialized triangle B-field for fixed observer counts."""
     obs = ensure_observers(observers)
-    tri = jnp.asarray(vertices, dtype=jnp.float64)
-    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), obs.shape[0])
+    tri = jnp.asarray(vertices, dtype=float)
+    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=float), obs.shape[0])
     if tri.ndim != 2:
         return triangle_bfield(obs, tri, pol)
     jit_fn = _jit_kernel_simple("triangle_bfield", _triangle_bfield_const_impl, obs.shape[0])

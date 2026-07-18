@@ -47,14 +47,22 @@ The differentiability tests therefore focus on representative off-singularity po
 
 ## Precision mode
 
-The tests and profiling scripts use `jax_enable_x64=True`. That is intentional: many parity checks depend on double precision, especially for:
+magpylib_jax follows your JAX precision setting and **never mutates the global JAX config on
+import**. Arrays use JAX's default float dtype: `float32` unless you enable x64. The kernels do not
+hard-code `float64`, so a single toggle switches the whole library between single and double
+precision:
 
-- near-boundary evaluation,
-- mesh and tetrahedron geometry reductions,
-- elliptic-integral based kernels,
-- benchmark comparisons at strict tolerances.
+```python
+import jax
+jax.config.update("jax_enable_x64", True)   # float64; needed for magpylib parity
+import magpylib_jax as mpj
+```
 
-Using x64 is strongly recommended for scientific workloads.
+Double precision is recommended for scientific workloads and is required for bit-level magpylib
+parity, especially for near-boundary evaluation, mesh/tetrahedron geometry reductions,
+elliptic-integral kernels, and strict-tolerance benchmarks. The test suite enables x64 (via
+`conftest.py`). `float32` is the fast default on GPU/TPU and is fine when magpylib-level accuracy
+is not required.
 
 ## High-level API numerics
 

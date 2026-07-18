@@ -38,10 +38,10 @@ def current_tristrip_hfield(
     current: ArrayLike,
 ) -> jnp.ndarray:
     obs = ensure_observers(observers)
-    verts = jnp.asarray(vertices, dtype=jnp.float64)
+    verts = jnp.asarray(vertices, dtype=float)
     if verts.ndim != 2 or verts.shape[1] != 3 or verts.shape[0] < 3:
         raise ValueError("TriangleStrip vertices must have shape (n>=3,3).")
-    cur = jnp.asarray(current, dtype=jnp.float64).reshape(())
+    cur = jnp.asarray(current, dtype=float).reshape(())
     tris = _strip_triangles(verts)
     cds = _strip_current_densities(verts, cur)
     h_faces = jax.vmap(lambda tri, cd: _current_triangle_sheet_hfield_obs(obs, tri, cd))(tris, cds)
@@ -63,7 +63,7 @@ def current_tristrip_bfield_jit(
 ) -> jnp.ndarray:
     """JIT-specialized triangle strip B-field for fixed observer counts."""
     obs = ensure_observers(observers)
-    verts = jnp.asarray(vertices, dtype=jnp.float64)
-    curr = jnp.asarray(current, dtype=jnp.float64)
+    verts = jnp.asarray(vertices, dtype=float)
+    curr = jnp.asarray(current, dtype=float)
     jit_fn = _jit_kernel_simple("trianglestrip_bfield", current_tristrip_bfield, obs.shape[0])
     return jit_fn(obs, verts, curr)

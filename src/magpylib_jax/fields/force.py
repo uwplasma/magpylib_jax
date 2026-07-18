@@ -299,15 +299,15 @@ def _generate_ft_mesh(target: Any) -> tuple[jnp.ndarray, jnp.ndarray, str]:
     from magpylib_jax.misc import Dipole
 
     if isinstance(target, Dipole):
-        pts = jnp.zeros((1, 3), dtype=jnp.float64)
-        moment = jnp.asarray(target.moment, dtype=jnp.float64).reshape(1, 3)
+        pts = jnp.zeros((1, 3), dtype=float)
+        moment = jnp.asarray(target.moment, dtype=float).reshape(1, 3)
         return pts, moment, "magnet"
 
     if isinstance(target, Sphere):
-        pts = jnp.zeros((1, 3), dtype=jnp.float64)
-        d = jnp.asarray(target.diameter, dtype=jnp.float64)
+        pts = jnp.zeros((1, 3), dtype=float)
+        d = jnp.asarray(target.diameter, dtype=float)
         volume = (4.0 / 3.0) * jnp.pi * (d / 2.0) ** 3
-        magnetization = jnp.asarray(target._polarization, dtype=jnp.float64) / MU0
+        magnetization = jnp.asarray(target._polarization, dtype=float) / MU0
         moment = (volume * magnetization).reshape(1, 3)
         return pts, moment, "magnet"
 
@@ -325,10 +325,10 @@ def _generate_ft_mesh(target: Any) -> tuple[jnp.ndarray, jnp.ndarray, str]:
         yc = (ys[:-1] + ys[1:]) / 2 if n2 > 1 else np.array([0.0])
         zc = (zs[:-1] + zs[1:]) / 2 if n3 > 1 else np.array([0.0])
         grid = np.array([(x, y, z) for x in xc for y in yc for z in zc])
-        pts = jnp.asarray(grid, dtype=jnp.float64)
+        pts = jnp.asarray(grid, dtype=float)
         n_cells = pts.shape[0]
-        volume = jnp.asarray(a * b * c, dtype=jnp.float64)
-        magnetization = jnp.asarray(target._polarization, dtype=jnp.float64) / MU0
+        volume = jnp.asarray(a * b * c, dtype=float)
+        magnetization = jnp.asarray(target._polarization, dtype=float) / MU0
         cell_moment = (volume / n_cells) * magnetization
         moments = jnp.broadcast_to(cell_moment, (n_cells, 3))
         return pts, moments, "magnet"
@@ -340,16 +340,16 @@ def _generate_ft_mesh(target: Any) -> tuple[jnp.ndarray, jnp.ndarray, str]:
             raise ValueError(
                 f"Circle target meshing must be an integer >= 3; received {n!r}."
             )
-        r = jnp.asarray(target.diameter, dtype=jnp.float64) / 2.0
-        i0 = jnp.asarray(target.current, dtype=jnp.float64)
-        k = jnp.arange(n + 1, dtype=jnp.float64)
+        r = jnp.asarray(target.diameter, dtype=float) / 2.0
+        i0 = jnp.asarray(target.current, dtype=float)
+        k = jnp.arange(n + 1, dtype=float)
         # equal-area polygon radius
         r1 = r * jnp.sqrt((2 * jnp.pi) / (n * jnp.sin(2 * jnp.pi / n)))
         vx = r1 * jnp.cos(2 * jnp.pi * k / n)
         vy = r1 * jnp.sin(2 * jnp.pi * k / n)
         midx = (vx[:-1] + vx[1:]) / 2
         midy = (vy[:-1] + vy[1:]) / 2
-        midz = jnp.zeros((n,), dtype=jnp.float64)
+        midz = jnp.zeros((n,), dtype=float)
         tx = vx[1:] - vx[:-1]
         ty = vy[1:] - vy[:-1]
         pts = jnp.stack((midx, midy, midz), axis=1)
@@ -357,8 +357,8 @@ def _generate_ft_mesh(target: Any) -> tuple[jnp.ndarray, jnp.ndarray, str]:
         return pts, cvecs, "current"
 
     if isinstance(target, Polyline):
-        verts = jnp.asarray(target.vertices, dtype=jnp.float64)
-        i0 = jnp.asarray(target.current, dtype=jnp.float64)
+        verts = jnp.asarray(target.vertices, dtype=float)
+        i0 = jnp.asarray(target.current, dtype=float)
         meshing = getattr(target, "meshing", None)
         n_points = int(meshing) if meshing is not None else (verts.shape[0] - 1)
         seg_vecs = verts[1:] - verts[:-1]
@@ -388,34 +388,34 @@ def _generate_ft_mesh(target: Any) -> tuple[jnp.ndarray, jnp.ndarray, str]:
         meshing = int(getattr(target, "meshing", None) or 1)
         r1, r2, h, phi1, phi2 = (float(v) for v in np.asarray(target.dimension, dtype=float))
         pts_np, vols_np = _cylinder_cells(r1, r2, h, phi1, phi2, meshing)
-        pts = jnp.asarray(pts_np, dtype=jnp.float64)
-        magnetization = jnp.asarray(target._polarization, dtype=jnp.float64) / MU0
-        moments = jnp.asarray(vols_np, dtype=jnp.float64)[:, None] * magnetization
+        pts = jnp.asarray(pts_np, dtype=float)
+        magnetization = jnp.asarray(target._polarization, dtype=float) / MU0
+        moments = jnp.asarray(vols_np, dtype=float)[:, None] * magnetization
         return pts, moments, "magnet"
 
     if isinstance(target, Cylinder):
         meshing = int(getattr(target, "meshing", None) or 1)
         d, h = (float(v) for v in np.asarray(target.dimension, dtype=float))
         pts_np, vols_np = _cylinder_cells(0.0, d / 2.0, h, 0.0, 360.0, meshing)
-        pts = jnp.asarray(pts_np, dtype=jnp.float64)
-        magnetization = jnp.asarray(target._polarization, dtype=jnp.float64) / MU0
-        moments = jnp.asarray(vols_np, dtype=jnp.float64)[:, None] * magnetization
+        pts = jnp.asarray(pts_np, dtype=float)
+        magnetization = jnp.asarray(target._polarization, dtype=float) / MU0
+        moments = jnp.asarray(vols_np, dtype=float)[:, None] * magnetization
         return pts, moments, "magnet"
 
     if isinstance(target, Tetrahedron):
         meshing = int(getattr(target, "meshing", None) or 1)
         verts_np = np.asarray(target.vertices, dtype=float)
         pts_np, vols_np = _tetrahedron_cells(meshing, verts_np)
-        pts = jnp.asarray(pts_np, dtype=jnp.float64)
-        magnetization = jnp.asarray(target._polarization, dtype=jnp.float64) / MU0
-        moments = jnp.asarray(vols_np, dtype=jnp.float64)[:, None] * magnetization
+        pts = jnp.asarray(pts_np, dtype=float)
+        magnetization = jnp.asarray(target._polarization, dtype=float) / MU0
+        moments = jnp.asarray(vols_np, dtype=float)[:, None] * magnetization
         return pts, moments, "magnet"
 
     if isinstance(target, TriangularMesh):
         meshing = int(getattr(target, "meshing", None) or 1)
         mesh_np = np.asarray(target.mesh, dtype=float)  # (m,3,3) oriented triangles
         volume = float(target.volume)
-        magnetization = jnp.asarray(target._polarization, dtype=jnp.float64) / MU0
+        magnetization = jnp.asarray(target._polarization, dtype=float) / MU0
         if meshing == 1:
             # area-weighted surface centroid (barycenter), single cell
             ctri = mesh_np.mean(axis=1)
@@ -424,8 +424,8 @@ def _generate_ft_mesh(target: Any) -> tuple[jnp.ndarray, jnp.ndarray, str]:
                 axis=1,
             )
             bary = (ctri * area[:, None]).sum(axis=0) / area.sum()
-            pts = jnp.asarray(bary, dtype=jnp.float64).reshape(1, 3)
-            moments = (jnp.asarray(volume, dtype=jnp.float64) * magnetization).reshape(1, 3)
+            pts = jnp.asarray(bary, dtype=float).reshape(1, 3)
+            moments = (jnp.asarray(volume, dtype=float) * magnetization).reshape(1, 3)
             return pts, moments, "magnet"
         from magpylib_jax.core.kernels import _mask_inside_trimesh_jax
 
@@ -436,7 +436,7 @@ def _generate_ft_mesh(target: Any) -> tuple[jnp.ndarray, jnp.ndarray, str]:
         grid = _create_regular_grid(min_c - pad, max_c + pad, spacing)
         inside = np.asarray(
             _mask_inside_trimesh_jax(
-                jnp.asarray(grid, dtype=jnp.float64), jnp.asarray(mesh_np, dtype=jnp.float64)
+                jnp.asarray(grid, dtype=float), jnp.asarray(mesh_np, dtype=float)
             )
         )
         pts_np = grid[inside]
@@ -447,16 +447,16 @@ def _generate_ft_mesh(target: Any) -> tuple[jnp.ndarray, jnp.ndarray, str]:
                 axis=1,
             )
             pts_np = ((ctri * area[:, None]).sum(axis=0) / area.sum()).reshape(1, 3)
-        pts = jnp.asarray(pts_np, dtype=jnp.float64)
+        pts = jnp.asarray(pts_np, dtype=float)
         cell_vol = volume / pts.shape[0]
-        moments = (jnp.asarray(cell_vol, dtype=jnp.float64) * magnetization)
+        moments = (jnp.asarray(cell_vol, dtype=float) * magnetization)
         moments = jnp.broadcast_to(moments, (pts.shape[0], 3))
         return pts, moments, "magnet"
 
     if isinstance(target, TriangleStrip):
         meshing = int(getattr(target, "meshing", None) or 1)
         verts_np = np.asarray(target.vertices, dtype=float)
-        i0 = jnp.asarray(target.current, dtype=jnp.float64)
+        i0 = jnp.asarray(target.current, dtype=float)
         triangles = np.array([verts_np[i : i + 3] for i in range(len(verts_np) - 2)])
         side_a = triangles[:, 1] - triangles[:, 0]
         side_b = triangles[:, 2] - triangles[:, 0]
@@ -473,20 +473,20 @@ def _generate_ft_mesh(target: Any) -> tuple[jnp.ndarray, jnp.ndarray, str]:
         cds_geom = side_b[mask_good] / base_length[:, None] / height[:, None]
         centroids, splits, surfaces = _triangle_current_cells(triangles, meshing)
         cds_rep = np.repeat(cds_geom, 2**splits, axis=0) * surfaces[:, None]
-        pts = jnp.asarray(centroids, dtype=jnp.float64)
-        cvecs = jnp.asarray(cds_rep, dtype=jnp.float64) * i0
+        pts = jnp.asarray(centroids, dtype=float)
+        cvecs = jnp.asarray(cds_rep, dtype=float) * i0
         return pts, cvecs, "current"
 
     if isinstance(target, TriangleSheet):
         meshing = int(getattr(target, "meshing", None) or 1)
         verts_np = np.asarray(target.vertices, dtype=float)
         faces_np = np.asarray(target.faces, dtype=int)
-        cds = jnp.asarray(target.current_densities, dtype=jnp.float64)
+        cds = jnp.asarray(target.current_densities, dtype=float)
         triangles = verts_np[faces_np]
         centroids, splits, surfaces = _triangle_current_cells(triangles, meshing)
         reps = jnp.asarray(np.repeat(np.arange(len(faces_np)), 2**splits))
-        pts = jnp.asarray(centroids, dtype=jnp.float64)
-        cvecs = cds[reps] * jnp.asarray(surfaces, dtype=jnp.float64)[:, None]
+        pts = jnp.asarray(centroids, dtype=float)
+        cvecs = cds[reps] * jnp.asarray(surfaces, dtype=float)[:, None]
         return pts, cvecs, "current"
 
     raise NotImplementedError(
@@ -548,7 +548,7 @@ def _flatten_targets(targets: Any) -> tuple[list, list[int]]:
 
 def _pad_edge(arr: Any, n: int) -> jnp.ndarray:
     """Edge-pad axis 0 of a JAX array to length ``n`` (keeps gradients)."""
-    arr = jnp.asarray(arr, dtype=jnp.float64)
+    arr = jnp.asarray(arr, dtype=float)
     if arr.shape[0] == n:
         return arr
     pad = jnp.broadcast_to(arr[-1:], (n - arr.shape[0],) + arr.shape[1:])
@@ -560,7 +560,7 @@ def _target_centroid(target: Any, n_path: int) -> jnp.ndarray:
     cent = getattr(target, "centroid", None)
     if cent is None:
         cent = target.position
-    cent = jnp.asarray(cent, dtype=jnp.float64)
+    cent = jnp.asarray(cent, dtype=float)
     if cent.ndim == 1:
         cent = jnp.broadcast_to(cent, (n_path, 3))
     else:
@@ -580,7 +580,7 @@ def _format_pivot(pivot: Any, targets: list, n_path: int) -> jnp.ndarray | None:
             )
         return jnp.stack([_target_centroid(t, n_path) for t in targets], axis=0)
 
-    piv = jnp.asarray(pivot, dtype=jnp.float64)
+    piv = jnp.asarray(pivot, dtype=float)
     if piv.shape == (3,):
         return jnp.broadcast_to(piv, (n_tgt, n_path, 3))
     if piv.shape == (n_tgt, 3):

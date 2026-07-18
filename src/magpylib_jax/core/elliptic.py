@@ -18,12 +18,12 @@ def cel(
     errtol: float = 1e-8,
 ) -> jnp.ndarray:
     """Vectorized complete elliptic integral in Bulirsch CEL form."""
-    tiny = jnp.array(1e-30, dtype=jnp.float64)
+    tiny = jnp.array(1e-30, dtype=float)
 
-    kc = jnp.asarray(kc, dtype=jnp.float64)
-    pp = jnp.asarray(p, dtype=jnp.float64)
-    cc = jnp.asarray(c, dtype=jnp.float64)
-    ss = jnp.asarray(s, dtype=jnp.float64)
+    kc = jnp.asarray(kc, dtype=float)
+    pp = jnp.asarray(p, dtype=float)
+    cc = jnp.asarray(c, dtype=float)
+    ss = jnp.asarray(s, dtype=float)
 
     k = jnp.where(jnp.abs(kc) < tiny, tiny, jnp.abs(kc))
     em = jnp.ones_like(k)
@@ -87,7 +87,7 @@ def cel(
 @jax.jit
 def ellipk(m: jnp.ndarray) -> jnp.ndarray:
     """Complete elliptic integral of the first kind K(m)."""
-    m = jnp.asarray(m, dtype=jnp.float64)
+    m = jnp.asarray(m, dtype=float)
     one = jnp.ones_like(m)
     return cel(jnp.sqrt(1.0 - m), one, one, one)
 
@@ -95,7 +95,7 @@ def ellipk(m: jnp.ndarray) -> jnp.ndarray:
 @jax.jit
 def ellipe(m: jnp.ndarray) -> jnp.ndarray:
     """Complete elliptic integral of the second kind E(m)."""
-    m = jnp.asarray(m, dtype=jnp.float64)
+    m = jnp.asarray(m, dtype=float)
     one = jnp.ones_like(m)
     return cel(jnp.sqrt(1.0 - m), one, one, one - m)
 
@@ -103,7 +103,7 @@ def ellipe(m: jnp.ndarray) -> jnp.ndarray:
 @jax.jit
 def ellippi(n: jnp.ndarray, m: jnp.ndarray) -> jnp.ndarray:
     """Complete elliptic integral of the third kind Π(n, m)."""
-    n = jnp.asarray(n, dtype=jnp.float64)
-    m = jnp.asarray(m, dtype=jnp.float64)
+    n = jnp.asarray(n, dtype=float)
+    m = jnp.asarray(m, dtype=float)
     one = jnp.ones_like(m)
     return cel(jnp.sqrt(1.0 - m), 1.0 - n, one, one)

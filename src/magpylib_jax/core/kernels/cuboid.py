@@ -20,8 +20,8 @@ def magnet_cuboid_bfield(
 ) -> jnp.ndarray:
     """B-field of homogeneously polarized cuboids centered at the origin."""
     obs = ensure_observers(observers)
-    dim = _broadcast_vector(jnp.asarray(dimensions, dtype=jnp.float64), obs.shape)
-    pol = _broadcast_vector(jnp.asarray(polarizations, dtype=jnp.float64), obs.shape)
+    dim = _broadcast_vector(jnp.asarray(dimensions, dtype=float), obs.shape)
+    pol = _broadcast_vector(jnp.asarray(polarizations, dtype=float), obs.shape)
 
     pol_x, pol_y, pol_z = pol.T
     a, b, c = (dim / 2.0).T
@@ -35,10 +35,10 @@ def magnet_cuboid_bfield(
     y = jnp.where(masky, -y, y)
     z = jnp.where(maskz, -z, z)
 
-    qsigns = jnp.ones((obs.shape[0], 3, 3), dtype=jnp.float64)
-    qs_flipx = jnp.array([[1, -1, -1], [-1, 1, 1], [-1, 1, 1]], dtype=jnp.float64)
-    qs_flipy = jnp.array([[1, -1, 1], [-1, 1, -1], [1, -1, 1]], dtype=jnp.float64)
-    qs_flipz = jnp.array([[1, 1, -1], [1, 1, -1], [-1, -1, 1]], dtype=jnp.float64)
+    qsigns = jnp.ones((obs.shape[0], 3, 3), dtype=float)
+    qs_flipx = jnp.array([[1, -1, -1], [-1, 1, 1], [-1, 1, 1]], dtype=float)
+    qs_flipy = jnp.array([[1, -1, 1], [-1, 1, -1], [1, -1, 1]], dtype=float)
+    qs_flipz = jnp.array([[1, 1, -1], [1, 1, -1], [-1, -1, 1]], dtype=float)
 
     qsigns = qsigns * jnp.where(maskx[:, None, None], qs_flipx, 1.0)
     qsigns = qsigns * jnp.where(masky[:, None, None], qs_flipy, 1.0)
@@ -166,8 +166,8 @@ def magnet_cuboid_jfield(
 ) -> jnp.ndarray:
     """J-field for homogeneously polarized cuboids."""
     obs = ensure_observers(observers)
-    dim = _broadcast_vector(jnp.asarray(dimensions, dtype=jnp.float64), obs.shape)
-    pol = _broadcast_vector(jnp.asarray(polarizations, dtype=jnp.float64), obs.shape)
+    dim = _broadcast_vector(jnp.asarray(dimensions, dtype=float), obs.shape)
+    pol = _broadcast_vector(jnp.asarray(polarizations, dtype=float), obs.shape)
     mask_inside, _ = _cuboid_masks(obs, dim, pol)
     return jnp.where(mask_inside[:, None], pol, 0.0)
 
@@ -190,8 +190,8 @@ def magnet_cuboid_hfield(
 ) -> jnp.ndarray:
     """H-field for homogeneously polarized cuboids."""
     obs = ensure_observers(observers)
-    dim = _broadcast_vector(jnp.asarray(dimensions, dtype=jnp.float64), obs.shape)
-    pol = _broadcast_vector(jnp.asarray(polarizations, dtype=jnp.float64), obs.shape)
+    dim = _broadcast_vector(jnp.asarray(dimensions, dtype=float), obs.shape)
+    pol = _broadcast_vector(jnp.asarray(polarizations, dtype=float), obs.shape)
 
     mask_inside, mask_gen = _cuboid_masks(obs, dim, pol)
     b_all = magnet_cuboid_bfield(obs, dim, pol)

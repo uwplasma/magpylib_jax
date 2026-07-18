@@ -84,7 +84,7 @@ def _evaluate_core_field(
             return dipole_bfield(obs_local, moment)
         if output_field == "H":
             return dipole_hfield(obs_local, moment)
-        return jnp.zeros_like(obs_local, dtype=jnp.float64)
+        return jnp.zeros_like(obs_local, dtype=float)
 
     if source_type == "circle":
         diameter = kwargs.get("diameter")
@@ -95,7 +95,7 @@ def _evaluate_core_field(
             return current_circle_bfield(obs_local, diameter=diameter, current=current)
         if output_field == "H":
             return current_circle_hfield(obs_local, diameter=diameter, current=current)
-        return jnp.zeros_like(obs_local, dtype=jnp.float64)
+        return jnp.zeros_like(obs_local, dtype=float)
 
     if source_type == "cuboid":
         dimension = kwargs.get("dimension")
@@ -173,7 +173,7 @@ def _evaluate_core_field(
             return current_polyline_bfield(obs_local, segment_start, segment_end, current)
         if output_field == "H":
             return current_polyline_hfield(obs_local, segment_start, segment_end, current)
-        return jnp.zeros_like(obs_local, dtype=jnp.float64)
+        return jnp.zeros_like(obs_local, dtype=float)
 
     if source_type == "trianglesheet":
         vertices = kwargs.get("vertices")
@@ -185,7 +185,7 @@ def _evaluate_core_field(
             return current_trisheet_bfield(obs_local, vertices, faces, current_densities)
         if output_field == "H":
             return current_trisheet_hfield(obs_local, vertices, faces, current_densities)
-        return jnp.zeros_like(obs_local, dtype=jnp.float64)
+        return jnp.zeros_like(obs_local, dtype=float)
 
     if source_type == "trianglestrip":
         vertices = kwargs.get("vertices")
@@ -196,7 +196,7 @@ def _evaluate_core_field(
             return current_tristrip_bfield(obs_local, vertices, current)
         if output_field == "H":
             return current_tristrip_hfield(obs_local, vertices, current)
-        return jnp.zeros_like(obs_local, dtype=jnp.float64)
+        return jnp.zeros_like(obs_local, dtype=float)
 
     if source_type == "triangularmesh":
         mesh = kwargs.get("mesh")
@@ -239,7 +239,7 @@ def _evaluate_source_field(
 ) -> tuple[jnp.ndarray, int]:
     if isinstance(source, Sequence) and not isinstance(source, (str, bytes)):
         if not source:
-            base = ensure_observers(jnp.asarray(observers, dtype=jnp.float64))
+            base = ensure_observers(jnp.asarray(observers, dtype=float))
             return jnp.zeros_like(base), 0
 
         terms: list[jnp.ndarray] = []
@@ -250,9 +250,9 @@ def _evaluate_source_field(
                     f"Source object {type(src).__name__!r} has no get{field_name} method."
                 )
             if "in_out" in inspect.signature(method).parameters:
-                terms.append(jnp.asarray(method(observers, in_out=in_out), dtype=jnp.float64))
+                terms.append(jnp.asarray(method(observers, in_out=in_out), dtype=float))
             else:
-                terms.append(jnp.asarray(method(observers), dtype=jnp.float64))
+                terms.append(jnp.asarray(method(observers), dtype=float))
 
         broadcasted = jnp.broadcast_arrays(*terms)
         stacked = jnp.stack(broadcasted, axis=0)
@@ -264,8 +264,8 @@ def _evaluate_source_field(
     if method is None:
         raise TypeError(f"Source object {type(source).__name__!r} has no get{field_name} method.")
     if "in_out" in inspect.signature(method).parameters:
-        return jnp.asarray(method(observers, in_out=in_out), dtype=jnp.float64), 1
-    return jnp.asarray(method(observers), dtype=jnp.float64), 1
+        return jnp.asarray(method(observers, in_out=in_out), dtype=float), 1
+    return jnp.asarray(method(observers), dtype=float), 1
 
 
 def _compute_field_legacy(
@@ -301,10 +301,10 @@ def _compute_field_legacy(
     for sens in sensors:
         pix = sens.pixel
         if pix is None:
-            pix_arr = jnp.zeros((1, 3), dtype=jnp.float64)
+            pix_arr = jnp.zeros((1, 3), dtype=float)
             pix_shape = (1, 3)
         else:
-            pix_arr = jnp.asarray(pix, dtype=jnp.float64)
+            pix_arr = jnp.asarray(pix, dtype=float)
             if pix_arr.shape == (3,):
                 pix_arr = pix_arr[None, :]
             pix_shape = pix_arr.shape
@@ -313,8 +313,8 @@ def _compute_field_legacy(
             {
                 "pix_flat": pix_flat,
                 "pix_shape": pix_shape,
-                "pos": jnp.asarray(sens._position, dtype=jnp.float64),
-                "rot": jnp.asarray(sens._orientation_matrix, dtype=jnp.float64),
+                "pos": jnp.asarray(sens._position, dtype=float),
+                "rot": jnp.asarray(sens._orientation_matrix, dtype=float),
                 "handedness": sens.handedness,
             }
         )
@@ -351,7 +351,7 @@ def _compute_field_legacy(
                 sens_rot = sd["rot"][min(p, int(sd["rot"].shape[0]) - 1)]
                 seg = seg @ sens_rot
                 if sd["handedness"] == "left":
-                    seg = seg * jnp.array([-1.0, 1.0, 1.0], dtype=jnp.float64)
+                    seg = seg * jnp.array([-1.0, 1.0, 1.0], dtype=float)
                 slices.append(seg)
                 offset += pix_count
             b_paths.append(jnp.concatenate(slices, axis=0))
@@ -426,7 +426,7 @@ def _get_field_from_type(
     **kwargs: ArrayLike,
 ) -> jnp.ndarray:
     norm_type = _normalize_source_type(source_type)
-    obs_input = jnp.asarray(observers, dtype=jnp.float64)
+    obs_input = jnp.asarray(observers, dtype=float)
     pos_path, rot_path = broadcast_pose(position=position, orientation=orientation)
     n_path = int(pos_path.shape[0])
 

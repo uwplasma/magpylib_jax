@@ -108,7 +108,7 @@ def _format_observers(observers: object, pixel_agg: str | None):
 
     # attempt to parse as single array-like
     try:
-        arr = jnp.asarray(observers, dtype=jnp.float64)
+        arr = jnp.asarray(observers, dtype=float)
         if arr.shape[-1] != 3:
             raise ValueError
         pix_shapes = [(1, 3) if arr.shape == (3,) else tuple(arr.shape)]
@@ -127,7 +127,7 @@ def _format_observers(observers: object, pixel_agg: str | None):
             sensors.extend(child_sensors)
         else:
             try:
-                arr = jnp.asarray(obj, dtype=jnp.float64)
+                arr = jnp.asarray(obj, dtype=float)
                 if arr.shape[-1] != 3:
                     raise ValueError
                 sensors.append(Sensor(pixel=arr))
@@ -179,7 +179,7 @@ def _source_kwargs_from_object(source: object, *, in_out: str) -> tuple[str, dic
     if stype == "circle":
         return stype, {"diameter": source.diameter, "current": source.current}
     if stype == "polyline":
-        verts = jnp.asarray(source.vertices, dtype=jnp.float64)
+        verts = jnp.asarray(source.vertices, dtype=float)
         return stype, {
             "segment_start": verts[:-1],
             "segment_end": verts[1:],
@@ -213,8 +213,8 @@ def _build_source_specs(
         src_specs = [
             {
                 "type": src_type,
-                "pos": jnp.asarray(pos_path, dtype=jnp.float64),
-                "rot": jnp.asarray(rot_path, dtype=jnp.float64),
+                "pos": jnp.asarray(pos_path, dtype=float),
+                "rot": jnp.asarray(rot_path, dtype=float),
                 "kwargs": {**kwargs, "in_out": in_out},
                 "label": src_type,
             }
@@ -235,8 +235,8 @@ def _build_source_specs(
             src_specs.append(
                 {
                     "type": stype,
-                    "pos": jnp.asarray(src._position, dtype=jnp.float64),
-                    "rot": jnp.asarray(src._orientation_matrix, dtype=jnp.float64),
+                    "pos": jnp.asarray(src._position, dtype=float),
+                    "rot": jnp.asarray(src._orientation_matrix, dtype=float),
                     "kwargs": skw,
                     "label": _source_label(src),
                 }
@@ -279,27 +279,27 @@ def _prepare_sources_jit(
         if stype == "dipole":
             if skw.get("moment") is None:
                 raise MagpylibMissingInput("Input moment of Dipole must be set.")
-            data["moment"] = jnp.asarray(skw["moment"], dtype=jnp.float64)
+            data["moment"] = jnp.asarray(skw["moment"], dtype=float)
         elif stype == "circle":
             if skw.get("diameter") is None or skw.get("current") is None:
                 raise MagpylibMissingInput("Input diameter of Circle must be set.")
-            data["diameter"] = jnp.asarray(skw["diameter"], dtype=jnp.float64)
-            data["current"] = jnp.asarray(skw["current"], dtype=jnp.float64)
+            data["diameter"] = jnp.asarray(skw["diameter"], dtype=float)
+            data["current"] = jnp.asarray(skw["current"], dtype=float)
         elif stype == "cuboid":
             if skw.get("dimension") is None or skw.get("polarization") is None:
                 raise MagpylibMissingInput("Input dimension of Cuboid must be set.")
-            data["cuboid_dim"] = jnp.asarray(skw["dimension"], dtype=jnp.float64)
-            data["polarization"] = jnp.asarray(skw["polarization"], dtype=jnp.float64)
+            data["cuboid_dim"] = jnp.asarray(skw["dimension"], dtype=float)
+            data["polarization"] = jnp.asarray(skw["polarization"], dtype=float)
         elif stype == "cylinder":
             if skw.get("dimension") is None or skw.get("polarization") is None:
                 raise MagpylibMissingInput("Input dimension of Cylinder must be set.")
-            data["cylinder_dim"] = jnp.asarray(skw["dimension"], dtype=jnp.float64)
-            data["polarization"] = jnp.asarray(skw["polarization"], dtype=jnp.float64)
+            data["cylinder_dim"] = jnp.asarray(skw["dimension"], dtype=float)
+            data["polarization"] = jnp.asarray(skw["polarization"], dtype=float)
         elif stype == "cylindersegment":
             if skw.get("dimension") is None or skw.get("polarization") is None:
                 raise MagpylibMissingInput("Input dimension of CylinderSegment must be set.")
-            data["cseg_dim"] = jnp.asarray(skw["dimension"], dtype=jnp.float64)
-            data["polarization"] = jnp.asarray(skw["polarization"], dtype=jnp.float64)
+            data["cseg_dim"] = jnp.asarray(skw["dimension"], dtype=float)
+            data["polarization"] = jnp.asarray(skw["polarization"], dtype=float)
             cseg_mesh, cseg_nvec, cseg_L, cseg_l1, cseg_l2 = precompute_cylinder_segment_geometry(
                 data["cseg_dim"]
             )
@@ -312,13 +312,13 @@ def _prepare_sources_jit(
         elif stype == "sphere":
             if skw.get("diameter") is None or skw.get("polarization") is None:
                 raise MagpylibMissingInput("Input diameter of Sphere must be set.")
-            data["diameter"] = jnp.asarray(skw["diameter"], dtype=jnp.float64)
-            data["polarization"] = jnp.asarray(skw["polarization"], dtype=jnp.float64)
+            data["diameter"] = jnp.asarray(skw["diameter"], dtype=float)
+            data["polarization"] = jnp.asarray(skw["polarization"], dtype=float)
         elif stype == "triangle":
             if skw.get("vertices") is None or skw.get("polarization") is None:
                 raise MagpylibMissingInput("Input vertices of Triangle must be set.")
-            data["triangle_vertices"] = jnp.asarray(skw["vertices"], dtype=jnp.float64)
-            data["polarization"] = jnp.asarray(skw["polarization"], dtype=jnp.float64)
+            data["triangle_vertices"] = jnp.asarray(skw["vertices"], dtype=float)
+            data["polarization"] = jnp.asarray(skw["polarization"], dtype=float)
         elif stype == "polyline":
             if (
                 skw.get("segment_start") is None
@@ -326,14 +326,14 @@ def _prepare_sources_jit(
                 or skw.get("current") is None
             ):
                 raise MagpylibMissingInput("Input vertices of Polyline must be set.")
-            seg_start = jnp.asarray(skw["segment_start"], dtype=jnp.float64)
-            seg_end = jnp.asarray(skw["segment_end"], dtype=jnp.float64)
+            seg_start = jnp.asarray(skw["segment_start"], dtype=float)
+            seg_end = jnp.asarray(skw["segment_end"], dtype=float)
             if seg_start.ndim == 1:
                 seg_start = seg_start[None, :]
                 seg_end = seg_end[None, :]
             data["segment_start"] = seg_start
             data["segment_end"] = seg_end
-            data["current"] = jnp.asarray(skw["current"], dtype=jnp.float64)
+            data["current"] = jnp.asarray(skw["current"], dtype=float)
             max_segments = max(max_segments, int(seg_start.shape[0]))
         elif stype == "trianglesheet":
             if (
@@ -342,9 +342,9 @@ def _prepare_sources_jit(
                 or skw.get("current_densities") is None
             ):
                 raise MagpylibMissingInput("Input vertices of TriangleSheet must be set.")
-            verts = jnp.asarray(skw["vertices"], dtype=jnp.float64)
+            verts = jnp.asarray(skw["vertices"], dtype=float)
             faces = jnp.asarray(skw["faces"], dtype=jnp.int32)
-            cds = jnp.asarray(skw["current_densities"], dtype=jnp.float64)
+            cds = jnp.asarray(skw["current_densities"], dtype=float)
             tris = verts[faces]
             data["sheet_tris"] = tris
             data["sheet_cd"] = cds
@@ -352,8 +352,8 @@ def _prepare_sources_jit(
         elif stype == "trianglestrip":
             if skw.get("vertices") is None or skw.get("current") is None:
                 raise MagpylibMissingInput("Input vertices of TriangleStrip must be set.")
-            verts = jnp.asarray(skw["vertices"], dtype=jnp.float64)
-            curr = jnp.asarray(skw["current"], dtype=jnp.float64)
+            verts = jnp.asarray(skw["vertices"], dtype=float)
+            curr = jnp.asarray(skw["current"], dtype=float)
             tris = _strip_triangles(verts)
             cds = _strip_current_densities(verts, curr)
             data["sheet_tris"] = tris
@@ -363,7 +363,7 @@ def _prepare_sources_jit(
         elif stype == "triangularmesh":
             if skw.get("mesh") is None or skw.get("polarization") is None:
                 raise MagpylibMissingInput("Input vertices of TriangularMesh must be set.")
-            mesh_raw = jnp.asarray(skw["mesh"], dtype=jnp.float64)
+            mesh_raw = jnp.asarray(skw["mesh"], dtype=float)
             if mesh_raw.ndim == 4:
                 raise ValueError("TriangularMesh mesh input must have shape (n_faces,3,3).")
             mesh_arr, nvec, L, l1, l2 = precompute_trimesh_geometry(mesh_raw)
@@ -372,13 +372,13 @@ def _prepare_sources_jit(
             data["mesh_L"] = L
             data["mesh_l1"] = l1
             data["mesh_l2"] = l2
-            data["polarization"] = jnp.asarray(skw["polarization"], dtype=jnp.float64)
+            data["polarization"] = jnp.asarray(skw["polarization"], dtype=float)
             max_mesh_faces = max(max_mesh_faces, int(mesh_arr.shape[0]))
         elif stype == "tetrahedron":
             if skw.get("vertices") is None or skw.get("polarization") is None:
                 raise MagpylibMissingInput("Input vertices of Tetrahedron must be set.")
-            data["tetra_vertices"] = jnp.asarray(skw["vertices"], dtype=jnp.float64)
-            data["polarization"] = jnp.asarray(skw["polarization"], dtype=jnp.float64)
+            data["tetra_vertices"] = jnp.asarray(skw["vertices"], dtype=float)
+            data["polarization"] = jnp.asarray(skw["polarization"], dtype=float)
         else:
             raise MagpylibBadUserInput(f"Unsupported source type {stype!r}.")
 
@@ -429,19 +429,19 @@ def _prepare_sources_jit(
         pos_list.append(data["pos"])
         rot_list.append(data["rot"])
 
-        moment.append(jnp.asarray(data.get("moment", jnp.zeros(3)), dtype=jnp.float64))
-        diameter.append(jnp.asarray(data.get("diameter", 0.0), dtype=jnp.float64))
-        cuboid_dim.append(jnp.asarray(data.get("cuboid_dim", jnp.zeros(3)), dtype=jnp.float64))
-        cylinder_dim.append(jnp.asarray(data.get("cylinder_dim", jnp.zeros(2)), dtype=jnp.float64))
-        cseg_dim.append(jnp.asarray(data.get("cseg_dim", jnp.zeros(5)), dtype=jnp.float64))
-        polarization.append(jnp.asarray(data.get("polarization", jnp.zeros(3)), dtype=jnp.float64))
+        moment.append(jnp.asarray(data.get("moment", jnp.zeros(3)), dtype=float))
+        diameter.append(jnp.asarray(data.get("diameter", 0.0), dtype=float))
+        cuboid_dim.append(jnp.asarray(data.get("cuboid_dim", jnp.zeros(3)), dtype=float))
+        cylinder_dim.append(jnp.asarray(data.get("cylinder_dim", jnp.zeros(2)), dtype=float))
+        cseg_dim.append(jnp.asarray(data.get("cseg_dim", jnp.zeros(5)), dtype=float))
+        polarization.append(jnp.asarray(data.get("polarization", jnp.zeros(3)), dtype=float))
         triangle_vertices.append(
-            jnp.asarray(data.get("triangle_vertices", jnp.zeros((3, 3))), dtype=jnp.float64)
+            jnp.asarray(data.get("triangle_vertices", jnp.zeros((3, 3))), dtype=float)
         )
         tetra_vertices.append(
-            jnp.asarray(data.get("tetra_vertices", jnp.zeros((4, 3))), dtype=jnp.float64)
+            jnp.asarray(data.get("tetra_vertices", jnp.zeros((4, 3))), dtype=float)
         )
-        current.append(jnp.asarray(data.get("current", 0.0), dtype=jnp.float64))
+        current.append(jnp.asarray(data.get("current", 0.0), dtype=float))
 
         if stype == "polyline":
             seg_start = data["segment_start"]
@@ -449,8 +449,8 @@ def _prepare_sources_jit(
             seg_count = int(seg_start.shape[0])
             seg_mask = jnp.concatenate(
                 (
-                    jnp.ones((seg_count,), dtype=jnp.float64),
-                    jnp.zeros((max_segments - seg_count,), dtype=jnp.float64),
+                    jnp.ones((seg_count,), dtype=float),
+                    jnp.zeros((max_segments - seg_count,), dtype=float),
                 ),
                 axis=0,
             )
@@ -458,9 +458,9 @@ def _prepare_sources_jit(
             poly_seg_end.append(_pad_axis0(seg_end, max_segments))
             poly_seg_mask.append(seg_mask)
         else:
-            poly_seg_start.append(jnp.zeros((max_segments, 3), dtype=jnp.float64))
-            poly_seg_end.append(jnp.zeros((max_segments, 3), dtype=jnp.float64))
-            poly_seg_mask.append(jnp.zeros((max_segments,), dtype=jnp.float64))
+            poly_seg_start.append(jnp.zeros((max_segments, 3), dtype=float))
+            poly_seg_end.append(jnp.zeros((max_segments, 3), dtype=float))
+            poly_seg_mask.append(jnp.zeros((max_segments,), dtype=float))
 
         if stype in ("trianglesheet", "trianglestrip"):
             tris = data["sheet_tris"]
@@ -468,8 +468,8 @@ def _prepare_sources_jit(
             face_count = int(tris.shape[0])
             mask = jnp.concatenate(
                 (
-                    jnp.ones((face_count,), dtype=jnp.float64),
-                    jnp.zeros((max_sheet_faces - face_count,), dtype=jnp.float64),
+                    jnp.ones((face_count,), dtype=float),
+                    jnp.zeros((max_sheet_faces - face_count,), dtype=float),
                 ),
                 axis=0,
             )
@@ -477,9 +477,9 @@ def _prepare_sources_jit(
             sheet_cd.append(_pad_axis0(cds, max_sheet_faces))
             sheet_mask.append(mask)
         else:
-            sheet_tris.append(jnp.zeros((max_sheet_faces, 3, 3), dtype=jnp.float64))
-            sheet_cd.append(jnp.zeros((max_sheet_faces, 3), dtype=jnp.float64))
-            sheet_mask.append(jnp.zeros((max_sheet_faces,), dtype=jnp.float64))
+            sheet_tris.append(jnp.zeros((max_sheet_faces, 3, 3), dtype=float))
+            sheet_cd.append(jnp.zeros((max_sheet_faces, 3), dtype=float))
+            sheet_mask.append(jnp.zeros((max_sheet_faces,), dtype=float))
 
         if stype == "cylindersegment":
             mesh_arr = data["cseg_faces"]
@@ -490,8 +490,8 @@ def _prepare_sources_jit(
             face_count = int(mesh_arr.shape[0])
             mask = jnp.concatenate(
                 (
-                    jnp.ones((face_count,), dtype=jnp.float64),
-                    jnp.zeros((max_cseg_faces - face_count,), dtype=jnp.float64),
+                    jnp.ones((face_count,), dtype=float),
+                    jnp.zeros((max_cseg_faces - face_count,), dtype=float),
                 ),
                 axis=0,
             )
@@ -502,12 +502,12 @@ def _prepare_sources_jit(
             cseg_l2.append(_pad_axis0(l2, max_cseg_faces))
             cseg_mask.append(mask)
         else:
-            cseg_faces.append(jnp.zeros((max_cseg_faces, 3, 3), dtype=jnp.float64))
-            cseg_nvec.append(jnp.zeros((max_cseg_faces, 3), dtype=jnp.float64))
-            cseg_L.append(jnp.zeros((max_cseg_faces, 3, 3), dtype=jnp.float64))
-            cseg_l1.append(jnp.zeros((max_cseg_faces, 3), dtype=jnp.float64))
-            cseg_l2.append(jnp.zeros((max_cseg_faces, 3), dtype=jnp.float64))
-            cseg_mask.append(jnp.zeros((max_cseg_faces,), dtype=jnp.float64))
+            cseg_faces.append(jnp.zeros((max_cseg_faces, 3, 3), dtype=float))
+            cseg_nvec.append(jnp.zeros((max_cseg_faces, 3), dtype=float))
+            cseg_L.append(jnp.zeros((max_cseg_faces, 3, 3), dtype=float))
+            cseg_l1.append(jnp.zeros((max_cseg_faces, 3), dtype=float))
+            cseg_l2.append(jnp.zeros((max_cseg_faces, 3), dtype=float))
+            cseg_mask.append(jnp.zeros((max_cseg_faces,), dtype=float))
 
         if stype == "triangularmesh":
             mesh_arr = data["mesh"]
@@ -518,8 +518,8 @@ def _prepare_sources_jit(
             face_count = int(mesh_arr.shape[0])
             mask = jnp.concatenate(
                 (
-                    jnp.ones((face_count,), dtype=jnp.float64),
-                    jnp.zeros((max_mesh_faces - face_count,), dtype=jnp.float64),
+                    jnp.ones((face_count,), dtype=float),
+                    jnp.zeros((max_mesh_faces - face_count,), dtype=float),
                 ),
                 axis=0,
             )
@@ -530,12 +530,12 @@ def _prepare_sources_jit(
             mesh_l2.append(_pad_axis0(l2, max_mesh_faces))
             mesh_mask.append(mask)
         else:
-            mesh_faces.append(jnp.zeros((max_mesh_faces, 3, 3), dtype=jnp.float64))
-            mesh_nvec.append(jnp.zeros((max_mesh_faces, 3), dtype=jnp.float64))
-            mesh_L.append(jnp.zeros((max_mesh_faces, 3, 3), dtype=jnp.float64))
-            mesh_l1.append(jnp.zeros((max_mesh_faces, 3), dtype=jnp.float64))
-            mesh_l2.append(jnp.zeros((max_mesh_faces, 3), dtype=jnp.float64))
-            mesh_mask.append(jnp.zeros((max_mesh_faces,), dtype=jnp.float64))
+            mesh_faces.append(jnp.zeros((max_mesh_faces, 3, 3), dtype=float))
+            mesh_nvec.append(jnp.zeros((max_mesh_faces, 3), dtype=float))
+            mesh_L.append(jnp.zeros((max_mesh_faces, 3, 3), dtype=float))
+            mesh_l1.append(jnp.zeros((max_mesh_faces, 3), dtype=float))
+            mesh_l2.append(jnp.zeros((max_mesh_faces, 3), dtype=float))
+            mesh_mask.append(jnp.zeros((max_mesh_faces,), dtype=float))
 
     src_arrays = {
         "type_id": type_ids,
@@ -576,8 +576,8 @@ def _prepare_sources_jit(
         src_arrays["pos_path1"] = _stack_singleton_paths(pos_list)
         src_arrays["rot_path1"] = _stack_singleton_paths(rot_list)
     else:
-        src_arrays["pos_path1"] = jnp.zeros((0, 1, 3), dtype=jnp.float64)
-        src_arrays["rot_path1"] = jnp.zeros((0, 1, 3, 3), dtype=jnp.float64)
+        src_arrays["pos_path1"] = jnp.zeros((0, 1, 3), dtype=float)
+        src_arrays["rot_path1"] = jnp.zeros((0, 1, 3, 3), dtype=float)
 
     meta = {
         "group_labels": [group["label"] for group in group_specs],
@@ -588,11 +588,11 @@ def _prepare_sources_jit(
 
 
 def _stack_padded_paths(paths: Sequence[ArrayLike], target_len: int) -> jnp.ndarray:
-    first = jnp.asarray(paths[0], dtype=jnp.float64)
+    first = jnp.asarray(paths[0], dtype=float)
     tail_shape = first.shape[1:]
     if target_len == 1 and all(jnp.asarray(path).shape[0] == 1 for path in paths):
         stacked = [
-            jnp.asarray(path, dtype=jnp.float64).reshape((1,) + tail_shape) for path in paths
+            jnp.asarray(path, dtype=float).reshape((1,) + tail_shape) for path in paths
         ]
         return jnp.stack(stacked, axis=0)
     return jnp.stack([_pad_path(path, target_len) for path in paths], axis=0)
@@ -616,7 +616,7 @@ def _prepare_sensors_jit(
         and not getattr(observers, "_is_sensor", False)
         and not getattr(observers, "_is_collection", False)
     ):
-        pix_arr = jnp.asarray(observers, dtype=jnp.float64)
+        pix_arr = jnp.asarray(observers, dtype=float)
         if pix_arr.shape[-1] != 3:
             raise MagpylibBadUserInput("Bad observers provided.")
         if pix_arr.shape == (3,):
@@ -629,8 +629,8 @@ def _prepare_sensors_jit(
             {
                 "pix_flat": pix_flat,
                 "pix_shape": pix_shape,
-                "pos": jnp.zeros((1, 3), dtype=jnp.float64),
-                "rot": jnp.eye(3, dtype=jnp.float64)[None, :, :],
+                "pos": jnp.zeros((1, 3), dtype=float),
+                "rot": jnp.eye(3, dtype=float)[None, :, :],
                 "handedness": "right",
                 "label": "Sensor",
             }
@@ -642,10 +642,10 @@ def _prepare_sensors_jit(
         for sens in sensors_list:
             pix = sens.pixel
             if pix is None:
-                pix_arr = jnp.zeros((1, 3), dtype=jnp.float64)
+                pix_arr = jnp.zeros((1, 3), dtype=float)
                 pix_shape = (1, 3)
             else:
-                pix_arr = jnp.asarray(pix, dtype=jnp.float64)
+                pix_arr = jnp.asarray(pix, dtype=float)
                 if pix_arr.shape == (3,):
                     pix_arr = pix_arr[None, :]
                 pix_shape = tuple(pix_arr.shape)
@@ -660,8 +660,8 @@ def _prepare_sensors_jit(
                 {
                     "pix_flat": pix_flat,
                     "pix_shape": pix_shape,
-                    "pos": jnp.asarray(sens._position, dtype=jnp.float64),
-                    "rot": jnp.asarray(sens._orientation_matrix, dtype=jnp.float64),
+                    "pos": jnp.asarray(sens._position, dtype=float),
+                    "rot": jnp.asarray(sens._orientation_matrix, dtype=float),
                     "handedness": sens.handedness,
                     "label": label,
                 }
@@ -690,7 +690,7 @@ def _prepare_sensors_jit(
         if pad_len > 0:
             pix_flat = _pad_axis0(pix_flat, max_pix)
         mask = jnp.concatenate(
-            (jnp.ones((pix_count,), dtype=jnp.float64), jnp.zeros((pad_len,), dtype=jnp.float64)),
+            (jnp.ones((pix_count,), dtype=float), jnp.zeros((pad_len,), dtype=float)),
             axis=0,
         )
         pix_flat_list.append(pix_flat)
@@ -701,9 +701,9 @@ def _prepare_sensors_jit(
         labels.append(sens["label"])
 
     hand_vec = [
-        jnp.array([-1.0, 1.0, 1.0], dtype=jnp.float64)
+        jnp.array([-1.0, 1.0, 1.0], dtype=float)
         if h == "left"
-        else jnp.array([1.0, 1.0, 1.0], dtype=jnp.float64)
+        else jnp.array([1.0, 1.0, 1.0], dtype=float)
         for h in handedness_list
     ]
 
@@ -719,8 +719,8 @@ def _prepare_sensors_jit(
         sens_arrays["pos_path1"] = _stack_singleton_paths(pos_list)
         sens_arrays["rot_path1"] = _stack_singleton_paths(rot_list)
     else:
-        sens_arrays["pos_path1"] = jnp.zeros((0, 1, 3), dtype=jnp.float64)
-        sens_arrays["rot_path1"] = jnp.zeros((0, 1, 3, 3), dtype=jnp.float64)
+        sens_arrays["pos_path1"] = jnp.zeros((0, 1, 3), dtype=float)
+        sens_arrays["rot_path1"] = jnp.zeros((0, 1, 3, 3), dtype=float)
     pix_inds = [0]
     for pix_num in pix_nums:
         pix_inds.append(pix_inds[-1] + int(pix_num))
@@ -743,8 +743,8 @@ def _pad_sources_for_chunking(
     pad = (-n_src) % chunk_size
     source_mask = jnp.concatenate(
         (
-            jnp.ones((n_src,), dtype=jnp.float64),
-            jnp.zeros((pad,), dtype=jnp.float64),
+            jnp.ones((n_src,), dtype=float),
+            jnp.zeros((pad,), dtype=float),
         ),
         axis=0,
     )

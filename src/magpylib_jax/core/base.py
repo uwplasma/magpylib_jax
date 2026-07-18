@@ -25,7 +25,7 @@ class MagpylibBadUserInput(ValueError):
 
 
 def _as_array(x: Any) -> jax.Array:
-    return jnp.array(x, dtype=jnp.float64)
+    return jnp.array(x, dtype=float)
 
 
 def check_format_input_vector(
@@ -73,7 +73,7 @@ def check_format_input_vector(
 
 def check_format_input_orientation(orientation: Any | None, *, init_format: bool = False):
     if orientation is None:
-        quat = jnp.array([0.0, 0.0, 0.0, 1.0], dtype=jnp.float64)
+        quat = jnp.array([0.0, 0.0, 0.0, 1.0], dtype=float)
         rot = R.from_quat(quat)
         if init_format:
             return quat[None, :]
@@ -528,14 +528,14 @@ class BaseGeo(BaseTransform, BaseDisplayRepr):
                 self._style_kwargs["label"] = style_label
 
     def _set_orientation_quat(self, quat: jax.Array) -> None:
-        quat_arr = jnp.asarray(quat, dtype=jnp.float64)
+        quat_arr = jnp.asarray(quat, dtype=float)
         object.__setattr__(self, "_oriQ", quat_arr)
         rot = R.from_quat(quat_arr)
         object.__setattr__(self, "_orientation", rot)
         object.__setattr__(
             self,
             "_orientation_matrix",
-            jnp.asarray(rot.as_matrix(), dtype=jnp.float64),
+            jnp.asarray(rot.as_matrix(), dtype=float),
         )
 
     @staticmethod

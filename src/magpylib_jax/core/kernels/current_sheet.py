@@ -38,13 +38,13 @@ _TRI_Q_L = jnp.asarray(
 def _rot_x(theta: jnp.ndarray) -> jnp.ndarray:
     c = jnp.cos(theta)
     s = jnp.sin(theta)
-    return jnp.asarray([[1.0, 0.0, 0.0], [0.0, c, -s], [0.0, s, c]], dtype=jnp.float64)
+    return jnp.asarray([[1.0, 0.0, 0.0], [0.0, c, -s], [0.0, s, c]], dtype=float)
 
 
 def _rot_z(alpha: jnp.ndarray) -> jnp.ndarray:
     c = jnp.cos(alpha)
     s = jnp.sin(alpha)
-    return jnp.asarray([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]], dtype=jnp.float64)
+    return jnp.asarray([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]], dtype=float)
 
 
 def _triangle_coordinate_transform(
@@ -74,7 +74,7 @@ def _triangle_coordinate_transform(
     c4 = r3 @ c3
 
     rotation = r3 @ r22 @ r21
-    coords = jnp.asarray([b3[0], c4[0], c4[1]], dtype=jnp.float64)
+    coords = jnp.asarray([b3[0], c4[0], c4[1]], dtype=float)
     return coords, translation, rotation
 
 
@@ -321,10 +321,10 @@ def current_triangle_sheet_hfield(
     current_densities: ArrayLike,
 ) -> jnp.ndarray:
     obs = ensure_observers(observers)
-    tri = jnp.asarray(vertices, dtype=jnp.float64)
+    tri = jnp.asarray(vertices, dtype=float)
     if tri.shape != (3, 3):
         raise ValueError(f"Triangle sheet vertices must have shape (3,3), got {tri.shape}.")
-    cd = jnp.asarray(current_densities, dtype=jnp.float64)
+    cd = jnp.asarray(current_densities, dtype=float)
     if cd.shape != (3,):
         raise ValueError(f"Triangle sheet current density must have shape (3,), got {cd.shape}.")
 
@@ -338,9 +338,9 @@ def current_trisheet_hfield(
     current_densities: ArrayLike,
 ) -> jnp.ndarray:
     obs = ensure_observers(observers)
-    verts = jnp.asarray(vertices, dtype=jnp.float64)
+    verts = jnp.asarray(vertices, dtype=float)
     facs = jnp.asarray(faces, dtype=jnp.int32)
-    cds = jnp.asarray(current_densities, dtype=jnp.float64)
+    cds = jnp.asarray(current_densities, dtype=float)
     tris = verts[facs]
     if tris.ndim != 3 or tris.shape[1:] != (3, 3):
         raise ValueError(
@@ -372,9 +372,9 @@ def current_trisheet_bfield_masked(
 ) -> jnp.ndarray:
     """B-field of triangle sheet with face masking."""
     obs = ensure_observers(observers)
-    tris = jnp.asarray(triangles, dtype=jnp.float64)
-    cds = jnp.asarray(current_densities, dtype=jnp.float64)
-    mask = jnp.asarray(face_mask, dtype=jnp.float64).reshape((-1,))
+    tris = jnp.asarray(triangles, dtype=float)
+    cds = jnp.asarray(current_densities, dtype=float)
+    mask = jnp.asarray(face_mask, dtype=float).reshape((-1,))
     h_faces = jax.vmap(lambda tri, cd: _current_triangle_sheet_hfield_obs(obs, tri, cd))(tris, cds)
     h_faces = h_faces * mask[:, None, None]
     return MU0 * jnp.sum(h_faces, axis=0)
@@ -388,8 +388,8 @@ def current_trisheet_bfield_jit(
 ) -> jnp.ndarray:
     """JIT-specialized triangle sheet B-field for fixed observer counts."""
     obs = ensure_observers(observers)
-    verts = jnp.asarray(vertices, dtype=jnp.float64)
+    verts = jnp.asarray(vertices, dtype=float)
     facs = jnp.asarray(faces, dtype=jnp.int32)
-    cds = jnp.asarray(current_densities, dtype=jnp.float64)
+    cds = jnp.asarray(current_densities, dtype=float)
     jit_fn = _jit_kernel_simple("trianglesheet_bfield", current_trisheet_bfield, obs.shape[0])
     return jit_fn(obs, verts, facs, cds)

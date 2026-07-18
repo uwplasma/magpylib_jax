@@ -101,8 +101,8 @@ def tetrahedron_bfield(
     obs = ensure_observers(observers)
     n = obs.shape[0]
 
-    tet = jnp.asarray(vertices, dtype=jnp.float64)
-    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), n)
+    tet = jnp.asarray(vertices, dtype=float)
+    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=float), n)
     if tet.ndim == 2 or (tet.ndim == 3 and tet.shape[0] == 1):
         tet_const = tet if tet.ndim == 2 else tet[0]
         tet_const = _check_tetra_chirality(tet_const[None, :, :])[0]
@@ -147,12 +147,12 @@ def tetrahedron_bfield_jit(
 ) -> jnp.ndarray:
     """JIT-specialized tetrahedron B-field for fixed observer counts."""
     obs = ensure_observers(observers)
-    tet = jnp.asarray(vertices, dtype=jnp.float64)
+    tet = jnp.asarray(vertices, dtype=float)
     if tet.ndim == 3 and tet.shape[0] == 1:
         tet = tet[0]
     if tet.ndim != 2:
         return tetrahedron_bfield(obs, tet, polarizations, in_out=in_out)
-    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), obs.shape[0])
+    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=float), obs.shape[0])
     flag = _in_out_flag(in_out)
     jit_fn = _jit_kernel(
         "tetrahedron_bfield",
@@ -183,8 +183,8 @@ def tetrahedron_jfield(
     obs = ensure_observers(observers)
     n = obs.shape[0]
 
-    tet = jnp.asarray(vertices, dtype=jnp.float64)
-    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=jnp.float64), n)
+    tet = jnp.asarray(vertices, dtype=float)
+    pol = _broadcast_vec3(jnp.asarray(polarizations, dtype=float), n)
     if tet.ndim == 2 or (tet.ndim == 3 and tet.shape[0] == 1):
         tet_const = tet if tet.ndim == 2 else tet[0]
         tet_const = _check_tetra_chirality(tet_const[None, :, :])[0]

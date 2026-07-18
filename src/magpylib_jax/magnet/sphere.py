@@ -39,21 +39,21 @@ class Sphere(BaseSource):
     @property
     def _polarization(self) -> jnp.ndarray:
         if self.polarization is not None:
-            return jnp.asarray(self.polarization, dtype=jnp.float64)
+            return jnp.asarray(self.polarization, dtype=float)
         if self.magnetization is not None:
-            return MU0 * jnp.asarray(self.magnetization, dtype=jnp.float64)
+            return MU0 * jnp.asarray(self.magnetization, dtype=float)
         raise MagpylibMissingInput("Input polarization of Sphere must be set.")
 
     @property
     def volume(self) -> float:
         if self.diameter is None:
             return 0.0
-        d = float(jnp.asarray(self.diameter, dtype=jnp.float64))
+        d = float(jnp.asarray(self.diameter, dtype=float))
         return float((4.0 / 3.0) * jnp.pi * (d / 2.0) ** 3)
 
     @property
     def centroid(self) -> jnp.ndarray:
-        return jnp.asarray(self.position, dtype=jnp.float64)
+        return jnp.asarray(self.position, dtype=float)
 
     def _require_inputs(self) -> None:
         if self.diameter is None:

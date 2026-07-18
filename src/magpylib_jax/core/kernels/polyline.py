@@ -27,7 +27,7 @@ def _current_segment_hfield(
     p1 = _broadcast_vec3(segment_start, obs.shape[0])
     p2 = _broadcast_vec3(segment_end, obs.shape[0])
 
-    cur = jnp.asarray(current, dtype=jnp.float64)
+    cur = jnp.asarray(current, dtype=float)
     if cur.ndim == 0:
         cur = jnp.broadcast_to(cur, (obs.shape[0],))
     else:
@@ -79,14 +79,14 @@ def current_polyline_hfield(
 ) -> jnp.ndarray:
     """H-field of straight current segments."""
     obs = ensure_observers(observers)
-    p1 = jnp.asarray(segments_start, dtype=jnp.float64)
-    p2 = jnp.asarray(segments_end, dtype=jnp.float64)
+    p1 = jnp.asarray(segments_start, dtype=float)
+    p2 = jnp.asarray(segments_end, dtype=float)
     if p1.ndim == 1:
         return _current_segment_hfield(obs, p1, p2, currents)
     if p2.shape != p1.shape or p1.shape[-1] != 3:
         raise ValueError("Polyline segments must have shape (n,3).")
 
-    cur = jnp.asarray(currents, dtype=jnp.float64)
+    cur = jnp.asarray(currents, dtype=float)
     if cur.ndim == 0:
         cur = jnp.broadcast_to(cur, (p1.shape[0],))
     else:
@@ -114,15 +114,15 @@ def current_polyline_bfield_masked(
 ) -> jnp.ndarray:
     """B-field of current segments with segment masking."""
     obs = ensure_observers(observers)
-    p1 = jnp.asarray(segments_start, dtype=jnp.float64)
-    p2 = jnp.asarray(segments_end, dtype=jnp.float64)
-    cur = jnp.asarray(currents, dtype=jnp.float64)
+    p1 = jnp.asarray(segments_start, dtype=float)
+    p2 = jnp.asarray(segments_end, dtype=float)
+    cur = jnp.asarray(currents, dtype=float)
     if cur.ndim == 0:
         cur = jnp.broadcast_to(cur, (p1.shape[0],))
     else:
         cur = jnp.broadcast_to(cur.reshape((-1,)), (p1.shape[0],))
 
-    mask = jnp.asarray(segment_mask, dtype=jnp.float64).reshape((-1,))
+    mask = jnp.asarray(segment_mask, dtype=float).reshape((-1,))
     h_segments = jax.vmap(lambda a, b, c: _current_segment_hfield(obs, a, b, c))(p1, p2, cur)
     h_segments = h_segments * mask[:, None, None]
     return MU0 * jnp.sum(h_segments, axis=0)
@@ -147,8 +147,8 @@ def current_polyline_bfield_jit(
 ) -> jnp.ndarray:
     """JIT-specialized polyline B-field for fixed observer + segment counts."""
     obs = ensure_observers(observers)
-    seg_start = jnp.asarray(segments_start, dtype=jnp.float64)
-    seg_end = jnp.asarray(segments_end, dtype=jnp.float64)
+    seg_start = jnp.asarray(segments_start, dtype=float)
+    seg_end = jnp.asarray(segments_end, dtype=float)
     if seg_start.ndim == 1:
         n_segments = 1
     else:
@@ -157,5 +157,5 @@ def current_polyline_bfield_jit(
         "polyline_bfield", _current_polyline_bfield_segments_impl, obs.shape[0], n_segments
     )
     return jit_fn(
-        obs, seg_start, seg_end, jnp.asarray(currents, dtype=jnp.float64), n_segments=n_segments
+        obs, seg_start, seg_end, jnp.asarray(currents, dtype=float), n_segments=n_segments
     )

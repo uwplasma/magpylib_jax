@@ -15,7 +15,7 @@ from magpylib_jax.core.kernels._common import _FOUR_PI, _broadcast_vector
 def dipole_hfield(observers: ArrayLike, moments: ArrayLike) -> jnp.ndarray:
     """H-field of dipole moments located at the origin."""
     obs = ensure_observers(observers)
-    mom = _broadcast_vector(jnp.asarray(moments, dtype=jnp.float64), obs.shape)
+    mom = _broadcast_vector(jnp.asarray(moments, dtype=float), obs.shape)
 
     r2 = jnp.sum(obs * obs, axis=-1)
     origin_mask = r2 == 0.0
@@ -38,4 +38,4 @@ def dipole_hfield(observers: ArrayLike, moments: ArrayLike) -> jnp.ndarray:
 
 def dipole_bfield(observers: ArrayLike, moments: ArrayLike) -> jnp.ndarray:
     """B-field of a dipole (Tesla)."""
-    return jnp.asarray(MU0 * dipole_hfield(observers, moments), dtype=jnp.float64)
+    return jnp.asarray(MU0 * dipole_hfield(observers, moments), dtype=float)

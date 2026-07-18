@@ -136,8 +136,8 @@ def _mask_inside_trimesh_jax(points: jnp.ndarray, faces: jnp.ndarray) -> jnp.nda
     mz = (points[:, 2] < zmax + eps) & (points[:, 2] > zmin - eps)
     mask_box = mx & my & mz
 
-    start_point_outside = jnp.array([xmin, ymin, zmin], dtype=jnp.float64) - jnp.array(
-        [12.0012345, 5.9923456, 6.9932109], dtype=jnp.float64
+    start_point_outside = jnp.array([xmin, ymin, zmin], dtype=float) - jnp.array(
+        [12.0012345, 5.9923456, 6.9932109], dtype=float
     )
     start_pts = jnp.broadcast_to(start_point_outside, points.shape)
     lines = jnp.stack((start_pts, points), axis=1)
@@ -167,8 +167,8 @@ def _mask_inside_trimesh_jax_masked(
         mz = (points[:, 2] < zmax + eps) & (points[:, 2] > zmin - eps)
         mask_box = mx & my & mz
 
-        start_point_outside = jnp.array([xmin, ymin, zmin], dtype=jnp.float64) - jnp.array(
-            [12.0012345, 5.9923456, 6.9932109], dtype=jnp.float64
+        start_point_outside = jnp.array([xmin, ymin, zmin], dtype=float) - jnp.array(
+            [12.0012345, 5.9923456, 6.9932109], dtype=float
         )
         start_pts = jnp.broadcast_to(start_point_outside, points.shape)
         lines = jnp.stack((start_pts, points), axis=1)
