@@ -34,7 +34,7 @@ from magpylib_jax.magnet import (
 from magpylib_jax.misc import CustomSource, Dipole, Triangle
 from magpylib_jax.sensor import Sensor
 
-__version__ = "2.2.0"
+__version__ = "3.0.0"
 
 __all__ = [
     "Circle",

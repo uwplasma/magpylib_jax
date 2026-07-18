@@ -82,21 +82,40 @@ pip install -e '.[test,docs]'
 pytest
 ```
 
-## Precision (float32 vs float64)
+## Choosing precision (float32 vs float64)
 
 magpylib_jax follows **your** JAX precision setting and never changes the global JAX config on
-import. By default JAX runs in **float32** — fast, and the right default on GPU/TPU. magpylib is
-float64, so for bit-level parity (and the tightest gradients) enable double precision **before**
-using the library:
+import — so *you* pick the precision, exactly like any other JAX code. The one rule: set it
+**before** you build any array.
+
+**float64** — full magpylib parity and the tightest gradients (recommended for scientific work):
 
 ```python
 import jax
-jax.config.update("jax_enable_x64", True)
+jax.config.update("jax_enable_x64", True)   # <-- do this first, before importing magpylib_jax
 import magpylib_jax as mpj
+
+mpj.magnet.Cuboid(polarization=(0, 0, 1.0), dimension=(1, 1, 1)).getB((2, 0, 0)).dtype
+# -> float64
 ```
 
-Float32 is perfectly usable for many workloads (and much faster on accelerators); use float64 when
-you need magpylib-level accuracy. The tests run with x64 enabled.
+**float32** — JAX's default; faster and lower-memory, ideal on GPU/TPU and for ML pipelines. Just
+don't enable x64:
+
+```python
+import magpylib_jax as mpj   # no x64 -> float32
+
+mpj.magnet.Cuboid(polarization=(0, 0, 1.0), dimension=(1, 1, 1)).getB((2, 0, 0)).dtype
+# -> float32
+```
+
+| | float32 (default) | float64 (`jax_enable_x64=True`) |
+|---|---|---|
+| speed / memory | faster, lighter (esp. GPU/TPU) | slower, 2× memory |
+| magpylib parity | ~1e-6 relative | bit-level (~1e-15) |
+| how to select | do nothing | `jax.config.update("jax_enable_x64", True)` before use |
+
+The test suite runs with x64 enabled (via `conftest.py`).
 
 ## Quickstart
 
