@@ -55,7 +55,7 @@ docs = [
 Homepage = "https://github.com/uwplasma/magpylib_jax"
 Repository = "https://github.com/uwplasma/magpylib_jax"
 Documentation = "https://magpylib-jax.readthedocs.io/"
-Changelog = "https://github.com/uwplasma/magpylib_jax/blob/main/CHANGELOG.md"
+Changelog = "https://github.com/uwplasma/magpylib_jax/releases"
 Issues = "https://github.com/uwplasma/magpylib_jax/issues"
 
 [tool.hatch.build.targets.wheel]

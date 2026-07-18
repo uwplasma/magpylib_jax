@@ -38,19 +38,27 @@ optimizer is slow and noisy. `magpylib_jax` closes that gap:
 
 ## Differences from Magpylib
 
-| | Magpylib 5.x | magpylib_jax |
-|---|---|---|
-| Backend | NumPy | JAX (CPU/GPU/TPU, XLA) |
-| Gradients | ✗ (finite-diff by hand) | ✓ `grad`/`jacfwd`/`jacrev`, exact |
-| `jit` / `vmap` | ✗ | ✓ field core |
-| `getFT` force/torque | finite differences (step `eps`) | autodiff, exact, `eps`-free |
-| Precision | float64 | follows your JAX config (float32 by default; float64 with x64) |
-| 3-D `show()` display | ✓ (matplotlib/plotly/pyvista) | ✓ (matplotlib) |
-| Source families | all | all 12 (parity-tested) |
+magpylib_jax reproduces Magpylib's full numerical feature set — and adds gradients, compilation,
+accelerators, and exact force/torque on top.
 
-magpylib_jax matches magpylib's numerical surface and adds exact gradients and `getFT`. It ships a
-matplotlib `show()` (below); the extra plotly/pyvista backends and the full interactive style
-system are the only display features left aside. See the [parity strategy](docs/parity.md).
+| Feature | magpylib_jax | Magpylib |
+|---|:---:|:---:|
+| All 12 source families (magnets · currents · misc) | ✅ | ✅ |
+| `getB` / `getH` / `getJ` / `getM` | ✅ | ✅ |
+| `Collection` · `Sensor` · motion & paths | ✅ | ✅ |
+| `sumup` / `squeeze` / `pixel_agg` / `output="dataframe"` | ✅ | ✅ |
+| Force & torque — `getFT` | ✅ &nbsp;autodiff, exact | ✅ &nbsp;finite differences |
+| 3-D `show()` | ✅ &nbsp;matplotlib | ✅ &nbsp;matplotlib · plotly · pyvista |
+| Drop-in API (`import magpylib_jax as magpy`) | ✅ | — |
+| **Gradients** — `grad` / `jacfwd` / `jacrev` | ✅ | ❌ |
+| **`jit` / `vmap` compilation & vectorization** | ✅ | ❌ |
+| **GPU / TPU execution** | ✅ | ❌ |
+| Selectable `float32` / `float64` precision | ✅ | ❌ &nbsp;float64 only |
+| Interactive plotly / pyvista display · style system | ❌ | ✅ |
+
+Everything Magpylib computes, magpylib_jax computes too (validated against upstream in CI); the only
+things left aside are the interactive plotly/pyvista display backends and the full graphical style
+system. See the [parity strategy](docs/parity.md).
 
 ### Drop-in for magpylib
 
@@ -240,7 +248,7 @@ axes; paths draw as faint trails. Pass an existing `ax` to compose with your own
 - [Examples](docs/examples/index.md): object API, functional API, force & torque, visualization, optimization, performance
 - [Architecture & source map](docs/architecture.md) · [Testing & validation](docs/testing.md)
 - [Performance](docs/performance.md) · [Parity strategy](docs/parity.md) · [API reference](docs/reference/api.md)
-- [Changelog](CHANGELOG.md)
+- [Changelog](https://github.com/uwplasma/magpylib_jax/releases)
 
 ## Citing
 

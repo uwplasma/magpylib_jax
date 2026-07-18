@@ -52,6 +52,5 @@ collects the primary sources; each is cited from the relevant kernel in
 
 ## Citing magpylib_jax
 
-If magpylib_jax supports your research, please cite this repository together with the Magpylib
-paper above. A `CITATION` entry will accompany a tagged release; until then, cite the GitHub
-repository and the release version you used.
+If magpylib_jax supports your research, please cite this repository (with the release version you
+used) together with the Magpylib paper above.
