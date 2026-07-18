@@ -46,6 +46,9 @@ docs = [
   "sphinx",
   "myst-parser",
   "furo",
+  "sphinx-design",
+  "sphinx-copybutton",
+  "matplotlib",
 ]
 
 [project.urls]
