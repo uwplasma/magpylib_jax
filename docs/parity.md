@@ -9,7 +9,5 @@
 5. Gate behavior in CI with strict parity markers and threshold checks.
 
 Live tracking tables:
-- `PARITY_MATRIX.md`
-- `PLAN.md`
 
 For pending work, entries remain marked `Partial`/`Pending` until parity and CI gates are in place.

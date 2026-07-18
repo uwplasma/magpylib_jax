@@ -97,7 +97,7 @@ That is expected. It is a compatibility path that intentionally returns Python/p
 
 Run the parity suite for the relevant source family and inspect the matching tests in:
 
-- [Parity Checklist](parity_checklist.md)
+- [Parity strategy](parity.md)
 - [`tests/parity_gates`](https://github.com/uwplasma/magpylib_jax/tree/main/tests/parity_gates)
 - [`tests/upstream_mirror`](https://github.com/uwplasma/magpylib_jax/tree/main/tests/upstream_mirror)
 

@@ -30,8 +30,6 @@ examples/index
 testing
 performance
 parity
-parity_checklist
 changelog
 reference/api
-roadmap
 ```

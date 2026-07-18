@@ -110,7 +110,7 @@ diverges (a dipole at its own location, a point on a current wire, the surface o
 a magnet face or edge). There the field is physically infinite or undefined, and the gradient may
 be non-finite. Optimizers should keep observers off the singular set (as they must anyway for the
 field value to be meaningful). Hardening selected kernels with `custom_jvp` so that the singular
-set returns a defined (zero) tangent is a planned refinement (see `PLAN.md`, D5).
+set returns a defined (zero) tangent is a planned refinement.
 
 ## Relevant source files
 

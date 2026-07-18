@@ -240,7 +240,7 @@ axes; paths draw as faint trails. Pass an existing `ax` to compose with your own
 - [Examples](docs/examples/index.md): object API, functional API, force & torque, visualization, optimization, performance
 - [Architecture & source map](docs/architecture.md) · [Testing & validation](docs/testing.md)
 - [Performance](docs/performance.md) · [Parity strategy](docs/parity.md) · [API reference](docs/reference/api.md)
-- [Refactor & roadmap plan](PLAN.md) · [Changelog](CHANGELOG.md)
+- [Changelog](CHANGELOG.md)
 
 ## Citing
 

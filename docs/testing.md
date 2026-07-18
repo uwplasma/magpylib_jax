@@ -36,7 +36,7 @@ The repository includes mirrored tests derived from upstream Magpylib categories
 - `test_path.py`
 - `test_physics_consistency.py`
 
-Status is tracked in [Parity Checklist](parity_checklist.md) and [`PARITY_MATRIX.md`](https://github.com/uwplasma/magpylib_jax/blob/main/PARITY_MATRIX.md).
+Status is tracked in [Parity strategy](parity.md).
 
 ## 6. Benchmark and profiling gates
 
