@@ -4,6 +4,26 @@
 halves: **how to make your own code fast** (JIT, `vmap`, accelerators, honest timing), and **how the
 library measures itself** (benchmarks and the profiling pipeline).
 
+## Repeated eager calls are cached automatically
+
+Calling `src.getB(obs)` (or `magpy.getB("cuboid", obs, …)`) in a loop no longer re-does the
+Python-side source/observer preparation every time. The first call for a given
+`(source type, array shapes)` compiles a jitted evaluation with the parameters and pose passed as
+*traced* arguments; every later call — including a loop that **changes** the geometry or excitation
+each step — reuses the compiled function without re-tracing. On CPU a single `Cuboid` over 10 000
+observers dropped from ~124 ms to ~1.5 ms per call (~80×), and a three-source `Collection` from
+~117 ms to ~4.8 ms (~24×). Gradients are unaffected: under `jax.grad`/`jit` the cache is bypassed
+and the computation traces as usual. See
+[`scripts/profile_workloads.py`](https://github.com/uwplasma/magpylib_jax/blob/main/scripts/profile_workloads.py)
+to measure it on your machine.
+
+```{note}
+The `Cylinder` (elliptic-integral) and `CylinderSegment` (surface-mesh) kernels are the heaviest per
+observer; the latter trades the full analytic tile formula for a differentiable surface mesh, so it
+is the slowest source. For very large sweeps prefer batching over observers (below) and keep them on
+a GPU/TPU.
+```
+
 ## Make your code fast
 
 ### JIT your function, not just the field

@@ -191,8 +191,10 @@ def _apply_squeeze(
 # Cache of jitted field evaluations, keyed on the static call structure. Passing
 # params/pose/observers as *traced* arguments lets the Python-side preparation run
 # once per (source type, shapes); repeated eager calls and parameter-varying loops
-# then reuse the compiled function instead of re-preparing every call.
+# then reuse the compiled function instead of re-preparing every call. Bounded so a
+# workload that sweeps many distinct shapes cannot grow the cache without limit.
 _FIELD_JIT_CACHE: dict = {}
+_FIELD_JIT_CACHE_MAX = 256
 
 
 def _orientation_to_matrix(orientation: object) -> jnp.ndarray:
@@ -249,6 +251,8 @@ def _cached_field(
             )
 
         fn = jax.jit(_core)
+        if len(_FIELD_JIT_CACHE) >= _FIELD_JIT_CACHE_MAX:
+            _FIELD_JIT_CACHE.pop(next(iter(_FIELD_JIT_CACHE)))
         _FIELD_JIT_CACHE[key] = fn
     return fn(obs, pos, ori, *vals)
 
