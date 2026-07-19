@@ -15,10 +15,35 @@ functional APIs and its analytic field models, but replaces the numerical core w
 differentiable, JIT-compilable, `vmap`-friendly implementation — so the same field computation
 you use for analysis can sit inside a `jax.grad` optimization loop.
 
+## Performance at a glance
+
 <p align="center">
-  <img src="docs/_static/field_map.png" width="46%" alt="B-field streamlines of a cuboid magnet"/>
-  <img src="docs/_static/optimization.png" width="46%" alt="Inverse design with jax.grad"/>
+  <img src="docs/_static/perf_hero.png" width="92%" alt="magpylib_jax vs magpylib across four workloads: field, field+gradient, assembly, and parameter sweep"/>
 </p>
+
+Same analytic physics as Magpylib, several times faster on the workloads that matter — **and
+differentiable, which Magpylib is not.** Warmed, compiled, steady-state runtime on **CPU**
+(float64); the gap widens further on GPU/TPU.
+
+- **Batched fields** — one `Cuboid` over a million observers: **~9× faster** `getB`, the lead
+  growing with batch size as XLA fuses the kernel.
+- **Field + gradient** — a field-derived loss *and* its gradient w.r.t. source parameters:
+  Magpylib has no autodiff, so it must finite-difference (6 extra evaluations, only approximate);
+  magpylib_jax returns the **exact** gradient in one pass — **up to ~25× faster** and machine-precise.
+- **Magnet assemblies** — `Collection.getB` over a 32-magnet array: **~6× faster**.
+- **Parameter sweeps** — 200 geometries mapped with `vmap` instead of a Python loop: **~10× faster**.
+
+Numbers vary with machine and problem size — tiny problems favour Magpylib's low-overhead NumPy,
+and the crossover is visible in the leftmost bars. Reproduce them with
+`python scripts/make_benchmark_plots.py`. The deeper win is that the *same* call is differentiable,
+`jit`/`vmap`-able, and runs on GPU/TPU:
+
+```python
+import jax, magpylib_jax as mpj
+# exact dB_z / d(height), no finite differences:
+jax.grad(lambda h: mpj.magnet.Cuboid(polarization=(0, 0, 1.0),
+         dimension=(1.0, 1.0, h)).getB((2.0, 0, 0))[2])(1.0)
+```
 
 ## Why magpylib_jax?
 
@@ -35,6 +60,10 @@ optimizer is slow and noisy. `magpylib_jax` closes that gap:
   squeeze/`pixel_agg` semantics, and SI units, validated against upstream in CI.
 - **Lean & readable** — the numerical core is split into small, well-named modules
   (`core/kernels/`, `fields/`) with one obvious way to compute each field.
+
+<p align="center">
+  <img src="docs/_static/field_map.png" width="60%" alt="B-field streamlines of a cuboid magnet"/>
+</p>
 
 ## Differences from Magpylib
 
@@ -168,7 +197,12 @@ for _ in range(100):
     pol = pol - 1e-1 * grad(pol)
 ```
 
-The plot on the right above shows the loss for recovering a dipole moment this way.
+<p align="center">
+  <img src="docs/_static/optimization.png" width="52%" alt="Loss decreasing while recovering a dipole moment with jax.grad"/>
+</p>
+
+The loss above falls to machine precision in a few dozen exact-gradient steps — recovering a dipole
+moment with no finite differences and no hand-written derivatives.
 
 ## Force & torque by autodiff — `getFT`
 
@@ -186,32 +220,32 @@ The magnet result carries no finite-difference step, so it is exact and `eps`-in
 and `getFT` is itself differentiable.
 
 <p align="center">
-  <img src="docs/_static/force_distance.png" width="46%" alt="getFT force vs separation"/>
-  <img src="docs/_static/benchmark.png" width="52%" alt="Benchmark vs magpylib and gradient timing"/>
+  <img src="docs/_static/force_distance.png" width="52%" alt="getFT force vs separation"/>
 </p>
 
-## Performance
+## Performance — reading the numbers
 
-The benchmark above is measured on **CPU**, with the field wrapped in `jax.jit` and compilation
-paid once (the intended usage inside an optimization loop):
+The [four-panel comparison above](#performance-at-a-glance) is the headline; a few notes on how to
+reproduce those numbers and get them yourself:
 
-- **Forward field (left):** once jitted, magpylib_jax's XLA kernel is competitive with — and here
-  several times faster than — Magpylib's NumPy core on large observer batches. On GPU/TPU the same
-  kernel parallelizes further.
-- **Field + gradient (right):** Magpylib has no autodiff, so a gradient of a field-derived quantity
-  w.r.t. source parameters needs finite differences — 6 extra forward evaluations for a 3-component
-  polarization, and only approximate. magpylib_jax returns the **exact** gradient from one reverse
-  pass (`value_and_grad`), roughly an order of magnitude faster here and machine-precise.
+- **Warmed, compiled, steady-state.** JAX is asynchronous and compiles on the first call, so the
+  figure warms up once (not timed) and wraps every result in `jax.block_until_ready(...)`, measuring
+  compute rather than dispatch. **`jax.jit` your field function and reuse it** — the first call to a
+  new array shape pays a one-time compile that amortizes across an optimization loop.
+- **Where each side wins.** After compilation magpylib_jax's XLA kernels are competitive on CPU and
+  pull ahead as work is batched (observers, assembly size, sweep width); Magpylib's low-overhead
+  NumPy still wins the *smallest* problems, which the leftmost bars show honestly.
+- **Exact vs approximate gradients.** Magpylib has no autodiff, so the *field + gradient* panel pits
+  its 6-point finite differences (approximate, step-size dependent) against magpylib_jax's single
+  exact reverse pass — the largest and most decisive gap.
+- **`getFT` too.** Force/torque is jittable and differentiable when geometry and `meshing` are
+  static (only excitation/pose are traced), so `jax.jit(jax.grad(loss))` over a `getFT`-based loss
+  compiles once.
 
-Two caveats worth knowing: **`jax.jit` your field function and reuse it** (the eager object API
-pays per-call dispatch overhead that dominates small problems), and for timing wrap results in
-`jax.block_until_ready(...)` so you measure compute, not async dispatch. This applies to `getFT`
-too — it is jittable and differentiable when the geometry and `meshing` are static (only the
-excitation/pose are traced), so `jax.jit(jax.grad(loss))` over a `getFT`-based loss compiles once.
-
-> The benchmark is CPU. The panel titles report the active backend, so re-running
-> `python scripts/make_figures.py` on a GPU/TPU host regenerates the figure with that device's
-> numbers, where the batched, fused kernels parallelize much further.
+> The panels report the active backend in their titles, so re-running
+> `python scripts/make_benchmark_plots.py` on a GPU/TPU host regenerates the figure with that
+> device's numbers — where the batched, fused kernels parallelize much further. See the
+> [performance guide](docs/performance.md) for the full methodology.
 
 ## Visualize with `show()`
 

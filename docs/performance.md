@@ -106,23 +106,31 @@ per_call_ms = (time.perf_counter() - t0) / 20 * 1e3
 
 ## The honest CPU benchmark
 
-```{image} _static/benchmark.png
-:alt: Per-source-family CPU runtime, magpylib_jax vs magpylib
-:width: 90%
+```{image} _static/perf_hero.png
+:alt: magpylib_jax vs magpylib across four workloads
+:width: 95%
 :align: center
 ```
 
-The figure above compares steady-state CPU runtime per source family against upstream Magpylib.
-Read it with the async caveats in mind: it reports **compiled, warmed-up** runtime, so it excludes
-JAX's one-time compilation cost. The takeaways are practical rather than triumphal:
+The figure above compares steady-state CPU runtime across four representative workloads — batched
+`getB`, field + gradient, a magnet `Collection`, and a `vmap` parameter sweep — against upstream
+Magpylib. Read it with the async caveats in mind: it reports **compiled, warmed-up** runtime, so it
+excludes JAX's one-time compilation cost. The takeaways are practical rather than triumphal:
 
-- After compilation the analytic kernels are competitive on CPU and pull ahead as work is batched.
+- After compilation the analytic kernels are competitive on CPU and pull ahead as work is batched
+  (observers, assembly size, sweep width). Magpylib's low-overhead NumPy still wins the *smallest*
+  problems — visible in the leftmost bars.
+- The *field + gradient* panel is the decisive one: Magpylib has no autodiff and must finite-
+  difference (approximate, step-size dependent), while magpylib_jax returns the exact gradient in a
+  single reverse pass.
 - The first call to any new shape pays a compile cost — amortize it across an optimization loop.
 - The real advantage is not raw CPU speed but that the *same* call is differentiable, vectorizable,
   and portable to GPU/TPU. Converting the JAX result back to NumPy has a cost too, and the benchmark
   scripts record it.
 
-Regenerate the figure with
+Regenerate the four-panel figure with
+[`scripts/make_benchmark_plots.py`](https://github.com/uwplasma/magpylib_jax/blob/main/scripts/make_benchmark_plots.py),
+and the per-source-family view (`benchmark.png`) with
 [`scripts/make_figures.py`](https://github.com/uwplasma/magpylib_jax/blob/main/scripts/make_figures.py).
 
 ### Reproduce on GPU / TPU
