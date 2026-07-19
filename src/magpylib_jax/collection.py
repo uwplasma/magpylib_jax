@@ -244,6 +244,50 @@ class Collection(BaseGeo):
                 sources, sensors = self, inputs
         return sources, sensors
 
+    def _fast_field(
+        self, field: str, inputs: tuple, *, in_out: str, squeeze: bool,
+        sumup: bool, pixel_agg: str | None, output: str,
+    ) -> jnp.ndarray | None:
+        """Sum of members' (cached) field for the common single-array-observer
+        case; returns None (caller falls back) when conditions are not met.
+
+        A Collection acts as one source, so its field is the sum of its members'.
+        Restricted to the case where that sum is exactly equivalent to the engine
+        path: plain-array observers, default options, only sources (no sensors),
+        and single-pose members (no differing path lengths). ``min``/``max``
+        ``pixel_agg`` do not commute with the sum, so those fall back too.
+        """
+        from magpylib_jax.fields.api import _has_tracer
+
+        srcs = self.sources
+        if (
+            not srcs
+            or self.sensors
+            or sumup
+            or pixel_agg is not None
+            or output != "ndarray"
+            or not squeeze
+            or len(inputs) != 1
+        ):
+            return None
+        obs = inputs[0]
+        if isinstance(obs, BaseGeo) or _has_tracer(obs):
+            return None
+        try:
+            obs_arr = jnp.asarray(obs, dtype=float)
+        except (ValueError, TypeError):
+            return None
+        if obs_arr.ndim < 1 or obs_arr.shape[-1] != 3:
+            return None
+        if any(s._position.shape[0] != 1 for s in srcs):
+            return None
+        method = "get" + field
+        total = None
+        for s in srcs:
+            v = getattr(s, method)(obs_arr, in_out=in_out, squeeze=squeeze)
+            total = v if total is None else total + v
+        return total
+
     def getB(
         self,
         *inputs: object,
@@ -253,6 +297,12 @@ class Collection(BaseGeo):
         pixel_agg: str | None = None,
         output: str = "ndarray",
     ) -> jnp.ndarray:
+        fast = self._fast_field(
+            "B", inputs, in_out=in_out, squeeze=squeeze, sumup=sumup,
+            pixel_agg=pixel_agg, output=output,
+        )
+        if fast is not None:
+            return fast
         sources, sensors = self._validate_getBH_inputs(*inputs)
         return getB(
             sources,
@@ -273,6 +323,12 @@ class Collection(BaseGeo):
         pixel_agg: str | None = None,
         output: str = "ndarray",
     ) -> jnp.ndarray:
+        fast = self._fast_field(
+            "H", inputs, in_out=in_out, squeeze=squeeze, sumup=sumup,
+            pixel_agg=pixel_agg, output=output,
+        )
+        if fast is not None:
+            return fast
         sources, sensors = self._validate_getBH_inputs(*inputs)
         return getH(
             sources,
@@ -293,6 +349,12 @@ class Collection(BaseGeo):
         pixel_agg: str | None = None,
         output: str = "ndarray",
     ) -> jnp.ndarray:
+        fast = self._fast_field(
+            "J", inputs, in_out=in_out, squeeze=squeeze, sumup=sumup,
+            pixel_agg=pixel_agg, output=output,
+        )
+        if fast is not None:
+            return fast
         sources, sensors = self._validate_getBH_inputs(*inputs)
         return getJ(
             sources,
@@ -313,6 +375,12 @@ class Collection(BaseGeo):
         pixel_agg: str | None = None,
         output: str = "ndarray",
     ) -> jnp.ndarray:
+        fast = self._fast_field(
+            "M", inputs, in_out=in_out, squeeze=squeeze, sumup=sumup,
+            pixel_agg=pixel_agg, output=output,
+        )
+        if fast is not None:
+            return fast
         sources, sensors = self._validate_getBH_inputs(*inputs)
         return getM(
             sources,
