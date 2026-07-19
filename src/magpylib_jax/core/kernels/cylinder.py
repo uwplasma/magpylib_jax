@@ -9,7 +9,7 @@ from magpylib_jax._types import ArrayLike
 from magpylib_jax.constants import MU0
 from magpylib_jax.core.elliptic import cel, ellipe, ellipk, ellippi
 from magpylib_jax.core.geometry import cart_to_cyl, cyl_field_to_cart, ensure_observers
-from magpylib_jax.core.kernels._common import _broadcast_vector
+from magpylib_jax.core.kernels._common import _FOUR_PI, _broadcast_vector
 
 
 @jax.jit
@@ -114,7 +114,7 @@ def magnet_cylinder_diametral_hfield(
 
     hr_general = (
         -jnp.cos(phi)
-        / (4.0 * jnp.pi * safe_r2)
+        / (_FOUR_PI * safe_r2)
         * (
             -zm * am * elle_m
             + zp * ap * elle_p
@@ -126,7 +126,7 @@ def magnet_cylinder_diametral_hfield(
 
     hphi_general = (
         jnp.sin(phi)
-        / (4.0 * jnp.pi * safe_r2)
+        / (_FOUR_PI * safe_r2)
         * (
             +zm * am * elle_m
             - zp * ap * elle_p

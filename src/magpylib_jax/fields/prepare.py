@@ -588,9 +588,8 @@ def _prepare_sources_jit(
 
 
 def _stack_padded_paths(paths: Sequence[ArrayLike], target_len: int) -> jnp.ndarray:
-    first = jnp.asarray(paths[0], dtype=float)
-    tail_shape = first.shape[1:]
     if target_len == 1 and all(jnp.asarray(path).shape[0] == 1 for path in paths):
+        tail_shape = jnp.asarray(paths[0], dtype=float).shape[1:]
         stacked = [
             jnp.asarray(path, dtype=float).reshape((1,) + tail_shape) for path in paths
         ]

@@ -8,7 +8,7 @@ import jax.numpy as jnp
 from magpylib_jax._types import ArrayLike
 from magpylib_jax.constants import MU0
 from magpylib_jax.core.geometry import ensure_observers
-from magpylib_jax.core.kernels._common import _broadcast_vector
+from magpylib_jax.core.kernels._common import _FOUR_PI, _broadcast_vector
 from magpylib_jax.core.kernels._safe import _safe_arctan2, _safe_logabs, _safe_sqrt
 
 
@@ -119,7 +119,7 @@ def magnet_cuboid_bfield(
     by_tot = by_pol_x + by_pol_y + by_pol_z
     bz_tot = bz_pol_x + bz_pol_y + bz_pol_z
 
-    return jnp.stack((bx_tot, by_tot, bz_tot), axis=-1) / (4.0 * jnp.pi)
+    return jnp.stack((bx_tot, by_tot, bz_tot), axis=-1) / _FOUR_PI
 
 
 @jax.jit

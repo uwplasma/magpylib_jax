@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -12,12 +11,6 @@ from magpylib_jax._types import ArrayLike
 from magpylib_jax.core.base import BaseGeo, BaseSource, MagpylibBadUserInput
 from magpylib_jax.functional import getB, getH, getJ, getM
 from magpylib_jax.sensor import Sensor
-
-
-def _format_star_args(args: tuple[Any, ...]) -> Any:
-    if len(args) == 1:
-        return args[0]
-    return list(args)
 
 
 class Collection(BaseGeo):
