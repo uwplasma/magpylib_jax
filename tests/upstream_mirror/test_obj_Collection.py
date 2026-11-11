@@ -1,3 +1,4 @@
+import os
 import pickle
 import re
 from pathlib import Path
@@ -12,7 +13,8 @@ from magpylib_jax import MagpylibBadUserInput
 
 def test_Collection_basics():
     """test Collection fundamentals, test against magpylib2 fields"""
-    data_path = Path("/Users/rogerio/local/magpylib/tests/testdata/testdata_Collection.p")
+    # Point MAGPYLIB_TESTDATA at the upstream magpylib tests/testdata directory (a trusted local checkout).
+    data_path = Path(os.environ.get("MAGPYLIB_TESTDATA", "")) / "testdata_Collection.p"
     if not data_path.exists():
         pytest.skip("Reference collection testdata not available.")
     with data_path.resolve().open("rb") as f:
